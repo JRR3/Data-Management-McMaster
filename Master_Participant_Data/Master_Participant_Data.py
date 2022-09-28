@@ -12,22 +12,37 @@ import matplotlib.pyplot as plt
 # <b> Section: Master_Participant_Data </b>
 
 class MasterParticipantData:
-    def __init__(self, path):
-        #Which row contains the first data entry in the Excel file
-        self.excel_starts_at = 3
-        self.dpath = path
-        MPD = 'Master_Participant_Data'
-        self.fname = os.path.join(self.dpath, MPD + '.xlsx')
-        #Read the Excel file containing the data
-        self.df = pd.read_excel(self.fname,
-                                sheet_name="Master", skiprows=[0])
+    def __init__(self, path, df):
+
+        self.df = None
+
         self.merge_column = 'ID'
         self.DOR      = 'Date Removed from Study'
+        self.DOE      = 'Enrollment Date'
+        self.note     = 'Notes/Comments'
         self.reason   = 'Reason'
         self.status   = 'Active'
-        self.removal_states = ['deceased', 'moved out',
-                               'decline', 'withdraw from study']
+        self.comments = 'Notes/Comments'
+        self.removal_states = ['Deceased', 'Discharged', 'Moved Out',
+                               'Decline', 'Withdraw from Study']
+        self.removal_states_l = [x.lower() for x in self.removal_states]
 
+        if df is not None:
+            self.initialize_class_with_df(df)
+            print('MPD class initialization from DF.')
+        else:
+            #Which row contains the first data entry in the Excel file
+            self.excel_starts_at = 3
+            self.dpath = path
+            MPD = 'Master_Participant_Data'
+            self.fname = os.path.join(self.dpath, MPD + '.xlsx')
+            #Read the Excel file containing the data
+            self.df = pd.read_excel(self.fname,
+                                    sheet_name="Master", skiprows=[0])
+
+
+    def initialize_class_with_df(self, df):
+        self.df = df
 
     def relabel_ids(self):
         #We aim for a consistent and simple naming of variables 

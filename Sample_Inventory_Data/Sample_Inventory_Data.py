@@ -20,19 +20,28 @@ import datetime
 # Columns W:END are Blood Draw
 
 class SampleInventoryData:
-    def __init__(self, path):
-        #Which row contains the first data entry in the Excel file
-        self.excel_starts_at = 5
-        self.dpath = path
-        SID = 'Sample_Inventory_Data'
-        self.fname = os.path.join(self.dpath, SID + '.xlsx')
-        #Read the Excel file containing the data
-        self.df = pd.read_excel(self.fname,
-                                sheet_name="All Sites - AutoFill",
-                                skiprows=[0,1,2])
-        print('SampleInventoryData class initialization:')
-        print('SID file has been loaded from Excel.')
+    def __init__(self, path, df=None):
+
         self.merge_column = 'ID'
+
+        if df is not None:
+            self.initialize_class_with_df(df)
+            print('SID class initialization from DF.')
+        else:
+            #Which row contains the first data entry in the Excel file
+            self.excel_starts_at = 5
+            self.dpath = path
+            SID = 'Sample_Inventory_Data'
+            self.fname = os.path.join(self.dpath, SID + '.xlsx')
+            #Read the Excel file containing the data
+            self.df = pd.read_excel(self.fname,
+                                    sheet_name="All Sites - AutoFill",
+                                    skiprows=[0,1,2])
+            print('SID file has been loaded from Excel.')
+
+
+    def initialize_class_with_df(self, df):
+        self.df = df
 
     def rename_merging_column(self):
         dc = {'Sample ID': self.merge_column}
@@ -118,6 +127,7 @@ class SampleInventoryData:
         print('Excel file was loaded.')
 
     def update_master(self, df_m, kind='full'):
+        #Note that this function can be generalized.
         #This function updates the master data frame
         #df_m, which is the result of merging
         #(1) The Master Participant Data file
@@ -157,6 +167,30 @@ class SampleInventoryData:
         return M[original_list_of_columns]
 
 
+    def get_last_blood_draw(self, ID):
+        selector = self.df['ID'] == ID
+        row = self.df.loc[selector]
+        if 1 < len(row):
+            print(f'{ID=}')
+            raise ValueError('Unexpected repetitions. ID is not unique.')
+        L = []
+        #We assume the rows have a chronological order.
+        for col in self.df.columns:
+            if col.lower().startswith('blood draw'):
+                entry = row[col]
+                #print(f'{entry}')
+                if entry.notnull().all():
+                    value = entry.values[0]
+                    if isinstance(value, datetime.datetime):
+                        L.append(value)
+        if 0 == len(L):
+            return None
+        else:
+            return L[-1]
+
+
+
+
 
 
 
@@ -168,5 +202,4 @@ class SampleInventoryData:
         self.generate_excel_file()
         #self.print_col_names_and_types()
         #self.compare_data_frames()
-
         print('Module: module_Sample_Inventory.py FINISHED')

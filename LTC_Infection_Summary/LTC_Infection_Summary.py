@@ -16,16 +16,12 @@ import datetime
 # the given date is before any of the dates in the lookup table.
 
 class LTCInfectionSummary:
-    def __init__(self, path):
-        #Which row contains the first data entry in the Excel file
-        self.excel_starts_at = 3
+    def __init__(self, path, df=None):
+
+        self.df = None
         self.dpath = path
-        LIS = 'LTC_Infection_Summary'
-        self.fname = os.path.join(self.dpath, LIS + '.xlsx')
-        #Read the Excel file containing the data
-        self.df = pd.read_excel(self.fname,
-                   sheet_name="Summary List-NEW",
-                   usecols="A:Q", skiprows=[0])
+
+
         self.merge_column = 'ID'
         wave_fname = "LTC_wave_start_dates.xlsx"
         self.wave_fname = os.path.join(self.dpath, wave_fname)
@@ -53,11 +49,24 @@ class LTCInfectionSummary:
 
         self.load_wave_types_and_dates()
 
-        print('The LTCInfectionSummary class has been loaded.')
+        if df is not None:
+            self.initialize_class_with_df(df)
+            print('LIS class initialization from DF.')
+        else:
+            #Which row contains the first data entry in the Excel file
+            self.excel_starts_at = 3
+            LIS = 'LTC_Infection_Summary'
+            self.fname = os.path.join(self.dpath, LIS + '.xlsx')
+            #Read the Excel file containing the data
+            self.df = pd.read_excel(self.fname,
+                       sheet_name="Summary List-NEW",
+                       usecols="A:Q", skiprows=[0])
+            print('The LIS class has been loaded using local file.')
+
 
     def load_wave_types_and_dates(self):
         self.df_waves   = pd.read_excel(self.wave_fname, sheet_name="dates")
-        print('Wave types and dates has been loaded inside LIS.')
+        print('Wave types and dates has been loaded inside the LIS class.')
         self.n_waves  = len(self.df_waves)
         for index, row in self.df_waves.iterrows():
             s_wave = row[self.wave_short]
