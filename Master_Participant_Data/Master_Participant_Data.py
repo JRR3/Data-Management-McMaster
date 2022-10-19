@@ -12,9 +12,9 @@ import matplotlib.pyplot as plt
 # <b> Section: Master_Participant_Data </b>
 
 class MasterParticipantData:
-    def __init__(self, path, df):
+    def __init__(self, path, parent=None):
 
-        self.df = None
+        self.parent = None
 
         self.merge_column = 'ID'
         self.DOR      = 'Date Removed from Study'
@@ -27,9 +27,9 @@ class MasterParticipantData:
                                'Decline', 'Withdraw from Study']
         self.removal_states_l = [x.lower() for x in self.removal_states]
 
-        if df is not None:
-            self.initialize_class_with_df(df)
-            print('MPD class initialization from DF.')
+        if parent:
+            self.parent = parent
+            print('MPD class initialization from Manager.')
         else:
             #Which row contains the first data entry in the Excel file
             self.excel_starts_at = 3
@@ -37,32 +37,29 @@ class MasterParticipantData:
             MPD = 'Master_Participant_Data'
             self.fname = os.path.join(self.dpath, MPD + '.xlsx')
             #Read the Excel file containing the data
-            self.df = pd.read_excel(self.fname,
+            self.parent.df = pd.read_excel(self.fname,
                                     sheet_name="Master", skiprows=[0])
 
-
-    def initialize_class_with_df(self, df):
-        self.df = df
 
     def relabel_ids(self):
         #We aim for a consistent and simple naming of variables 
         dc = {'Sample ID':'ID', 'Enrollment Date (dd-mm-yyyy)':'Enrollment Date'}
-        self.df.rename(columns=dc, inplace=True)
+        self.parent.df.rename(columns=dc, inplace=True)
 
 
     def delete_unnecessary_columns(self):
-        self.df.drop(columns=['Inventory File', 'Combo'], inplace=True)
+        self.parent.df.drop(columns=['Inventory File', 'Combo'], inplace=True)
 
 
     def remove_nan_ids(self):
-        self.df.dropna(axis=0, subset=['ID'], inplace=True)
+        self.parent.df.dropna(axis=0, subset=['ID'], inplace=True)
 
     def check_for_repeats(self):
         #We drop rows containing NA in the "Sample ID" from the
         #file because sometimes there are additional comments
         #below the table that get interpreted as additional rows.
-        self.df.dropna(subset=[self.merge_column], inplace=True)
-        value_count_gt_1 = self.df[self.merge_column].value_counts().gt(1)
+        self.parent.df.dropna(subset=[self.merge_column], inplace=True)
+        value_count_gt_1 = self.parent.df[self.merge_column].value_counts().gt(1)
         if value_count_gt_1.any():
             print('We have repetitions in Master Participant Data')
             print('Check the column:', self.merge_column)
@@ -74,11 +71,11 @@ class MasterParticipantData:
         #Estimate the DOB in case it is missing
         dob = 'DOB'
         #Convert integer age baseline to days.
-        age_in_days = pd.to_timedelta(self.df['Age Baseline'] * 365, unit='D')
+        age_in_days = pd.to_timedelta(self.parent.df['Age Baseline'] * 365, unit='D')
         doe= 'Enrollment Date'
         no_consent = 'no consent received'
         exceptions = [no_consent, '00', '#N/A']
-        selection = self.df[doe].isin(exceptions)
+        selection = self.parent.df[doe].isin(exceptions)
         if selection.any():
             #Note that we are using selection as a boolean
             #vector for the loc argument of the selection 
@@ -87,25 +84,24 @@ class MasterParticipantData:
             print('There are dates in the set of exceptions.')
             #Print exceptions
             for index, _ in indices.iteritems():
-                individual = self.df.loc[index, 'ID']
-                exception = self.df.loc[index, doe]
+                individual = self.parent.df.loc[index, 'ID']
+                exception = self.parent.df.loc[index, doe]
                 print('The date of enrollment for:', individual, end='')
                 print(' is:', exception)
             #Relabel exception       
-            self.df.loc[selection,doe] = np.nan
+            self.parent.df.loc[selection,doe] = np.nan
         #Format as date
-        self.df[doe] = pd.to_datetime(self.df[doe], dayfirst=True)
+        self.parent.df[doe] = pd.to_datetime(self.parent.df[doe], dayfirst=True)
         #Compute DOB as DOE minus Age in days if DB does not exists.
-        T = self.df[doe] - age_in_days
+        T = self.parent.df[doe] - age_in_days
         #Replace only if empty
-        self.df[dob] = self.df[dob].where(~self.df[dob].isnull(), T)
-
+        self.parent.df[dob] = self.parent.df[dob].where(~self.parent.df[dob].isnull(), T)
 
 
     def clean_date_removed_from_study(self):
         col_name = 'Date Removed from Study'
         L = []
-        for index, value in self.df[col_name].iteritems():
+        for index, value in self.parent.df[col_name].iteritems():
             if isinstance(value, str):
                 txt = value.lower()
                 #Remove spaces
@@ -117,27 +113,7 @@ class MasterParticipantData:
             else:
                 L.append(value)
         #Convert to datetime format
-        self.df[col_name] = pd.to_datetime(L)
-
-
-    def get_vaccine_types_and_dates(self):
-        vaccine_type_cols = []
-        vaccine_dates_cols = []
-        vt = 'vaccine type'
-        vd = 'vaccine date'
-        for column in self.df.columns:
-            c = column.lower()
-            if vt in c:
-                vaccine_type_cols.append(column)
-            elif vd in c:
-                vaccine_dates_cols.append(column)
-        tpl = (vaccine_type_cols, vaccine_dates_cols)
-        return tpl
-
-
-    def print_col_names_and_types(self):
-        for name, dtype in zip(self.df.columns, self.df.dtypes):
-            print(name, ':', dtype)
+        self.parent.df[col_name] = pd.to_datetime(L)
 
 
     def add_Y_in_the_Whole_Blood_column(self):
@@ -150,10 +126,10 @@ class MasterParticipantData:
             state = update_row['Whole Blood']
             #Note that we are requesting ALL the rows that have the
             #given ID. However, in practive we expect to get only one.
-            rows = self.df[self.df['ID']== ID]
+            rows = self.parent.df[self.parent.df['ID']== ID]
             for index, row in rows.iterrows():
                 if row[up_col] != 'Y':
-                    self.df.loc[index, up_col] = state
+                    self.parent.df.loc[index, up_col] = state
                     print('Made a change in the WB column for', ID)
                     print('Changed to', state)
 
@@ -166,11 +142,11 @@ class MasterParticipantData:
         for _, update_row in df_ids.iterrows():
             ID = update_row['ID']
             state = update_row[up_col]
-            rows = self.df[self.df['ID']== ID]
+            rows = self.parent.df[self.parent.df['ID']== ID]
             for index, row in rows.iterrows():
                 value = row[up_col]
                 if pd.isnull(value):
-                    self.df.loc[index, up_col] = state
+                    self.parent.df.loc[index, up_col] = state
                     print('Made a change in the Reason column for', ID)
                     print('Changed to', state)
                 else:
@@ -179,7 +155,7 @@ class MasterParticipantData:
     ##########Sep 22 2022##################
 
     def initialize_class_with_df(self, df):
-        self.df = df
+        self.parent.df = df
 
     def update_reason_dates_and_status(self, df_up):
         print('Update the Reason, the DOR and the status (Active).')
@@ -187,9 +163,11 @@ class MasterParticipantData:
             ID = row['ID']
             date = row['date']
             reason = row[self.reason]
-            selector = self.df['ID'] == ID
-            self.df.loc[selector, self.DOR] = date
-            self.df.loc[selector, self.reason] = reason
+            selector = self.parent.df['ID'] == ID
+            if not selector.any():
+                raise ValueError('ID does not exist.')
+            self.parent.df.loc[selector, self.DOR] = date
+            self.parent.df.loc[selector, self.reason] = reason
 
         print('The DOR and Reason columns have been updated.')
 
@@ -199,7 +177,7 @@ class MasterParticipantData:
     def generate_excel_file(self):
         fname = 'Master_Participant_Data_X.xlsx'
         txt = os.path.join(self.dpath, fname)
-        self.df.to_excel(txt, index=False)
+        self.parent.df.to_excel(txt, index=False)
         print('Excel file was produced.')
 
     def compare_data_frames(self):
@@ -211,13 +189,13 @@ class MasterParticipantData:
     def load_main_frame(self):
         fname = 'Master_Participant_Data_X.xlsx'
         fname = os.path.join(self.dpath, fname)
-        self.df = pd.read_excel(fname)
+        self.parent.df = pd.read_excel(fname)
         print('Excel file was loaded.')
 
     def update_active_status_column(self):
-        c1 = self.df[self.DOR].notnull()
-        c2 = self.df[self.reason].notnull()
-        self.df[self.status] = ~(c1 | c2)
+        c1 = self.parent.df[self.DOR].notnull()
+        c2 = self.parent.df[self.reason].notnull()
+        self.parent.df[self.status] = ~(c1 | c2)
         print('The active status column has been updated.')
 
     def full_run(self):
@@ -233,6 +211,75 @@ class MasterParticipantData:
         #self.compare_data_frames()
 
         print('Module: module_Master_Participant_Data.py FINISHED')
+
+    ##########Oct 17 2022##################
+    def add_site_column(self):
+        rexp = re.compile('(?P<site>[0-9]+)[-](?P<user>[0-9]+)')
+        def get_site(txt):
+            obj = rexp.search(txt)
+            if obj:
+                return obj.group('site')
+            else:
+                raise ValueError('Unable to extract site')
+
+        site = 'Site'
+        if site in self.parent.df.columns:
+            return
+        self.parent.df[site] = self.parent.df['ID']
+        self.parent.df[site] = self.parent.df[site].apply(get_site)
+
+    ##########Oct 19 2022##################
+    def update_M_from_comments_and_dates(self):
+        #Example
+        #ID          COMMENTS            DOR
+        #05-2924993  XYZ+DISCHARGED+XYZ  9/20/2022
+        #Be careful with the date formats.
+        #For this data set the first 
+        #number represents the month.
+        fname = 'data.xlsx'
+        folder = 'Megan_2_19_oct_2022'
+        fname = os.path.join(self.parent.requests_path, folder, fname)
+        df_up = pd.read_excel(fname)
+        print(df_up)
+        L = []
+        for index, row in df_up.iterrows():
+            comment = row['COMMENTS']
+            for k,reason in enumerate(self.removal_states_l):
+                if reason in comment.lower():
+                    R = self.removal_states[k]
+                    L.append(R)
+                    break
+            date = row[self.DOR]
+            print(date)
+            if isinstance(date, str):
+                print('String')
+                dt = pd.to_datetime(date, dayfirst=False)
+                print(f'{dt=}')
+                print('===============')
+                df_up.loc[index, self.DOR] = dt
+            elif isinstance(date, datetime.datetime):
+                print('Date')
+                pass
+            else:
+                raise ValueError('Unexpected type')
+
+        df_up['Reason'] = L
+        df_up[self.DOR] = pd.to_datetime(df_up[self.DOR])
+        self.parent.print_column_and_datatype(df_up)
+        cols_to_keep = ['ID', self.DOR, 'Reason']
+        df_up = df_up[cols_to_keep]
+        print(df_up)
+        self.parent.df = self.parent.merge_with_M_and_return_M(df_up, 'ID', kind='original+')
+        print('Ready to write M file to Excel.')
+        self.parent.write_the_M_file_to_excel()
+
+
+
+
+
+
+
+
 
 
 

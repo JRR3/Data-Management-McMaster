@@ -20,13 +20,20 @@ import datetime
 # Columns W:END are Blood Draw
 
 class SampleInventoryData:
-    def __init__(self, path, df=None):
+    def __init__(self, path, parent=None):
 
+        self.dpath = path
         self.merge_column = 'ID'
+        self.blood_draw   = 'blood draw'
+        self.blood_draw_code_to_col_name = {}
+        self.original_to_current = {}
+        self.code_regexp = re.compile('[-][ ]*(?P<code>[A-Z]+)')
 
-        if df is not None:
-            self.initialize_class_with_df(df)
-            print('SID class initialization from DF.')
+        if parent:
+            self.parent = parent
+            self.relate_blood_draw_code_to_col_name()
+            self.relate_original_column_names_to_current()
+            print('SID class has been initialized with the Manager class.')
         else:
             #Which row contains the first data entry in the Excel file
             self.excel_starts_at = 5
@@ -40,16 +47,15 @@ class SampleInventoryData:
             print('SID file has been loaded from Excel.')
 
 
-    def initialize_class_with_df(self, df):
-        self.df = df
 
     def rename_merging_column(self):
         dc = {'Sample ID': self.merge_column}
         self.df.rename(columns = dc, inplace=True)
 
     def remove_zeros(self):
+        #Oct 12, 2022
         #Some dates are the product of having zeros in Excel.
-        #We convert this dates to NaN.
+        #We convert these dates to NaN.
         self.df.replace(datetime.time(0,0), np.nan, inplace=True)
 
 
@@ -126,46 +132,6 @@ class SampleInventoryData:
         self.df = pd.read_excel(fname)
         print('Excel file was loaded.')
 
-    def update_master(self, df_m, kind='full'):
-        #Note that this function can be generalized.
-        #This function updates the master data frame
-        #df_m, which is the result of merging
-        #(1) The Master Participant Data file
-        #(2) The LTC Infection Summary file
-        #(3) The Sample Inventory File
-        #First, we read the update and 
-        #give it the right format.
-        self.full_run()
-        #Check compatibility of columns
-        original_list_of_columns = df_m.columns
-        for column in self.df:
-            if column not in df_m.columns:
-                raise ValueError('Incompatible columns in SID')
-        print('All columns are compatible')
-        #Left = Master DF
-        #Right= Update
-        M = pd.merge(df_m, self.df, on=self.merge_column, how='outer')
-        for column in self.df:
-            if column == self.merge_column:
-                #Ignore the ID column
-                continue
-            left = column + '_x'
-            right = column + '_y'
-            if kind == 'full':
-                #Only trust the update
-                M[column] = M[right]
-            elif kind == 'complement':
-                #Keep the original if not empty.
-                #Otherwise, use the update.
-                M[column] = M[left].where(M[left].notnull(), M[right])
-            else:
-                raise ValueError('Unexpected kind for the SID update')
-            #Erase the left and right columns
-            M.drop(columns = [left, right], inplace=True)
-
-        #Use the original order of the columns
-        return M[original_list_of_columns]
-
 
     def get_last_blood_draw(self, ID):
         selector = self.df['ID'] == ID
@@ -188,18 +154,101 @@ class SampleInventoryData:
         else:
             return L[-1]
 
-
-
-
-
-
-
     def full_run(self):
         self.rename_merging_column()
         self.remove_zeros()
         self.check_for_repeats_in_sample_inventory()
         self.relabel_and_delete_columns()
         self.generate_excel_file()
-        #self.print_col_names_and_types()
-        #self.compare_data_frames()
-        print('Module: module_Sample_Inventory.py FINISHED')
+
+    #Oct 5 2022
+    def extract_letter_code(self, txt):
+        obj = self.code_regexp.search(txt)
+        if obj:
+            return obj.group('code')
+        else:
+            raise ValueError('Unable to extract letter code.')
+
+    def relate_original_column_names_to_current(self):
+        #Oct 12, 2022
+        fname = 'label_dictionary.xlsx'
+        fname = os.path.join(self.dpath, fname)
+        df_up = pd.read_excel(fname)
+        for index, row in df_up.iterrows():
+            original = row['Original']
+            current = row['Current']
+            self.original_to_current[original] = current
+        #print(df_up)
+
+    def format_megans_update(self, df_up):
+        #Rename columns
+        df_up.rename(columns=self.original_to_current, inplace=True)
+        #Replace 0-dates
+        df_up.replace(datetime.time(0,0), np.nan, inplace=True)
+        #Check for repeats
+        df_up.dropna(subset=[self.merge_column], inplace=True)
+        value_count_gt_1 = df_up[self.merge_column].value_counts().gt(1)
+        if value_count_gt_1.any():
+            print('We have repetitions in Sample Inventory')
+            raise ValueError('No repetitions were expected.')
+        else:
+            print('No repeats were found in Sample Inventory')
+
+    def relate_blood_draw_code_to_col_name(self):
+        #This function uses the PARENT object.
+        #Generate a dictionary to relate the
+        #blood draw code to the column name in the M file.
+        for col_name in self.parent.df.columns:
+            if col_name.lower().startswith(self.blood_draw):
+                code = self.extract_letter_code(col_name)
+                self.blood_draw_code_to_col_name[code] = col_name
+        #print(self.blood_draw_code_to_col_name)
+
+
+
+    def check_LSM_dates_using_SID(self):
+        #This function was modified on Oct 12, 2022
+        #This function uses the PARENT object.
+        #Check the dates in the LSM '
+        #file using the SID file.
+        #Notation
+        #doc: date of collection
+        print('Checking the dates of the LSM file using the SID.')
+        doc = 'Date Collected'
+        missing_dates = []
+        for index, row in self.parent.LSM_obj.df.iterrows():
+            ID = row['ID']
+            full_ID = row['Full ID']
+            letter_code = self.extract_letter_code(full_ID)
+            col_name_for_code = self.blood_draw_code_to_col_name[letter_code]
+            #Note that the doc cannot be empty because
+            #it is connected to the letter code portion
+            #of the full id.
+            doc_LSM = row[doc]
+            selector = self.parent.df['ID'] == ID
+            doc_M = self.parent.df.loc[selector, col_name_for_code]
+            if doc_M.isnull().any():
+                print(f'{full_ID=}')
+                missing_dates.append(full_ID)
+                continue
+                #raise ValueError('The date for this ID DNE in the M file.')
+            doc_M = doc_M.values[0]
+            if pd.notnull(doc_LSM):
+                delta = (doc_M - doc_LSM) / np.timedelta64(1, 'D')
+                if 1 < delta:
+                    raise ValueError('The date for this ID does not match the M file.')
+            else:
+                #If the date is empty in the LSM file, we 
+                #simply complete it with the M file.
+                print(f'{full_ID=} DOC was assigned from SID.')
+                self.parent.LSM_obj.df.loc[index, doc] = doc_M
+        if  0 < len(missing_dates):
+            print('The following Full IDs have missing dates:')
+            S = pd.Series(missing_dates)
+            print(S.to_string(index=False))
+        else:
+            print('All dates in the LSM file are consistent.')
+        #self.parent.LSM_obj.write_to_excel()
+
+
+

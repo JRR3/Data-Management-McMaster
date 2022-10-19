@@ -19,6 +19,7 @@ class LTCSerologyMaster:
         self.backups_path = os.path.join('..', 'backups')
         self.merge_source = 'Full ID'
         self.merge_column = 'ID'
+        self.DOC          = 'Date Collected'
 
         self.load_LSM_file()
 
@@ -32,25 +33,39 @@ class LTCSerologyMaster:
 
         print('LSM class has been initialized with LSM file.')
 
-        self.create_id_column()
 
-    def create_id_column(self):
-        rx = re.compile('[0-9]+[-][0-9]+')
-        L = []
-        for index, row in self.df.iterrows():
-            txt = row[self.merge_source]
-            obj = rx.match(txt)
+    def update_id_column(self):
+        #This function was updated on Oct 12, 2022
+
+        flag_needs_order = False
+        if self.merge_column not in self.df.columns:
+            print('Creating the ID column.')
+            flag_needs_order = True
+            column_order = [self.merge_column] + self.df.columns.to_list()
+            self.df[self.merge_column] = ''
+        else:
+            print('The ID column already exists.')
+
+
+
+        id_rx = re.compile('[0-9]+[-][0-9]+')
+        def get_id_from_full_id(txt):
+            obj = id_rx.match(txt)
             if obj is None:
+                print(txt)
                 raise ValueError('ID is not compliant.')
-            L.append(obj.group(0))
+            return obj.group(0)
+
+        self.df[self.merge_column] =\
+                self.df[self.merge_source].apply(get_id_from_full_id)
+        print('ID column has been updated inside the LSM file.')
+
+        if flag_needs_order:
+            print('Reordering the columns.')
+            self.df = self.df[column_order]
+
         if self.df[self.merge_source].value_counts().gt(1).any():
             raise ValueError('No repetitions should be present.')
-        column_order = [self.merge_column] + self.df.columns.to_list()
-        self.df[self.merge_column] = L
-        self.df = self.df[column_order]
-        print('ID column has been created inside the LSM file.')
-        print('Columns should be in the original order.')
-        #print(self.df)
 
     ######September 28 20222
 
@@ -69,6 +84,7 @@ class LTCSerologyMaster:
         self.backup_the_LSM_file()
         fname = 'LSM.xlsx'
         fname = os.path.join(self.dpath, fname)
+        print('Writing the LSM file to Excel.')
         self.df.to_excel(fname, index = False)
         print('The LSM file has been written to Excel.')
 
@@ -125,6 +141,8 @@ class LTCSerologyMaster:
             col_indices[k] = s
 
         merge_at_column = 'Full ID'
+        #Set in the dictionary the mapping:
+        #id_col_index -> merge_at_column
         col_indices[id_col_index] = merge_at_column
         print(col_indices)
         df_up.rename(columns = col_indices, inplace = True)
@@ -139,6 +157,7 @@ class LTCSerologyMaster:
         df_up[merge_at_column] = df_up[merge_at_column].apply(is_id)
         df_up.dropna(subset=merge_at_column, axis=0, inplace=True)
         print('Ready to merge')
+        #The update has a higher hierarchy than the current data.
         prioritize_update = True
         M = pd.merge(self.df, df_up, on=merge_at_column, how='outer')
         for key, value in col_indices.items():
@@ -149,7 +168,9 @@ class LTCSerologyMaster:
                 right = value + '_y'
                 z = M[left].isnull() &  M[right].notnull()
                 if z.any():
-                    print('New indeed for', value)
+                    print('>>>New indeed for', value)
+                else:
+                    print('Column', value, 'appears to be complete.')
                 if value in M.columns:
                     raise ValueError('This column should not exist.')
                 if prioritize_update:
@@ -163,6 +184,7 @@ class LTCSerologyMaster:
             else:
                 raise ValueError('This column does not exist.')
         self.df = M[original_columns]
+        self.update_id_column()
         print('End of merging process.')
 
 

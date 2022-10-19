@@ -351,5 +351,466 @@ class Comparator:
         self.MPD_obj.update_active_status_column()
         self.write_the_M_file_to_excel()
 
-obj = Comparator()
-obj.load_the_rainbow()
+    def request_jbreznik_26_09_2022(self):
+        #Sep 28, 2022
+        #PCR + DBS + MPD
+        fname = 'DBS.xlsx'
+        folder = 'jbreznik_sep_26_2022'
+        fname = os.path.join('..','requests',folder, fname)
+        df_dbs = pd.read_excel(fname, sheet_name='Raw Data + Linking')
+        #print(df_dbs)
+        relevant_cols = ['ID',
+                         'DBS: Visit',
+                         'DBS: Date',
+                         'DBS: Nuc IgG 2.5',
+                         'DBS: Nuc BAU/ml IgG 0.15625',
+                         'DBS: Nuc BAU/ml IgG 0.625',
+                         'DBS: Nuc BAU/ml IgG 2.5']
+        print(relevant_cols)
+        df_dbs = df_dbs[relevant_cols]
+        #Get rid of noncompliant rows based on their IDs.
+        rexp_c = re.compile('[0-9]+[-][0-9]+')
+        def is_id(txt):
+            if txt is np.nan:
+                return txt
+            obj = rexp_c.search(txt)
+            if obj:
+                return obj.group(0)
+            else:
+                return np.nan
+        df_dbs['ID'] = df_dbs['ID'].apply(is_id)
+        df_dbs.dropna(subset='ID', axis=0, inplace=True)
+        df_dbs['DBS: Date'] = pd.to_datetime(df_dbs['DBS: Date'])
+        for col, dtype in zip(df_dbs.columns, df_dbs.dtypes):
+            print(col, dtype)
+        #print(df_dbs)
+        #Relevant columns for the LSM
+        relevant_cols = []
+        for col in self.LSM_obj.df.columns:
+            if col.startswith('Nuc-IgG') or col.startswith('Nuc-IgA'):
+                relevant_cols.append(col)
+        base = self.LSM_obj.df.columns[:3]
+        relevant_cols = base.to_list() + relevant_cols
+        print(relevant_cols)
+        df_LSM = self.LSM_obj.df[relevant_cols]
+        #Relevant columns for the M file
+        pcr = 'PCR'
+        pcr_true = 'PCR-confirmed infection'
+        selector = self.df['ID'].isnull()
+        for dt_col, dm_col in zip(self.LIS_obj.positive_date_cols,
+                                  self.LIS_obj.positive_type_cols):
+            t_selector = self.df[dm_col] == pcr
+            self.df[dt_col] = self.df[dt_col].where(t_selector, np.nan)
+            selector |= t_selector
+        self.df[pcr_true] = selector
+        relevant_cols = ['ID', pcr_true] + self.LIS_obj.positive_date_cols
+        print(relevant_cols)
+        df_M = self.df[relevant_cols]
+        #####Time to merge
+        m1 = pd.merge(df_dbs, df_LSM, on='ID', how='outer')
+        m2 = pd.merge(m1, df_M, on='ID', how='outer')
+        fname = 'DBS_SER_PCR.xlsx'
+        fname = os.path.join(self.outputs_path, fname)
+        m2.to_excel(fname, index=False)
+        print(f'File {fname=} has been written to Excel.')
+
+
+    def request_megan_28_09_2022(self):
+        #Sep 29, 2022
+        #This function is to update the MPD file.
+        fname = 'req.xlsx'
+        folder = 'Megan_S20_28_Sep_2022'
+        fname = os.path.join('..','requests',folder, fname)
+        df_up = pd.read_excel(fname)
+        local_to_std = {'Pass':'Deceased', 'Dis':'Discharged'}
+        letter_to_sex = {'F':'Female', 'M':'Male'}
+        self.check_id_format(df_up, 'ID')
+        def change_reason(txt):
+            return local_to_std[txt]
+        def expand_sex_letter(txt):
+            return letter_to_sex[txt]
+        self.print_column_and_datatype(df_up)
+        df_up['Reason'] = df_up['Reason'].apply(change_reason)
+        df_up['Sex'] = df_up['Sex'].apply(expand_sex_letter)
+        DOR = 'Date Removed from Study'
+        relevant_columns = ['ID', DOR, 'Sex', 'Reason']
+        df_up = df_up[relevant_columns]
+        print(df_up)
+        M = self.merge_with_master(df_up, 'ID', kind='complement')
+        #Ready to write.
+        self.df = M
+        self.write_the_M_file_to_excel()
+
+    def update_master(self, df_m, kind='update+'):
+        #This function used to be part of the SID class.
+        #However, the Manager class has a function that does
+        #the same. So we removed it to avoid redundancies.
+
+        #Note that this function can be generalized.
+        #This function updates the master data frame
+        #df_m, which is the result of merging
+        #(1) The Master Participant Data file
+        #(2) The LTC Infection Summary file
+        #(3) The Sample Inventory File
+        #First, we read the update and 
+        #give it the right format.
+        self.full_run()
+        #Check compatibility of columns
+        original_list_of_columns = df_m.columns
+        for column in self.df:
+            if column not in df_m.columns:
+                raise ValueError('Incompatible columns in SID')
+        print('All columns are compatible')
+        #Left = Master DF
+        #Right= Update
+        M = pd.merge(df_m, self.df, on=self.merge_column, how='outer')
+        for column in self.df:
+            if column == self.merge_column:
+                #Ignore the ID column
+                continue
+            left = column + '_x'
+            right = column + '_y'
+            if kind == 'update++':
+                #Only trust the update
+                M[column] = M[right]
+            elif kind == 'update+':
+                #The update has a higher priority
+                #Keep the update if not empty.
+                #Otherwise, use the original.
+                M[column] = M[right].where(M[right].notnull(), M[left])
+            elif kind == 'original+':
+                #Keep the original if not empty.
+                #Otherwise, use the update.
+                M[column] = M[left].where(M[left].notnull(), M[right])
+            else:
+                raise ValueError('Unexpected kind for the SID update')
+            #Erase the left and right columns
+            M.drop(columns = [left, right], inplace=True)
+
+        #Use the original order of the columns
+        return M[original_list_of_columns]
+
+
+
+
+    def update_PCR(self):
+        #Oct 03, 2022
+        self.LIS_obj.update_PCR_and_infection_status()
+        #self.write_the_M_file_to_excel()
+
+    def neutra_data(self):
+        #Oct 03, 2022
+        self.LND_obj.clean_LND_file()
+        self.print_column_and_datatype(self.LND_obj.df)
+        #self.write_the_M_file_to_excel()
+        self.write_df_to_excel(self.LND_obj.df)
+
+    #Oct 10,11,12 2022
+    def tara_req_oct_3_2022(self):
+        fname = 'sv_data.xlsx'
+        folder = 'Tara_oct_03_2022'
+        fname = os.path.join('..','requests',folder, fname)
+        df_up = pd.read_excel(fname, sheet_name='1')
+        df_up.replace('n/a', np.nan, inplace=True)
+        df_up.replace('refused', np.nan, inplace=True)
+        df_up.replace('Refused', np.nan, inplace=True)
+        df_up.replace('REFUSED', np.nan, inplace=True)
+        df_up.replace('None', np.nan, inplace=True)
+        df_up.replace('Unknown', np.nan, inplace=True)
+        df_up.replace('Moved', 'Moved Out', inplace=True)
+        df_up.replace(' ', np.nan, inplace=True)
+        prev_inf_col = 'Date of Previous COVID Infection'
+
+        self.print_column_and_datatype(df_up)
+        print(df_up)
+        clean_sp = lambda x: x.replace(' ','')
+        df_up['ID'] = df_up['ID'].apply(clean_sp)
+        self.check_id_format(df_up, 'ID')
+        max_date = datetime.datetime(2000,1,1)
+        print(max_date)
+        relevant_cols = ['DOB'] + self.LIS_obj.vaccine_date_cols
+        for col in relevant_cols:
+            print(f'Working with {col=}')
+            for index, date in df_up[col].items():
+                if pd.notnull(date):
+                    if isinstance(date, str):
+                        date = pd.to_datetime(date,
+                                              dayfirst=False,
+                                              yearfirst=False)
+                        df_up.loc[index, col] = date
+                    if col == 'DOB' and isinstance(date, datetime.datetime):
+                        if max_date < date:
+                            date = date - pd.DateOffset(years=100)
+                            df_up.loc[index, col] = date
+                            print(date)
+                    elif isinstance(date, datetime.datetime):
+                        pass
+                    else:
+                        print(date)
+                        raise ValueError('Unexpected type.')
+            df_up[col] = pd.to_datetime(df_up[col])
+
+        df_up[prev_inf_col] = df_up[prev_inf_col].astype('string')
+        #print(df_up)
+        self.print_column_and_datatype(df_up)
+        #If the DOB in the MPD file is less than 700 days
+        #from the date in the update, we'll use the update.
+        #Otherwise, we keep the date from the MPD.
+        #Sometime we have cells with two dates, e.g.,
+        #date 1; date 2. Hence, we use a regexp to extract
+        #those dates.
+        rx = re.compile('[0-9][0-9a-zA-Z/-]{5,}')
+        DNE = []
+        for index, row in df_up.iterrows():
+            #print('-------------')
+            ID = row['ID']
+            print(f'{ID=}')
+            dob_up = row['DOB']
+            #print(f'{dob_up=}')
+            selector  = self.df['ID'] == ID
+            if not selector.any():
+                print('This ID does not exist in the M file.')
+                DNE.append(ID)
+                raise ValueError('DNE')
+            dob_m = self.df.loc[selector,'DOB']
+            if pd.notnull(dob_m).all():
+                dob_m = dob_m.values[0]
+                #print(f'{dob_m=}')
+                delta = (dob_m - dob_up) / np.timedelta64(1,'D')
+                delta = np.abs(delta)
+                if delta < 700:
+                    #print('Fine')
+                    pass
+                else:
+                    #Since we plan to give priority to the
+                    #update, if the difference is too large
+                    #we empty the cell in the update so that
+                    #we keep the value in the M file.
+                    df_up.loc[index,'DOB'] = np.nan
+            prev_inf = row[prev_inf_col]
+            if pd.isnull(prev_inf):
+                continue
+            L = []
+            date_obj = rx.findall(prev_inf)
+            print(prev_inf)
+            print(date_obj)
+            for date in date_obj:
+                print('Before transformation:')
+                print(date)
+                new_date = pd.to_datetime(date)
+                L.append(new_date)
+                print('After transformation:')
+                print(new_date)
+            #Get the vector of + infection dates from the M file.
+            p_dates = self.df.loc[selector,
+                                  self.LIS_obj.positive_date_cols]
+            s = p_dates.notnull().values[0]
+            p_dates = p_dates.values[0][s]
+            #Iterate over the dates in the update file.
+            for up_date in L:
+                found = False
+                k = -1
+                #Iterate over the dates in the M file.
+                for k,p_date in enumerate(p_dates):
+                    #p_date = pd.to_datetime(p_date)
+                    delta = (p_date - up_date) / np.timedelta64(1,'D')
+                    delta = np.abs(delta)
+                    if delta < 10:
+                        found = True
+                        break
+                if not found:
+                    print('This date was not found:')
+                    print(up_date)
+                    k += 1
+                    p_date_col = self.LIS_obj.positive_date_cols[k]
+                    print(f'We are going to include it at {p_date_col}.')
+                    print(f'Note that the order might have to be corrected')
+                    self.df.loc[selector, p_date_col] = up_date
+
+
+        #Eliminate the previous infection column 
+        #from the update since
+        #the DF has already been modified.
+        #Note that this works because we previously included
+        #all the participants that were not present in the MPD.
+        df_up.drop(columns=[prev_inf_col], inplace=True)
+        self.df = self.merge_with_M_and_return_M(df_up, 'ID', kind='correct')
+
+    def tara_req_oct_5_2022(self):
+        fname = 'CovidLTC_DataCoordination_site_13_Oct_5_2022.xlsx'
+        folder = 'Tara_oct_5_2022'
+        fname = os.path.join('..','requests',folder, fname)
+        df_up = pd.read_excel(fname, sheet_name='1', skiprows=[0,1])
+        df_up.replace('DECLINED', np.nan, inplace=True)
+        df_up.replace('n/a', np.nan, inplace=True)
+        df_up.replace('refused', np.nan, inplace=True)
+        df_up.replace('Refused', np.nan, inplace=True)
+        df_up.replace('REFUSED', np.nan, inplace=True)
+        df_up.replace('None', np.nan, inplace=True)
+        df_up.replace('Unknown', np.nan, inplace=True)
+        df_up.replace('Moved', 'Moved Out', inplace=True)
+        df_up.replace('Spikevax bivalent', 'BModernaO', inplace=True)
+        df_up['Sex'] = df_up['Sex'].replace('F','Female')
+        df_up['Sex'] = df_up['Sex'].replace('M','Male')
+        df_up.replace(' ', np.nan, inplace=True)
+        df_up.replace(u'\xa0', np.nan, inplace=True)
+        fun = lambda x: x.lower()
+        for col in self.LIS_obj.vaccine_date_cols:
+            df_up[col] = pd.to_datetime(df_up[col])
+        self.print_column_and_datatype(df_up)
+        self.df = self.merge_with_M_and_return_M(df_up, 'ID', kind='correct')
+        self.write_the_M_file_to_excel()
+
+    def missing_dates(self):
+        #Oct 13, 2022
+        fname = 'missing_dates_oct_12_2022.xlsx'
+        folder = 'missing_dates_oct_12_2022'
+        fname = os.path.join('..','requests',folder, fname)
+        df = pd.read_excel(fname)
+        for index, row in df.iterrows():
+            find        = row['Original']
+            replacement = row['New']
+            selector = self.LSM_obj.df['Full ID'] == find
+            if selector.any():
+                print(f'Got {find=}')
+                self.LSM_obj.df.loc[selector, 'Full ID'] = replacement
+                print(f'Replaced it with {replacement=}')
+        self.check_LSM_dates()
+        selector = self.LSM_obj.df['Full ID'].value_counts().gt(1)
+        if selector.any():
+            selector = selector.loc[selector]
+            print(selector)
+        #self.LSM_obj.write_to_excel()
+
+
+    #Oct 15 2022
+    #obj.tara_req_oct_13_2022()
+    #obj.extract_date_and_method()
+    #obj.LIS_obj.order_infections_and_vaccines()
+    #obj.write_the_M_file_to_excel()
+    def extract_date_and_method(self):
+        #This function was developed for the site_01 data
+        #given by Tara on Oct 13 2022.
+        #Example
+        #ID              DOB      Date of infection
+        #01-9416404  24/01/1933  1st March 2020 (PCR)
+        fname = 'site_01.xlsx'
+        folder = 'Tara_13_oct_2022'
+        fname = os.path.join('..','requests',folder, fname)
+        df_up = pd.read_excel(fname, sheet_name='Covid Infection data')
+        method_rx = re.compile('[(][ ]*(?P<method>[a-zA-Z]+)[ ]*[)]')
+        #Date of infection
+        doi = []
+        #Method of detection
+        mod = []
+        for index, txt in df_up['Date of infection'].items():
+            method_obj = method_rx.search(txt)
+            if method_obj:
+                method = method_obj.group('method')
+                match = method_obj.group(0)
+                txt2 = txt.replace(match,'')
+                if '/' in txt2:
+                    date = pd.to_datetime(txt2, dayfirst=True)
+                else:
+                    date = pd.to_datetime(txt2)
+                print(f'{date=}')
+                doi.append(date)
+                print(f'{method=}')
+                mod.append(method)
+            else:
+                raise ValueError('Unable to parse string.')
+            print('--------------')
+        df_up['DOI'] = doi
+        df_up['MOD'] = mod
+        for index, txt in df_up['DOB'].items():
+            if isinstance(txt, datetime.datetime):
+                pass
+            elif isinstance(txt, str):
+                if '/' in txt:
+                    date = pd.to_datetime(txt, dayfirst=True)
+                    df_up.loc[index,'DOB'] = date
+                else:
+                    raise ValueError('Unexpected format')
+            else:
+                raise ValueError('Unexpected format')
+        df_up['DOB'] = pd.to_datetime(df_up['DOB'])
+        print(df_up)
+        self.print_column_and_datatype(df_up)
+        self.LIS_obj.update_the_dates_and_waves(df_up)
+
+    def melt_date_faulty(self):
+        #Oct 19, 2022
+        #This does not preserve the correspondence 
+        #between the Infection Date and Type.
+        inf_dates = pd.melt(self.df,
+                            id_vars=cols_to_keep,
+                            value_vars=cols_to_melt)
+        dc={'value':'Infection date', 'variable':'Infection event'}
+        inf_dates.rename(columns=dc, inplace=True)
+        #If there is no infection, we don't use this individual.
+        inf_dates.dropna(subset=['Infection date'], axis=0, inplace=True)
+        inf_dates['Method'] = np.nan
+        #new_col = inf_dates['ID'].isnull()
+        #new_col.replace(True, np.nan, inplace=True)
+        for col in type_cols:
+            inf_dates['Method'] =\
+                    inf_dates['Method'].where(inf_dates['Method'].notnull(),
+                                              inf_dates[col])
+
+        inf_dates.drop(columns=type_cols, inplace=True)
+        #We'll leave the sorting until the end.
+        #inf_dates.sort_values(by='Infection date', axis=0, inplace=True)
+        inf_dates.sort_values(by=['ID','Infection event'], axis=0, inplace=True)
+        print(inf_dates)
+
+
+
+    def tara_req_oct_13_2022(self):
+        fname = 'site_01.xlsx'
+        folder = 'Tara_13_oct_2022'
+        fname = os.path.join('..','requests',folder, fname)
+        df_up = pd.read_excel(fname, sheet_name='Participants')
+        df_up.replace('DECLINED', np.nan, inplace=True)
+        df_up.replace('n/a', np.nan, inplace=True)
+        df_up.replace('N/A', np.nan, inplace=True)
+        df_up.replace('refused', np.nan, inplace=True)
+        df_up.replace('Refused', np.nan, inplace=True)
+        df_up.replace('REFUSED', np.nan, inplace=True)
+        df_up.replace('None', np.nan, inplace=True)
+        df_up.replace('Unknown', np.nan, inplace=True)
+        df_up.replace('Moved', 'Moved Out', inplace=True)
+        df_up.replace('Spikevax bivalent', 'BModernaO', inplace=True)
+        df_up.replace(' ', np.nan, inplace=True)
+        df_up.replace(u'\xa0', np.nan, inplace=True)
+        cols_with_dates = [self.MPD_obj.DOE]
+        cols_with_dates += self.LIS_obj.vaccine_date_cols
+        for col in cols_with_dates:
+            for index, txt in df_up[col].items():
+                if isinstance(txt, str):
+                    if '-' in txt:
+                        raise ValueError('Unexpected format for date string')
+                    #Note that it is crucial to specify dayfirst
+                    #for XX/XX/XXXX because it guarantees consistency.
+                    date = pd.to_datetime(txt, dayfirst=True)
+                    df_up.loc[index,col] = date
+                elif pd.isnull(txt):
+                    pass
+                elif isinstance(txt, datetime.datetime):
+                    pass
+                else:
+                    raise ValueError('Unexpected type.')
+            #Guarantee that the column has the date format.
+            df_up[col] = pd.to_datetime(df_up[col])
+        print(df_up)
+        self.print_column_and_datatype(df_up)
+        self.df = self.merge_with_M_and_return_M(df_up, 'ID', kind='original+')
+
+#obj = Comparator()
+#obj.load_the_rainbow()
+
+#obj.tara_req_oct_3_2022()
+#obj.LIS_obj.order_infections_and_vaccines()
+#obj.LIS_obj.assume_PCR_if_empty()
+#obj.LIS_obj.update_PCR_and_infection_status()
+#obj.MPD_obj.update_active_status_column()
+#obj.write_the_M_file_to_excel()
