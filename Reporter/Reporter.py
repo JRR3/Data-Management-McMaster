@@ -468,3 +468,64 @@ class Reporter:
                     print('==========')
                     print(x)
                     print(rows)
+
+
+    def plot_serology_slopes(self):
+        fpure = 'infection_dates_slope.xlsx'
+        folder= 'Braeden_oct_20_2022'
+        fname = os.path.join(self.parent.requests_path, folder, fpure)
+        df    = pd.read_excel(fname, sheet_name = 'selection')
+        fig, ax = plt.subplots()
+        n_rows = len(df)
+        mk_size = 4
+        for k, (index, row) in enumerate(df.iterrows()):
+            di = row['Infection date']
+            d1 = row['S: Date before']
+            d2 = row['S: Date after']
+            dt_1 = row['S: Days before']
+            IgG1 = row['S: Nuc-IgG-100 before']
+            IgG2 = row['S: Nuc-IgG-100 after']
+            IgA1 = row['S: Nuc-IgA-100 before']
+            IgA2 = row['S: Nuc-IgA-100 after']
+            IgG_slope = row['S: Slope IgG']
+            IgA_slope = row['S: Slope IgA']
+            IgG_mid = IgG1 + dt_1 * IgG_slope
+            IgA_mid = IgA1 + dt_1 * IgA_slope
+            ax.plot([d1,d2], [IgG1, IgG2], 'b-')
+            ax.plot([di], [IgG_mid], 'ko', markersize=mk_size)
+            ax.plot([d1,d2], [IgA1, IgA2], 'r-')
+            ax.plot([di], [IgA_mid], 'ko', markersize=mk_size)
+            if k == n_rows - 1:
+                ax.plot([d1,d2], [IgG1, IgG2], 'b-', label='IgG')
+                ax.plot([d1,d2], [IgA1, IgA2], 'r-', label='IgA')
+        plt.legend(loc='best')
+        ax.xaxis.set_major_locator(mpl.dates.MonthLocator(interval=1))
+        ax.xaxis.set_major_formatter(mpl.dates.DateFormatter("%b-%y"))
+        ax.set_ylabel('OD')
+        plt.xticks(rotation=45)
+        fpure = 'slope_plot.png'
+        folder= 'Braeden_oct_20_2022'
+        fname = os.path.join(self.parent.requests_path, folder, fpure)
+        fig.savefig(fname)
+
+        plt.close('all')
+        fig = pxp.histogram(df, x='S: Slope IgG',
+                color_discrete_sequence = ['blue'])
+        fig.update_layout( font_size=20)
+        fig.update_layout(hoverlabel={'font_size':20})
+        #fig.update_layout(legend={'title':'Had an infection?'})
+        fpure = 'hist_plot_IgG.html'
+        folder= 'Braeden_oct_20_2022'
+        fname = os.path.join(self.parent.requests_path, folder, fpure)
+        fig.write_html(fname)
+
+        plt.close('all')
+        fig = pxp.histogram(df, x='S: Slope IgA',
+                color_discrete_sequence = ['red'])
+        fig.update_layout( font_size=20)
+        fig.update_layout(hoverlabel={'font_size':20})
+        #fig.update_layout(legend={'title':'Had an infection?'})
+        fpure = 'hist_plot_IgA.html'
+        folder= 'Braeden_oct_20_2022'
+        fname = os.path.join(self.parent.requests_path, folder, fpure)
+        fig.write_html(fname)

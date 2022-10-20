@@ -317,7 +317,7 @@ class Merger:
 
 
     def write_df_to_excel(self, df):
-        fpure = 'infection_dates_view.xlsx'
+        fpure = 'infection_dates_delta.xlsx'
         fname = os.path.join(self.outputs_path, fpure)
         df.to_excel(fname, index = False)
         print(f'The {fpure=} file has been written to Excel.')
@@ -488,5 +488,7 @@ obj = Merger()
 #Oct 19 2022
 #obj.update_master_using_SID()
 #obj.MPD_obj.update_M_from_comments_and_dates()
-#Oct 19 2022
-obj.LIS_obj.melt_infection_dates()
+#Oct 20 2022
+#obj.LIS_obj.get_serology_dates_for_infection_dates()
+#obj.LIS_obj.compute_slopes_for_serology()
+obj.REP_obj.plot_serology_slopes()

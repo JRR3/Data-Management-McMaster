@@ -585,8 +585,17 @@ class LTCInfectionSummary:
 
     #Oct 19 2022
     def find_closest_date_to_from(self, target, series, when='before'):
+        #The target is the given date to use as a reference.
+        #The series contains the dates to choose from.
+        #When indicates if we want a previous or posterior date.
+        #Returns a tuple
+        #(0) Series index.
+        #(1) The date that was found.
+        #(2) The distance in days between the two dates.
+        #If we only have a date that took place 
+        #exactly at the target date, we use it.
+
         delta = (series - target).dt.days
-        #What happens when delta == 0?
         if when == 'before':
             selector = delta.lt(0)
         elif when == 'after':
@@ -596,21 +605,25 @@ class LTCInfectionSummary:
 
         if not selector.any():
             print(f'No dates {when} {target=}')
-            selector = delta.eq(0):
-                if not selector.any():
-                    print(f'No dates {when} {target=}')
-                    return None
+            selector = delta.eq(0)
+            if not selector.any():
+                print(f'No dates @ {target=}')
+                return (np.nan, np.nan, np.nan)
+            else:
+                print(f'Warning: Only found date exactly @ {target=}')
         else:
-            delta = np.abs(delta.loc[selector])
-            dates = series.loc[selector]
-            int_index = delta.argmin()
-            index = dates.index[int_index]
-            return (index, dates.iloc[int_index], delta.iloc[int_index])
+            print(f'Found date {when} {target=}')
+
+        delta = np.abs(delta.loc[selector])
+        dates = series.loc[selector]
+        int_index = delta.argmin()
+        index = dates.index[int_index]
+        return (index, dates.iloc[int_index], delta.iloc[int_index])
 
 
 
 
-    def melt_infection_dates(self):
+    def get_serology_dates_for_infection_dates(self):
         #This function creates a column with all the infection dates.
         #It also includes the corresponding method of detection.
         self.parent.MPD_obj.add_site_column()
@@ -625,27 +638,128 @@ class LTCInfectionSummary:
                 column_names = cols_to_melt,
                 names_to = ['Infection event', 'Infection type'],
                 values_to = ['Infection date', 'Method'],
-                names_pattern = [r'Positive Date \d', r'Positive Type \d'],
+                names_pattern = ['Positive Date [0-9]+', 'Positive Type [0-9]+'],
                 )
         df.dropna(subset=['Infection date'], axis=0, inplace=True)
         df.drop(columns=['Infection type'], inplace=True)
         df.sort_values(by=['ID','Infection event'], axis=0, inplace=True)
         print(df)
+        #Add the new columns to the df
+        states = ['before', 'after']
+        Ig_cols = ['Nuc-IgG-100', 'Nuc-IgA-100']
+        add_cols = ['Date', 'Days'] + Ig_cols
+        new_col_names = []
+        slicer = {'before':None, 'after':None}
+        for state in states:
+            #Specify that we are using the serology data
+            L = ['S: ' + x + ' ' + state for x in add_cols]
+            slicer[state] = slice(L[0], L[-1])
+            new_col_names.extend(L)
+
+        #Add new columns to the data frame.
+        df = df.reindex(columns = df.columns.to_list() + new_col_names)
+        #print(new_col_names)
+        #print(slicer)
+        #print(df)
         #Up to this point the code has been tested.
         #Time to call Serology.
+        #Iterate over the rows of the infection data frame.
         for index, row in df.iterrows():
             ID = row['ID']
             i_date = row['Infection date']
             selector_lsm = self.parent.LSM_obj.df['ID'] == ID
             if not selector_lsm.any():
                 print(f'{ID=} has no serology information.')
+                continue
+            print(f'Working with serology for {ID=}')
             dates_lsm = self.parent.LSM_obj.df.loc[selector_lsm,DOC]
-            delta = self.find_closest_date_to_from(i_date, dates_lsm)
-            print(delta)
-            return
+            dc_lsm = {'before':[], 'after':[]}
+            for state in states:
+                (index_lsm,
+                date_lsm,
+                days_lsm) = self.find_closest_date_to_from(i_date,
+                        dates_lsm, when=state)
+                print(f'{date_lsm=}')
+                if pd.isnull(date_lsm):
+                    print(f'{state}: Date was not found')
+                    continue
+                Igs = self.parent.LSM_obj.df.loc[index_lsm, Ig_cols]
+                dc_lsm[state].extend((date_lsm, days_lsm))
+                dc_lsm[state].extend((Igs.values))
+                df.loc[index, slicer[state]] = dc_lsm[state]
 
 
-        return
-        #self.write_df_to_excel(df)
+        fpure = 'infection_dates_delta.xlsx'
+        folder= 'Braeden_oct_20_2022'
+        fname = os.path.join(self.parent.requests_path, folder, fpure)
+        df.to_excel(fname, index = False)
+        print(f'The {fpure=} file has been written to Excel.')
+
+    def compute_slopes_for_serology(self):
+        fpure = 'infection_dates_delta.xlsx'
+        folder= 'Braeden_oct_20_2022'
+        fname = os.path.join(self.parent.requests_path, folder, fpure)
+        df = pd.read_excel(fname)
+        print(df)
+        add_cols = ['Had 0 days?', 'Days elapsed',
+                'Delta IgG', 'Delta IgA',
+                'Slope IgG', 'Slope IgA',
+                'Has slopes?']
+        #Specify that we are working with serology data
+        add_cols = ['S: ' + x for x in add_cols]
+        states = ['before', 'after']
+        Ig_cols = ['S: Nuc-IgG-100', 'S: Nuc-IgA-100']
+        df = df.reindex(columns = df.columns.to_list() + add_cols)
+        for index, row in df.iterrows():
+            had_0_days = False
+            days_count = 0
+            delta_IgG  = np.full(2, np.nan)
+            delta_IgA  = np.full(2, np.nan)
+            for k,state in enumerate(states):
+                days_col = 'S: Days ' + state
+                if row[days_col] == 0:
+                    had_0_days = True
+                days_count += row[days_col]
+                #IgG
+                IgG_col = Ig_cols[0] + ' ' + state
+                delta_IgG[k] = row[IgG_col]
+                #IgA
+                IgA_col = Ig_cols[1] + ' ' + state
+                delta_IgA[k] = row[IgA_col]
+            #Had 0 days?
+            df.loc[index,'S: Had 0 days?'] = had_0_days
+            #Days elapsed
+            df.loc[index,'S: Days elapsed'] = days_count
+            #Delta IgG
+            delta_IgG = np.diff(delta_IgG)[0]
+            df.loc[index,'S: Delta IgG'] = delta_IgG
+            #Delta IgA
+            delta_IgA = np.diff(delta_IgA)[0]
+            df.loc[index,'S: Delta IgA'] = delta_IgA
+            if days_count == 0:
+                print('Slope cannot be computed')
+                continue
+            #Slope IgG
+            mG = delta_IgG / days_count
+            df.loc[index,'S: Slope IgG'] = mG
+            #Slope IgA
+            mA = delta_IgA / days_count
+            df.loc[index,'S: Slope IgA'] = mA
+            #Has slopes?
+            has_slopes = pd.notnull(mG) & pd.notnull(mA)
+            df.loc[index,'S: Has slopes?'] = has_slopes
+
+        print(df)
+        fpure = 'infection_dates_slope.xlsx'
+        folder= 'Braeden_oct_20_2022'
+        fname = os.path.join(self.parent.requests_path, folder, fpure)
+        df.to_excel(fname, index = False)
+        print(f'The {fpure=} file has been written to Excel.')
+
+
+
+
+
+
 
 
