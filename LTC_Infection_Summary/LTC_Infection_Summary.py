@@ -620,6 +620,15 @@ class LTCInfectionSummary:
         index = dates.index[int_index]
         return (index, dates.iloc[int_index], delta.iloc[int_index])
 
+    def add_n_infections_column(self):
+        #Count the number of infections for each individual.
+        L = []
+        for index, row in self.parent.df.iterrows():
+            dates = row[self.positive_date_cols]
+            n_infections = dates.count()
+            L.append(n_infections)
+        self.parent.df['# infections'] = L
+
 
 
 
@@ -627,13 +636,14 @@ class LTCInfectionSummary:
         #This function creates a column with all the infection dates.
         #It also includes the corresponding method of detection.
         self.parent.MPD_obj.add_site_column()
+        self.add_n_infections_column()
         DOC = self.parent.LSM_obj.DOC
         type_cols     = self.positive_type_cols
         cols_to_melt  = self.positive_date_cols
         cols_to_melt += type_cols
         doe = self.parent.MPD_obj.DOE
         dor = self.parent.MPD_obj.DOR
-        cols_to_keep  = ['ID', 'Active', doe, dor, 'Site']
+        cols_to_keep  = ['ID', 'Active', doe, dor, 'Site', '# infections']
         df = self.parent.df.pivot_longer(index = cols_to_keep,
                 column_names = cols_to_melt,
                 names_to = ['Infection event', 'Infection type'],
@@ -738,6 +748,7 @@ class LTCInfectionSummary:
             df.loc[index,'S: Delta IgA'] = delta_IgA
             if days_count == 0:
                 print('Slope cannot be computed')
+                df.loc[index,'S: Has slopes?'] = False
                 continue
             #Slope IgG
             mG = delta_IgG / days_count

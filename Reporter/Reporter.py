@@ -470,7 +470,7 @@ class Reporter:
                     print(rows)
 
 
-    def plot_serology_slopes(self):
+    def plot_serology_slopes_from_selection(self):
         fpure = 'infection_dates_slope.xlsx'
         folder= 'Braeden_oct_20_2022'
         fname = os.path.join(self.parent.requests_path, folder, fpure)
@@ -509,23 +509,178 @@ class Reporter:
         fig.savefig(fname)
 
         plt.close('all')
-        fig = pxp.histogram(df, x='S: Slope IgG',
-                color_discrete_sequence = ['blue'])
-        fig.update_layout( font_size=20)
-        fig.update_layout(hoverlabel={'font_size':20})
-        #fig.update_layout(legend={'title':'Had an infection?'})
-        fpure = 'hist_plot_IgG.html'
+        fig, ax = plt.subplots()
+        G_h, G_bins = np.histogram(df['S: Slope IgG'])
+        A_h, A_bins = np.histogram(df['S: Slope IgA'], bins=G_bins)
+        G_width = (G_bins[1] - G_bins[0])
+        A_width = (A_bins[1] - A_bins[0])
+        width = np.max((G_width, A_width))
+        left = np.min((G_bins[0], A_bins[0]))
+        right = np.max((G_bins[-1], A_bins[-1]))
+        if left < 0 and right > 0:
+            n = int(np.ceil(np.abs(left) / width))
+            left_partition = np.flip(-np.linspace(0,n*width,n+1))
+            n = int(np.ceil((right) / width))
+            right_partition = np.linspace(width,n*width,n+1)
+            partition = np.concatenate((left_partition, right_partition))
+        else:
+            n_left = np.ceil(np.abs(left) / width)
+            if right < 0:
+                n_right = np.floor(np.abs(right) / width)
+            else:
+                n_right = np.ceil(np.abs(right) / width)
+            a = np.sign(left)*n_left*width
+            b = np.sign(right)*n_right*width
+            partition = np.arange(a,b,width)
+
+        width /= 3
+        fs = 12
+        G_h, _ = np.histogram(df['S: Slope IgG'], bins=partition)
+        A_h, _ = np.histogram(df['S: Slope IgA'], bins=partition)
+        #Generate labels
+        base = partition[0]
+        L = []
+        for x in partition[1:]:
+            #print(base, x)
+            interval = '({:.1E},{:.1E})'.format(base, x)
+            interval = interval.replace('+0','+')
+            interval = interval.replace('-0','-')
+            interval = interval.replace('-.0','0')
+            interval = interval.replace('+.0','0')
+            #print(interval)
+            base = x
+            L.append(interval)
+            #print('---')
+        ax.bar(L, G_h, width=0.5,  facecolor='blue', label='IgG')
+        ax.bar(L, A_h,  width=0.25, facecolor='red', label='IgA')
+        ax.set_xlabel('Slope')
+        ax.set_ylabel('Count')
+        #ticks = ax.xaxis.get_ticklocs()
+        #print(ticks)
+        #ticklabels = ax.xaxis.get_ticklabels()
+        #print(ticklabels)
+        #ax.xaxis.set_ticks(ticks)
+        #ax.xaxis.set_ticklabels(L)
+        plt.xticks(fontsize=fs, rotation=90)
+        #plt.ticklabel_format(axis='x', style='sci', scilimits=(0,0))
+        plt.legend(loc='best', fontsize=fs)
+        plt.tight_layout()
+        fpure = 'hist_plot_Igs.png'
         folder= 'Braeden_oct_20_2022'
         fname = os.path.join(self.parent.requests_path, folder, fpure)
-        fig.write_html(fname)
+        fig.savefig(fname)
+
+    def plot_serology_slope_progression(self):
+        fpure = 'infection_dates_slope.xlsx'
+        folder= 'Braeden_oct_20_2022'
+        fname = os.path.join(self.parent.requests_path, folder, fpure)
+        df    = pd.read_excel(fname, sheet_name = 'data')
+        n_rows = len(df)
+        mk_size = 4
+        n_infections = np.sort(df['# infections'].unique())
+        for n in n_infections:
+            if n != 5:
+                continue
+            selection  = df['# infections'] == n
+            selection &= df['S: Has slopes?'] == True
+            df_s = df.loc[selection, :]
+            unique_ids = df_s['ID'].unique()
+            for ID in unique_ids():
+                selection = df_s['ID'] == ID
+                plt.close('all')
+                fig, ax = plt.subplots()
+                for index, row in df_s.loc[selection, :]:
+                    self.serology_line_from_row_to_plot(row, ax)
+            return
+
+    def serology_line_from_row_to_plot(row, ax)
+            di = row['Infection date']
+            d1 = row['S: Date before']
+            d2 = row['S: Date after']
+            dt_1 = row['S: Days before']
+            IgG1 = row['S: Nuc-IgG-100 before']
+            IgG2 = row['S: Nuc-IgG-100 after']
+            IgA1 = row['S: Nuc-IgA-100 before']
+            IgA2 = row['S: Nuc-IgA-100 after']
+            IgG_slope = row['S: Slope IgG']
+            IgA_slope = row['S: Slope IgA']
+            IgG_mid = IgG1 + dt_1 * IgG_slope
+            IgA_mid = IgA1 + dt_1 * IgA_slope
+            ax.plot([d1,d2], [IgG1, IgG2], 'b-')
+            ax.plot([di], [IgG_mid], 'ko', markersize=mk_size)
+            ax.plot([d1,d2], [IgA1, IgA2], 'r-')
+            ax.plot([di], [IgA_mid], 'ko', markersize=mk_size)
+            if k == n_rows - 1:
+                ax.plot([d1,d2], [IgG1, IgG2], 'b-', label='IgG')
+                ax.plot([d1,d2], [IgA1, IgA2], 'r-', label='IgA')
+        plt.legend(loc='best')
+        ax.xaxis.set_major_locator(mpl.dates.MonthLocator(interval=1))
+        ax.xaxis.set_major_formatter(mpl.dates.DateFormatter("%b-%y"))
+        ax.set_ylabel('OD')
+        plt.xticks(rotation=45)
+        fpure = 'slope_plot.png'
+        folder= 'Braeden_oct_20_2022'
+        fname = os.path.join(self.parent.requests_path, folder, fpure)
+        fig.savefig(fname)
 
         plt.close('all')
-        fig = pxp.histogram(df, x='S: Slope IgA',
-                color_discrete_sequence = ['red'])
-        fig.update_layout( font_size=20)
-        fig.update_layout(hoverlabel={'font_size':20})
-        #fig.update_layout(legend={'title':'Had an infection?'})
-        fpure = 'hist_plot_IgA.html'
+        fig, ax = plt.subplots()
+        G_h, G_bins = np.histogram(df['S: Slope IgG'])
+        A_h, A_bins = np.histogram(df['S: Slope IgA'], bins=G_bins)
+        G_width = (G_bins[1] - G_bins[0])
+        A_width = (A_bins[1] - A_bins[0])
+        width = np.max((G_width, A_width))
+        left = np.min((G_bins[0], A_bins[0]))
+        right = np.max((G_bins[-1], A_bins[-1]))
+        if left < 0 and right > 0:
+            n = int(np.ceil(np.abs(left) / width))
+            left_partition = np.flip(-np.linspace(0,n*width,n+1))
+            n = int(np.ceil((right) / width))
+            right_partition = np.linspace(width,n*width,n+1)
+            partition = np.concatenate((left_partition, right_partition))
+        else:
+            n_left = np.ceil(np.abs(left) / width)
+            if right < 0:
+                n_right = np.floor(np.abs(right) / width)
+            else:
+                n_right = np.ceil(np.abs(right) / width)
+            a = np.sign(left)*n_left*width
+            b = np.sign(right)*n_right*width
+            partition = np.arange(a,b,width)
+
+        width /= 3
+        fs = 12
+        G_h, _ = np.histogram(df['S: Slope IgG'], bins=partition)
+        A_h, _ = np.histogram(df['S: Slope IgA'], bins=partition)
+        #Generate labels
+        base = partition[0]
+        L = []
+        for x in partition[1:]:
+            #print(base, x)
+            interval = '({:.1E},{:.1E})'.format(base, x)
+            interval = interval.replace('+0','+')
+            interval = interval.replace('-0','-')
+            interval = interval.replace('-.0','0')
+            interval = interval.replace('+.0','0')
+            #print(interval)
+            base = x
+            L.append(interval)
+            #print('---')
+        ax.bar(L, G_h, width=0.5,  facecolor='blue', label='IgG')
+        ax.bar(L, A_h,  width=0.25, facecolor='red', label='IgA')
+        ax.set_xlabel('Slope')
+        ax.set_ylabel('Count')
+        #ticks = ax.xaxis.get_ticklocs()
+        #print(ticks)
+        #ticklabels = ax.xaxis.get_ticklabels()
+        #print(ticklabels)
+        #ax.xaxis.set_ticks(ticks)
+        #ax.xaxis.set_ticklabels(L)
+        plt.xticks(fontsize=fs, rotation=90)
+        #plt.ticklabel_format(axis='x', style='sci', scilimits=(0,0))
+        plt.legend(loc='best', fontsize=fs)
+        plt.tight_layout()
+        fpure = 'hist_plot_Igs.png'
         folder= 'Braeden_oct_20_2022'
         fname = os.path.join(self.parent.requests_path, folder, fpure)
-        fig.write_html(fname)
+        fig.savefig(fname)

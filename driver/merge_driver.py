@@ -491,4 +491,5 @@ obj = Merger()
 #Oct 20 2022
 #obj.LIS_obj.get_serology_dates_for_infection_dates()
 #obj.LIS_obj.compute_slopes_for_serology()
-obj.REP_obj.plot_serology_slopes()
+#obj.REP_obj.plot_serology_slopes_from_selection()
+obj.REP_obj.plot_serology_slope_progression()
