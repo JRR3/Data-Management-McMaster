@@ -431,6 +431,149 @@ class Merger:
         #dates in the SID file.
         self.SID_obj.check_LSM_dates_using_SID()
 
+    def check_zains(self):
+        #This function was updated on 12-Oct-2022
+        fpure = 'merged_file.xlsx'
+        folder= 'Zain_24_oct_2022'
+        fname = os.path.join(self.requests_path, folder, fpure)
+        df    = pd.read_excel(fname)
+        n_zains = len(df)
+        dob_counter = 0
+        sex_counter = 0
+        vaccine_date_counter = 0
+        vaccine_date_total = 0
+        vaccine_type_counter = 0
+        vaccine_type_total = 0
+        vaccine_sessions = ['First', 'Second', 'Third', 'Fourth']
+        new_participants = []
+        n_cols = self.df.shape[1]
+        for index, row in df.iterrows():
+            ID = row['ID']
+            print(f'{ID=}')
+            selection = self.df['ID'] == ID
+            df_s = self.df.loc[selection,:]
+            if len(df_s) == 0:
+                print(f'{ID=} DNE in the M file.')
+                new_participants.append(ID)
+                dob_counter += 1
+                raise ValueError('Fixed on the M file.')
+            #Due to the uniqueness of the ID,
+            #the first index should be the only index.
+            index_m = df_s.index[0]
+            row_m = df_s.loc[index_m,:]
+            #DOB
+            dob_z = row['DOB']
+            dob_m = row_m['DOB']
+            if pd.isnull(dob_z):
+                pass
+            else:
+                if pd.isnull(dob_m):
+                    print('Updating dob in M file from Zains')
+                    self.df.loc[index_m,'DOB'] = dob_z
+                    dob_counter += 1
+                else:
+                    delta = (dob_m - dob_z) / np.timedelta64(1,'D')
+                    delta = np.abs(delta)
+                    if 100 < delta:
+                        print('DOB =/=')
+                        print(f'{delta=}')
+                        print(f'{dob_z=}')
+                        print(f'{dob_m=}')
+                        dob_counter += 1
+            #Sex
+            sex_z = row['Sex']
+            sex_m = row_m['Sex']
+            if pd.isnull(sex_z):
+                pass
+            else:
+                if pd.isnull(sex_m):
+                    print('Updating sex in M file from Zains')
+                    self.df.loc[index_m,'Sex'] = sex_z
+                    sex_counter += 1
+                else:
+                    if sex_z != sex_m:
+                        print('Sex =/=')
+                        print(f'{sex_z=}')
+                        print(f'{sex_m=}')
+                        sex_counter += 1
+            #Vaccine dates
+            for session in vaccine_sessions:
+                flag_session_date_updated = False
+                s = session.lower()
+                month_txt = 'vacc_'+ s +'_month'
+                year_txt  = 'vacc_'+ s +'_year'
+                month_z = row[month_txt]
+                year_z = row[year_txt]
+                if pd.isnull(month_z) or pd.isnull(year_z):
+                    pass
+                else:
+                    month_z = int(month_z)
+                    year_z = int(year_z)
+                    vaccine_date_total += 1
+                    date_txt = session + ' Vaccine Date'
+                    v_date = row_m[date_txt]
+                    if pd.isnull(v_date):
+                        v_date_z  = datetime.datetime(year_z,month_z,1)
+                        print(f'In {session=}:')
+                        print('Updating vacc. date in M file from Zains')
+                        self.df.loc[index_m,date_txt] = v_date_z
+                        vaccine_date_counter += 1
+                        flag_session_date_updated = True
+                    else:
+                        month_m = v_date.month
+                        year_m  = v_date.year
+                        delta_m = month_m != month_z
+                        delta_y = year_m != year_z
+                        if delta_m or delta_y:
+                            print('Vaccine date =/=')
+                            print(f'{month_z=}')
+                            print(f'{month_m=}')
+                            print(f'{year_z=}')
+                            print(f'{year_m=}')
+                            vaccine_date_counter += 1
+                #Vaccine type
+                type_txt = session + ' Vaccine Type'
+                type_z   = row[type_txt]
+                type_m   = row_m[type_txt]
+                if pd.isnull(type_z):
+                    pass
+                else:
+                    vaccine_type_total += 1
+                    pfz = 'Pfizer'
+                    if pfz in type_z:
+                        type_z = pfz
+                    if pd.isnull(type_m) and flag_session_date_updated:
+                        print(f'In {session=}:')
+                        print('Updating vacc. type in M file from Zains')
+                        self.df.loc[index_m, type_txt] = type_z
+                        vaccine_type_counter += 1
+                    else:
+                        if type_z != type_m:
+                            print('Vaccine type =/=')
+                            print(f'{type_z=}')
+                            print(f'{type_m=}')
+                            vaccine_type_counter += 1
+
+
+
+
+        sex_percent = sex_counter / n_zains * 100
+        dob_percent = dob_counter / n_zains * 100
+        vaccine_date_percent = vaccine_date_counter / vaccine_date_total * 100
+        vaccine_type_percent = vaccine_type_counter / vaccine_type_total * 100
+
+        print(f'{dob_counter=}')
+        print(f'{dob_percent=}')
+        print(f'{sex_counter=}')
+        print(f'{sex_percent=}')
+        print(f'{vaccine_date_counter=}')
+        print(f'{vaccine_date_percent=}')
+        print(f'{vaccine_type_counter=}')
+        print(f'{vaccine_type_percent=}')
+        print(f'{new_participants=}')
+
+
+
 
 
 
@@ -493,4 +636,6 @@ obj = Merger()
 #obj.LIS_obj.compute_slopes_for_serology()
 #obj.REP_obj.plot_serology_slopes_from_selection()
 #obj.REP_obj.plot_serology_slope_progression()
-obj.REP_obj.plot_serology_slope_vs_days_after_infection()
+#obj.REP_obj.plot_serology_slope_vs_days_after_infection()
+#obj.REP_obj.plot_serology_slope_vs_bins_after_infection()
+obj.check_zains()

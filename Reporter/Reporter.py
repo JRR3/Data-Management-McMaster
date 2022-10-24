@@ -503,7 +503,7 @@ class Reporter:
         ax.xaxis.set_major_formatter(mpl.dates.DateFormatter("%b-%y"))
         ax.set_ylabel('OD')
         plt.xticks(rotation=45)
-        fpure = 'slope_plot.png'
+        fpure = 'slope_plot_selection.png'
         folder= 'Braeden_oct_20_2022'
         fname = os.path.join(self.parent.requests_path, folder, fpure)
         fig.savefig(fname)
@@ -720,6 +720,100 @@ class Reporter:
             ax.plot([d1], [IgA1], IgAm, markersize=mk_size_2, markerfacecolor='None')
             ax.plot([d2], [IgA2], IgAm, markersize=mk_size_2, markerfacecolor='None')
 
+    def plot_serology_slope_vs_bins_after_infection(self):
+        fpure = 'infection_dates_slope.xlsx'
+        folder= 'Braeden_oct_20_2022'
+        fname = os.path.join(self.parent.requests_path, folder, fpure)
+        df    = pd.read_excel(fname)
+        df['S: Nearest IgG'] = df['S: Nuc-IgG-100 before'].where(
+            df['S: Days before'] < df['S: Days after'],
+            df['S: Nuc-IgG-100 after'])
+        df['S: Nearest IgA'] = df['S: Nuc-IgA-100 before'].where(
+            df['S: Days before'] < df['S: Days after'],
+            df['S: Nuc-IgA-100 after'])
+        selection  = df['Method'] == 'PCR'
+        selection &= df['# infections'] == 1
+        selection &= df['S: Has slopes?'] == True
+        print('Available data (negative slopes included):')
+        print(selection.value_counts())
+        df_s = df.loc[selection, :]
+        #=====Bins IgG
+        plt.close('all')
+        fig, ax = plt.subplots()
+        t_max = df_s['S: Days after'].max()
+        print(f'{t_max=}')
+        width = 30
+        n_bins = int(np.ceil(t_max / width))
+        print(f'{n_bins=}')
+        dc = {}
+        base = 0
+        bin_labels = []
+        index_to_label = {}
+        for k in range(1,n_bins+1):
+            txt = f'[{base},{width*k})'
+            bin_labels.append(txt)
+            base = width*k
+            index_to_label[k-1] = txt
+            dc[txt] = []
+            print(txt)
+        for index, row in df_s.iterrows():
+            days_after = row['S: Days after']
+            IgG_slope = row['S: Slope IgG']
+            bin_index = days_after // width
+            bin_label = index_to_label[bin_index]
+            dc[bin_label].append(IgG_slope)
+        ax.boxplot(dc.values())
+        ax.set_xticklabels(dc.keys())
+        ax.set_ylabel('IgG (Slope)')
+        ax.set_xlabel('Days after infection')
+        plt.xticks(rotation=60)
+        plt.ticklabel_format(axis='y', style='sci', scilimits=(0,0))
+        plt.tight_layout()
+
+        fpure = 'Slope_IgG_vs_bin_days_after.png'
+        folder= 'Braeden_oct_20_2022'
+        fname = os.path.join(self.parent.requests_path, folder, fpure)
+        fig.savefig(fname)
+
+        #=====Bins IgA
+        plt.close('all')
+        fig, ax = plt.subplots()
+        t_max = df_s['S: Days after'].max()
+        print(f'{t_max=}')
+        width = 30
+        n_bins = int(np.ceil(t_max / width))
+        print(f'{n_bins=}')
+        dc = {}
+        base = 0
+        bin_labels = []
+        index_to_label = {}
+        for k in range(1,n_bins+1):
+            txt = f'[{base},{width*k})'
+            bin_labels.append(txt)
+            base = width*k
+            index_to_label[k-1] = txt
+            dc[txt] = []
+            print(txt)
+        for index, row in df_s.iterrows():
+            days_after = row['S: Days after']
+            IgA_slope = row['S: Slope IgA']
+            bin_index = days_after // width
+            bin_label = index_to_label[bin_index]
+            dc[bin_label].append(IgA_slope)
+        ax.boxplot(dc.values())
+        ax.set_xticklabels(dc.keys())
+        ax.set_ylabel('IgA (Slope)')
+        ax.set_xlabel('Days after infection')
+        plt.xticks(rotation=60)
+        plt.ticklabel_format(axis='y', style='sci', scilimits=(0,0))
+        plt.tight_layout()
+
+        fpure = 'Slope_IgA_vs_bin_days_after.png'
+        folder= 'Braeden_oct_20_2022'
+        fname = os.path.join(self.parent.requests_path, folder, fpure)
+        fig.savefig(fname)
+
+
     def plot_serology_slope_vs_days_after_infection(self):
         fpure = 'infection_dates_slope.xlsx'
         folder= 'Braeden_oct_20_2022'
@@ -733,6 +827,8 @@ class Reporter:
             df['S: Nuc-IgA-100 after'])
         selection  = df['Method'] == 'PCR'
         selection &= df['# infections'] == 1
+        print('Available data (negative slopes included):')
+        print(selection.value_counts())
         df_s = df.loc[selection, :]
 
         #Scatter
@@ -855,6 +951,7 @@ class Reporter:
         folder= 'Braeden_oct_20_2022'
         fname = os.path.join(self.parent.requests_path, folder, fpure)
         fig.savefig(fname)
+
 
 
 
