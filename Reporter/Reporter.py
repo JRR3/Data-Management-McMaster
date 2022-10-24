@@ -364,7 +364,7 @@ class Reporter:
         #print(m)
         fig = pxp.line(m, x='Bin', y=['Ab(I-)', 'Ab(I+)'])
         fig.update_traces(line_width=5)
-        fig.update_layout( font_size=20)
+        fig.update_layout(font_size=20)
         fig.update_layout(hoverlabel={'font_size':20})
         fig.update_layout(legend={'title':'Had an infection?'})
         plot_name = 'merged_Ab_data.html'
@@ -574,113 +574,287 @@ class Reporter:
         fpure = 'infection_dates_slope.xlsx'
         folder= 'Braeden_oct_20_2022'
         fname = os.path.join(self.parent.requests_path, folder, fpure)
-        df    = pd.read_excel(fname, sheet_name = 'data')
+        df    = pd.read_excel(fname)
         n_rows = len(df)
-        mk_size = 4
         n_infections = np.sort(df['# infections'].unique())
+        case_counter = 0
         for n in n_infections:
-            if n != 5:
+            if n == 1:
                 continue
             selection  = df['# infections'] == n
             selection &= df['S: Has slopes?'] == True
+            selection &= df['S: Had 0 days?'] == False
             df_s = df.loc[selection, :]
+            if len(df_s) == 0:
+                continue
             unique_ids = df_s['ID'].unique()
-            for ID in unique_ids():
+            for ID in unique_ids:
                 selection = df_s['ID'] == ID
                 plt.close('all')
                 fig, ax = plt.subplots()
-                for index, row in df_s.loc[selection, :]:
-                    self.serology_line_from_row_to_plot(row, ax)
-            return
+                df_p = df_s.loc[selection,:]
+                if len(df_p) < 2:
+                    #Not enough data to plot a progression
+                    continue
+                #Avoid collinearities
+                if df_p['S: Date before'].value_counts().gt(1).any():
+                    continue
+                if df_p['S: Date after'].value_counts().gt(1).any():
+                    continue
+                print('===============')
+                print(f'{ID=}')
+                case_counter += 1
+                for k, (index, row) in enumerate(df_p.iterrows()):
+                    self.serology_line_from_row_to_plot(row,
+                                                        ax,
+                                                        case=k,
+                                                        use_label=False)
+                self.save_slope_plot_for_ID(fig,
+                                            ax,
+                                            row,
+                                            ID,
+                                            df_p,
+                                            same_folder=True)
+        print(f'{case_counter=}')
 
-    def serology_line_from_row_to_plot(row, ax)
-            di = row['Infection date']
-            d1 = row['S: Date before']
-            d2 = row['S: Date after']
-            dt_1 = row['S: Days before']
-            IgG1 = row['S: Nuc-IgG-100 before']
-            IgG2 = row['S: Nuc-IgG-100 after']
-            IgA1 = row['S: Nuc-IgA-100 before']
-            IgA2 = row['S: Nuc-IgA-100 after']
-            IgG_slope = row['S: Slope IgG']
-            IgA_slope = row['S: Slope IgA']
-            IgG_mid = IgG1 + dt_1 * IgG_slope
-            IgA_mid = IgA1 + dt_1 * IgA_slope
-            ax.plot([d1,d2], [IgG1, IgG2], 'b-')
-            ax.plot([di], [IgG_mid], 'ko', markersize=mk_size)
-            ax.plot([d1,d2], [IgA1, IgA2], 'r-')
-            ax.plot([di], [IgA_mid], 'ko', markersize=mk_size)
-            if k == n_rows - 1:
-                ax.plot([d1,d2], [IgG1, IgG2], 'b-', label='IgG')
-                ax.plot([d1,d2], [IgA1, IgA2], 'r-', label='IgA')
-        plt.legend(loc='best')
+    def save_slope_plot_for_ID(self,
+                               fig,
+                               ax,
+                               row,
+                               ID,
+                               df,
+                               same_folder=False):
+        folder_1= 'Braeden_oct_20_2022'
+        folder_2= 'participants'
+        if same_folder:
+            dpath = os.path.join(self.parent.requests_path,
+                                 folder_1,
+                                 folder_2,
+                                 '00_noncollinear')
+        else:
+            dpath = os.path.join(self.parent.requests_path,
+                                 folder_1,
+                                 folder_2,
+                                 ID)
+        if not os.path.exists(dpath):
+            os.makedirs(dpath)
+        #Add redundant line to create labels
+        self.serology_line_from_row_to_plot(row,
+                                            ax,
+                                            case=-1,
+                                            use_label=True)
+        rx = re.compile('[0-9]+')
+        events = df['Infection event']
+        L = []
+        for index, event in events.items():
+            inf_n = rx.search(event).group(0)
+            L.append(inf_n)
+        inf_seq = ID + ' infections: ' + ', '.join(L)
         ax.xaxis.set_major_locator(mpl.dates.MonthLocator(interval=1))
         ax.xaxis.set_major_formatter(mpl.dates.DateFormatter("%b-%y"))
         ax.set_ylabel('OD')
         plt.xticks(rotation=45)
-        fpure = 'slope_plot.png'
-        folder= 'Braeden_oct_20_2022'
-        fname = os.path.join(self.parent.requests_path, folder, fpure)
+        plt.legend(loc='best')
+        plt.title(inf_seq)
+        fpure = ID + '_slope_progression.png'
+        fname = os.path.join(dpath, fpure)
         fig.savefig(fname)
 
+    def serology_line_from_row_to_plot(self,
+                                       row,
+                                       ax,
+                                       case=-1,
+                                       use_label=False):
+        mk_size = 4
+        #event = row['Infection event']
+        #rx = re.compile('[0-9]+')
+        #inf_n = rx.search(event).group(0)
+        di = row['Infection date']
+        d1 = row['S: Date before']
+        d2 = row['S: Date after']
+        dt_1 = row['S: Days before']
+        dt_2 = row['S: Days after']
+        IgG1 = row['S: Nuc-IgG-100 before']
+        IgG2 = row['S: Nuc-IgG-100 after']
+        IgA1 = row['S: Nuc-IgA-100 before']
+        IgA2 = row['S: Nuc-IgA-100 after']
+        IgG_slope = row['S: Slope IgG']
+        IgA_slope = row['S: Slope IgA']
+        if not use_label:
+            print(f'{IgG_slope=:+.2E}')
+            print(f'{IgA_slope=:+.2E}')
+        IgG_mid = IgG1 + dt_1 * IgG_slope
+        IgA_mid = IgA1 + dt_1 * IgA_slope
+        IgG25 = IgG1 + dt_1 / 2 * IgG_slope
+        IgG75 = IgG1 + (dt_1 + dt_2 / 2) * IgG_slope
+        IgA25 = IgA1 + dt_1 / 2 * IgA_slope
+        IgA75 = IgA1 + (dt_1 + dt_2 / 2) * IgA_slope
+        if use_label:
+            ax.plot([d1,d2], [IgG1, IgG2], 'b-', label='IgG')
+            ax.plot([d1,d2], [IgA1, IgA2], 'r-', label='IgA')
+        else:
+            ax.plot([d1,d2], [IgG1, IgG2], 'b-')
+            ax.plot([d1,d2], [IgA1, IgA2], 'r-')
+        ax.plot([di], [IgG_mid], 'ko', markersize=mk_size)
+        ax.plot([di], [IgA_mid], 'ko', markersize=mk_size)
+        date25 = di - pd.DateOffset(days = dt_1 / 2)
+        date75 = di + pd.DateOffset(days = dt_2 / 2)
+        t1 = str(int(dt_1))
+        t2 = str(int(dt_2))
+        factor = 0.025
+        mplus  = 1+factor
+        mminus = 1-factor
+        ax.text(date25, IgG25*mplus, t1)
+        ax.text(date75, IgG75*mplus, t2)
+        ax.text(date25, IgA25*mminus, t1)
+        ax.text(date75, IgA75*mminus, t2)
+        markers = ['P', 'o', 'x', 'd', '*']
+        mc = ['k', 'g', 'c', 'm', 'y']
+        mk_size_2 = 6
+        if -1 < case:
+            #Plot markers for the start and end points.
+            IgGm = 'b' + markers[case]
+            IgAm = 'r' + markers[case]
+            ax.plot([d1], [IgG1], IgGm, markersize=mk_size_2, markerfacecolor='None')
+            ax.plot([d2], [IgG2], IgGm, markersize=mk_size_2, markerfacecolor='None')
+            ax.plot([d1], [IgA1], IgAm, markersize=mk_size_2, markerfacecolor='None')
+            ax.plot([d2], [IgA2], IgAm, markersize=mk_size_2, markerfacecolor='None')
+
+    def plot_serology_slope_vs_days_after_infection(self):
+        fpure = 'infection_dates_slope.xlsx'
+        folder= 'Braeden_oct_20_2022'
+        fname = os.path.join(self.parent.requests_path, folder, fpure)
+        df    = pd.read_excel(fname)
+        df['S: Nearest IgG'] = df['S: Nuc-IgG-100 before'].where(
+            df['S: Days before'] < df['S: Days after'],
+            df['S: Nuc-IgG-100 after'])
+        df['S: Nearest IgA'] = df['S: Nuc-IgA-100 before'].where(
+            df['S: Days before'] < df['S: Days after'],
+            df['S: Nuc-IgA-100 after'])
+        selection  = df['Method'] == 'PCR'
+        selection &= df['# infections'] == 1
+        df_s = df.loc[selection, :]
+
+        #Scatter
         plt.close('all')
         fig, ax = plt.subplots()
-        G_h, G_bins = np.histogram(df['S: Slope IgG'])
-        A_h, A_bins = np.histogram(df['S: Slope IgA'], bins=G_bins)
-        G_width = (G_bins[1] - G_bins[0])
-        A_width = (A_bins[1] - A_bins[0])
-        width = np.max((G_width, A_width))
-        left = np.min((G_bins[0], A_bins[0]))
-        right = np.max((G_bins[-1], A_bins[-1]))
-        if left < 0 and right > 0:
-            n = int(np.ceil(np.abs(left) / width))
-            left_partition = np.flip(-np.linspace(0,n*width,n+1))
-            n = int(np.ceil((right) / width))
-            right_partition = np.linspace(width,n*width,n+1)
-            partition = np.concatenate((left_partition, right_partition))
-        else:
-            n_left = np.ceil(np.abs(left) / width)
-            if right < 0:
-                n_right = np.floor(np.abs(right) / width)
-            else:
-                n_right = np.ceil(np.abs(right) / width)
-            a = np.sign(left)*n_left*width
-            b = np.sign(right)*n_right*width
-            partition = np.arange(a,b,width)
-
-        width /= 3
-        fs = 12
-        G_h, _ = np.histogram(df['S: Slope IgG'], bins=partition)
-        A_h, _ = np.histogram(df['S: Slope IgA'], bins=partition)
-        #Generate labels
-        base = partition[0]
-        L = []
-        for x in partition[1:]:
-            #print(base, x)
-            interval = '({:.1E},{:.1E})'.format(base, x)
-            interval = interval.replace('+0','+')
-            interval = interval.replace('-0','-')
-            interval = interval.replace('-.0','0')
-            interval = interval.replace('+.0','0')
-            #print(interval)
-            base = x
-            L.append(interval)
-            #print('---')
-        ax.bar(L, G_h, width=0.5,  facecolor='blue', label='IgG')
-        ax.bar(L, A_h,  width=0.25, facecolor='red', label='IgA')
-        ax.set_xlabel('Slope')
-        ax.set_ylabel('Count')
-        #ticks = ax.xaxis.get_ticklocs()
-        #print(ticks)
-        #ticklabels = ax.xaxis.get_ticklabels()
-        #print(ticklabels)
-        #ax.xaxis.set_ticks(ticks)
-        #ax.xaxis.set_ticklabels(L)
-        plt.xticks(fontsize=fs, rotation=90)
-        #plt.ticklabel_format(axis='x', style='sci', scilimits=(0,0))
-        plt.legend(loc='best', fontsize=fs)
-        plt.tight_layout()
-        fpure = 'hist_plot_Igs.png'
+        ax.scatter(df_s['S: Days after'],
+                   df_s['S: Slope IgG'], color='blue')
+        #Regression
+        selection = df_s['S: Slope IgG'] > 0
+        df_G = df_s.loc[selection, :]
+        n_G = len(df_G)
+        print(f'{n_G=}')
+        x = df_G['S: Days after'].values
+        y_G = df_G['S: Slope IgG'].values
+        f_G = np.polyfit(x, np.log(y_G), 1)
+        k_G = f_G[0]
+        c_G = np.exp(f_G[1])
+        l_G = -np.log(2) / k_G
+        print(f'{k_G=:.2E}')
+        print(f'{c_G=:.2E}')
+        print(f'{l_G=:.2E}')
+        xx = np.linspace(np.min(x), np.max(x), 100)
+        yy_G = c_G * np.exp( k_G * xx)
+        ax.plot(xx, yy_G,'k-')
+        plt.ticklabel_format(axis='y', style='sci', scilimits=(0,0))
+        ax.set_xlabel('Days after infection')
+        ax.set_ylabel('IgG slope')
+        fpure = 'Slope_IgG_vs_days_after.png'
         folder= 'Braeden_oct_20_2022'
         fname = os.path.join(self.parent.requests_path, folder, fpure)
         fig.savefig(fname)
+
+        #Scatter
+        plt.close('all')
+        fig, ax = plt.subplots()
+        ax.scatter(df_s['S: Days after'], df_s['S: Slope IgA'], color='red')
+        #Regression
+        selection = df_s['S: Slope IgA'] > 0
+        df_A = df_s.loc[selection, :]
+        n_A = len(df_A)
+        print(f'{n_A=}')
+        x = df_A['S: Days after'].values
+        y_A = df_A['S: Slope IgA'].values
+        f_A = np.polyfit(x, np.log(y_A), 1)
+        k_A = f_A[0]
+        c_A = np.exp(f_A[1])
+        l_A = -np.log(2) / k_A
+        print(f'{k_A=:.2E}')
+        print(f'{c_A=:.2E}')
+        print(f'{l_A=:.2E}')
+        xx = np.linspace(np.min(x), np.max(x), 100)
+        yy_A = c_A * np.exp( k_A * xx)
+        ax.plot(xx, yy_A,'k-')
+        plt.ticklabel_format(axis='y', style='sci', scilimits=(0,0))
+        ax.set_xlabel('Days after infection')
+        ax.set_ylabel('IgA slope')
+        fpure = 'Slope_IgA_vs_days_after.png'
+        folder= 'Braeden_oct_20_2022'
+        fname = os.path.join(self.parent.requests_path, folder, fpure)
+        fig.savefig(fname)
+
+
+        #=========================Nearest
+        print('Nearest')
+        #Scatter
+        plt.close('all')
+        fig, ax = plt.subplots()
+        ax.scatter(df_s['S: Days after'],
+                   df_s['S: Nearest IgG'], color='blue')
+        #Regression
+        selection = df_s['S: Nearest IgG'] > 0
+        df_G = df_s.loc[selection, :]
+        n_G = len(df_G)
+        print(f'{n_G=}')
+        x = df_G['S: Days after'].values
+        y_G = df_G['S: Nearest IgG'].values
+        f_G = np.polyfit(x, np.log(y_G), 1)
+        k_G = f_G[0]
+        c_G = np.exp(f_G[1])
+        l_G = -np.log(2) / k_G
+        print(f'{k_G=:.2E}')
+        print(f'{c_G=:.2E}')
+        print(f'{l_G=:.2E}')
+        xx = np.linspace(np.min(x), np.max(x), 100)
+        yy_G = c_G * np.exp( k_G * xx)
+        ax.plot(xx, yy_G,'k-')
+        plt.ticklabel_format(axis='y', style='sci', scilimits=(0,0))
+        ax.set_xlabel('Days after infection')
+        ax.set_ylabel('Nearest IgG')
+        fpure = 'Nearest_IgG_vs_days_after.png'
+        folder= 'Braeden_oct_20_2022'
+        fname = os.path.join(self.parent.requests_path, folder, fpure)
+        fig.savefig(fname)
+
+        #Scatter
+        plt.close('all')
+        fig, ax = plt.subplots()
+        ax.scatter(df_s['S: Days after'], df_s['S: Nearest IgA'], color='red')
+        #Regression
+        selection = df_s['S: Nearest IgA'] > 0
+        df_A = df_s.loc[selection, :]
+        n_A = len(df_A)
+        print(f'{n_A=}')
+        x = df_A['S: Days after'].values
+        y_A = df_A['S: Nearest IgA'].values
+        f_A = np.polyfit(x, np.log(y_A), 1)
+        k_A = f_A[0]
+        c_A = np.exp(f_A[1])
+        l_A = -np.log(2) / k_A
+        print(f'{k_A=:.2E}')
+        print(f'{c_A=:.2E}')
+        print(f'{l_A=:.2E}')
+        xx = np.linspace(np.min(x), np.max(x), 100)
+        yy_A = c_A * np.exp( k_A * xx)
+        ax.plot(xx, yy_A,'k-')
+        plt.ticklabel_format(axis='y', style='sci', scilimits=(0,0))
+        ax.set_xlabel('Days after infection')
+        ax.set_ylabel('Nearest IgA')
+        fpure = 'Nearest_IgA_vs_days_after.png'
+        folder= 'Braeden_oct_20_2022'
+        fname = os.path.join(self.parent.requests_path, folder, fpure)
+        fig.savefig(fname)
+
+
+
