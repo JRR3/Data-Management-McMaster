@@ -106,7 +106,7 @@ class LTCSerologyMaster:
         for index, row in df_up.iterrows():
             if exit_iterrows_flag:
                 break
-            for col, item in row.iteritems():
+            for col, item in row.items():
                 if isinstance(item, str):
                     #Check if the item is an ID
                     obj = rexp_c.search(item)

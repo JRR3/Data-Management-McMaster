@@ -235,6 +235,7 @@ class SampleInventoryData:
             doc_M = doc_M.values[0]
             if pd.notnull(doc_LSM):
                 delta = (doc_M - doc_LSM) / np.timedelta64(1, 'D')
+                delta = np.abs(delta)
                 if 1 < delta:
                     raise ValueError('The date for this ID does not match the M file.')
             else:

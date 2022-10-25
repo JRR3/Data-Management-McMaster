@@ -7,6 +7,7 @@ import re
 import matplotlib as mpl
 mpl.rcParams['figure.dpi']=300
 import matplotlib.pyplot as plt
+import datetime
 
 
 # <b> Section: Master_Participant_Data </b>
@@ -274,6 +275,16 @@ class MasterParticipantData:
         self.parent.write_the_M_file_to_excel()
 
 
+    ##########Oct 25 2022##################
+    def compute_age_from_dob(self):
+        for index, row in self.parent.df.iterrows():
+            dob = row['DOB']
+            if pd.isnull(dob):
+                continue
+            today = datetime.datetime.now()
+            delta = (today - dob).days
+            years = delta // 365
+            self.parent.df.loc[index,'Age'] = years
 
 
 
