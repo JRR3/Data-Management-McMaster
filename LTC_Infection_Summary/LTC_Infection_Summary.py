@@ -470,6 +470,8 @@ class LTCInfectionSummary:
         #have been PCR confirmed infections.
         #It also computes the last infection
         #and the number of days since the last infection.
+        print('Within LTC_Infection_Summary:')
+        print('Updating PCR and infection status.')
         pcr_selector = self.parent.df['ID'].isnull()
         #inf_selector = self.parent.df['ID'].isnull()
         self.parent.df[self.pcr_last] = np.nan

@@ -249,6 +249,8 @@ class SampleInventoryData:
             print(S.to_string(index=False))
         else:
             print('All dates in the LSM file are consistent.')
+        #Overwriting the LSM file should be done externally for
+        #safety reasons.
         #self.parent.LSM_obj.write_to_excel()
 
 

@@ -22,7 +22,7 @@ class MasterParticipantData:
         self.DOE      = 'Enrollment Date'
         self.note     = 'Notes/Comments'
         self.reason   = 'Reason'
-        self.status   = 'Active'
+        self.is_active   = 'Active'
         self.comments = 'Notes/Comments'
         self.removal_states = ['Deceased', 'Discharged', 'Moved Out',
                                'Decline', 'Withdraw from Study']
@@ -196,7 +196,7 @@ class MasterParticipantData:
     def update_active_status_column(self):
         c1 = self.parent.df[self.DOR].notnull()
         c2 = self.parent.df[self.reason].notnull()
-        self.parent.df[self.status] = ~(c1 | c2)
+        self.parent.df[self.is_active] = ~(c1 | c2)
         print('The active status column has been updated.')
 
     def full_run(self):
@@ -285,6 +285,18 @@ class MasterParticipantData:
             delta = (today - dob).days
             years = delta // 365
             self.parent.df.loc[index,'Age'] = years
+
+    ##########Oct 25 2022##################
+    def missing_DOR(self):
+        #Missing dates of removal, i.e.,
+        #Date Removed from Study
+        not_active_s = self.parent.df[self.is_active] == False
+        missing_date_s = self.parent.df[self.DOR].isnull()
+        selector = not_active_s & missing_date_s
+        S = self.parent.df['ID'].where(selector, np.nan)
+        selector = S.notnull()
+        S = S.loc[selector]
+        print(S)
 
 
 
