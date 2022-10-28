@@ -354,6 +354,7 @@ class Reporter:
         df.to_excel(fname, index=False)
 
     def merge_and_plot_Ab_data(self):
+        #Unfinished
         f = 'RBD-IgG-100_trend_infection_is_False.xlsx'
         fname = os.path.join(self.dpath, f)
         df_1 = pd.read_excel(fname)

@@ -716,7 +716,9 @@ class LTCInfectionSummary:
         add_cols = ['Had 0 days?', 'Days elapsed',
                 'Delta IgG', 'Delta IgA',
                 'Slope IgG', 'Slope IgA',
-                'Has slopes?']
+                'Has slopes?',
+                'Ratio IgG',
+                'Ratio IgA']
         #Specify that we are working with serology data
         add_cols = ['S: ' + x for x in add_cols]
         states = ['before', 'after']
@@ -725,8 +727,8 @@ class LTCInfectionSummary:
         for index, row in df.iterrows():
             had_0_days = False
             days_count = 0
-            delta_IgG  = np.full(2, np.nan)
-            delta_IgA  = np.full(2, np.nan)
+            seq_IgG  = np.full(2, np.nan)
+            seq_IgA  = np.full(2, np.nan)
             for k,state in enumerate(states):
                 days_col = 'S: Days ' + state
                 if row[days_col] == 0:
@@ -734,20 +736,24 @@ class LTCInfectionSummary:
                 days_count += row[days_col]
                 #IgG
                 IgG_col = Ig_cols[0] + ' ' + state
-                delta_IgG[k] = row[IgG_col]
+                seq_IgG[k] = row[IgG_col]
                 #IgA
                 IgA_col = Ig_cols[1] + ' ' + state
-                delta_IgA[k] = row[IgA_col]
+                seq_IgA[k] = row[IgA_col]
             #Had 0 days?
             df.loc[index,'S: Had 0 days?'] = had_0_days
             #Days elapsed
             df.loc[index,'S: Days elapsed'] = days_count
             #Delta IgG
-            delta_IgG = np.diff(delta_IgG)[0]
+            delta_IgG = np.diff(seq_IgG)[0]
             df.loc[index,'S: Delta IgG'] = delta_IgG
             #Delta IgA
-            delta_IgA = np.diff(delta_IgA)[0]
+            delta_IgA = np.diff(seq_IgA)[0]
             df.loc[index,'S: Delta IgA'] = delta_IgA
+            #Ratio IgG
+            df.loc[index,'S: Ratio IgG'] = seq_IgG[1] / seq_IgG[0]
+            #Ratio IgA
+            df.loc[index,'S: Ratio IgA'] = seq_IgA[1] / seq_IgA[0]
             if days_count == 0:
                 print('Slope cannot be computed')
                 df.loc[index,'S: Has slopes?'] = False
