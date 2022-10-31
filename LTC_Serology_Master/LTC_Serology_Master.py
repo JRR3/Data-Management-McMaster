@@ -14,14 +14,22 @@ import matplotlib.pyplot as plt
 # <b> Section: Master_Participant_Data </b>
 
 class LTCSerologyMaster:
-    def __init__(self, dpath):
-        self.dpath = dpath
+    def __init__(self, dpath, parent=None):
+        self.parent = None
+        self.df     = None
+        self.dpath  = dpath
         self.backups_path = os.path.join('..', 'backups')
         self.merge_source = 'Full ID'
         self.merge_column = 'ID'
         self.DOC          = 'Date Collected'
 
         self.load_LSM_file()
+
+        if parent:
+            self.parent = parent
+            print('LSM class initialization from Manager.')
+        else:
+            raise ValueError('Parent object is unavailable.')
 
     def load_LSM_file(self):
         #Note that the LSM file already has compact format, i.e.,
@@ -35,37 +43,8 @@ class LTCSerologyMaster:
 
 
     def update_id_column(self):
-        #This function was updated on Oct 12, 2022
-
-        flag_needs_order = False
-        if self.merge_column not in self.df.columns:
-            print('Creating the ID column.')
-            flag_needs_order = True
-            column_order = [self.merge_column] + self.df.columns.to_list()
-            self.df[self.merge_column] = ''
-        else:
-            print('The ID column already exists.')
-
-
-
-        id_rx = re.compile('[0-9]+[-][0-9]+')
-        def get_id_from_full_id(txt):
-            obj = id_rx.match(txt)
-            if obj is None:
-                print(txt)
-                raise ValueError('ID is not compliant.')
-            return obj.group(0)
-
-        self.df[self.merge_column] =\
-                self.df[self.merge_source].apply(get_id_from_full_id)
-        print('ID column has been updated inside the LSM file.')
-
-        if flag_needs_order:
-            print('Reordering the columns.')
-            self.df = self.df[column_order]
-
-        if self.df[self.merge_source].value_counts().gt(1).any():
-            raise ValueError('No repetitions should be present.')
+        #This function was updated on Oct 31, 2022
+        self.df = self.parent.create_df_with_ID_from_full_ID(self.df)
 
     ######September 28 20222
 
@@ -89,7 +68,7 @@ class LTCSerologyMaster:
         print('The LSM file has been written to Excel.')
 
     def merge_serology_update(self, df_up):
-        original_columns = self.df.columns
+        #Updated on Oct 31, 2022
         print('===================Work======')
         df_up.replace('NT', np.nan, inplace=True)
         relevant_proteins = ['Spike', 'RBD', 'Nuc']
@@ -157,34 +136,16 @@ class LTCSerologyMaster:
         df_up[merge_at_column] = df_up[merge_at_column].apply(is_id)
         df_up.dropna(subset=merge_at_column, axis=0, inplace=True)
         print('Ready to merge')
-        #The update has a higher hierarchy than the current data.
-        prioritize_update = True
-        M = pd.merge(self.df, df_up, on=merge_at_column, how='outer')
-        for key, value in col_indices.items():
-            if value == merge_at_column:
-                continue
-            if value in self.df.columns:
-                left = value + '_x'
-                right = value + '_y'
-                z = M[left].isnull() &  M[right].notnull()
-                if z.any():
-                    print('>>>New indeed for', value)
-                else:
-                    print('Column', value, 'appears to be complete.')
-                if value in M.columns:
-                    raise ValueError('This column should not exist.')
-                if prioritize_update:
-                    print('The update has priority over the current data.')
-                    M[value] = M[right].where(M[right].notnull(), M[left])
-                else:
-                    print('The current data has priority over the update.')
-                    M[value] = M[left].where(M[left].notnull(), M[right])
-                #Drop repeated columns
-                M.drop([left, right], axis=1, inplace=True)
-            else:
-                raise ValueError('This column does not exist.')
-        self.df = M[original_columns]
+        #Check that the use of the dictionary can be replaced
+        #with the modified data frame df_up
+        #for key, value in col_indices.items()
+        #Merge process >>>
+        #The update has a higher priority than the original data.
+        kind = 'update+'
+        self.df = self.parent.merge_X_with_Y_and_return_Z(self.df,
+                                                          df_up,
+                                                          merge_at_column,
+                                                          kind=kind)
         self.update_id_column()
         print('End of merging process.')
-
 

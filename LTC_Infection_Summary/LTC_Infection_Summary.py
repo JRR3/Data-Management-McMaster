@@ -70,15 +70,7 @@ class LTCInfectionSummary:
             self.extract_inf_vac_headers()
             print('LIS class initialization from Manager.')
         else:
-            #Which row contains the first data entry in the Excel file
-            self.excel_starts_at = 3
-            LIS = 'LTC_Infection_Summary'
-            self.fname = os.path.join(self.dpath, LIS + '.xlsx')
-            #Read the Excel file containing the data
-            self.parent.df = pd.read_excel(self.fname,
-                       sheet_name="Summary List-NEW",
-                       usecols="A:Q", skiprows=[0])
-            print('The LIS class has been loaded using local file.')
+            raise ValueError('Parent object is unavailable.')
 
 
     def load_wave_types_and_dates(self):

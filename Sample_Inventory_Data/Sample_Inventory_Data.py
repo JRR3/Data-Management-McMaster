@@ -206,17 +206,18 @@ class SampleInventoryData:
 
 
 
-    def check_LSM_dates_using_SID(self):
-        #This function was modified on Oct 12, 2022
-        #This function uses the PARENT object.
-        #Check the dates in the LSM '
-        #file using the SID file.
+    def check_df_dates_using_SID(self, df):
+        #This function was modified on Oct 31, 2022
+        #Check the dates in the given data frame
+        #using the SID file.
+        #The object df is passed by reference and is
+        #modified using the loc method.
         #Notation
         #doc: date of collection
         print('Checking the dates of the LSM file using the SID.')
         doc = 'Date Collected'
         missing_dates = []
-        for index, row in self.parent.LSM_obj.df.iterrows():
+        for index, row in df.iterrows():
             ID = row['ID']
             full_ID = row['Full ID']
             letter_code = self.extract_letter_code(full_ID)
@@ -242,7 +243,7 @@ class SampleInventoryData:
                 #If the date is empty in the LSM file, we 
                 #simply complete it with the M file.
                 print(f'{full_ID=} DOC was assigned from SID.')
-                self.parent.LSM_obj.df.loc[index, doc] = doc_M
+                df.loc[index, doc] = doc_M
         if  0 < len(missing_dates):
             print('The following Full IDs have missing dates:')
             S = pd.Series(missing_dates)
@@ -251,7 +252,6 @@ class SampleInventoryData:
             print('All dates in the LSM file are consistent.')
         #Overwriting the LSM file should be done externally for
         #safety reasons.
-        #self.parent.LSM_obj.write_to_excel()
 
 
 

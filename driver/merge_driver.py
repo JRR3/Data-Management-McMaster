@@ -35,6 +35,9 @@ class Merger:
         self.M_pure_name = 'M'
         self.M_fname     = self.M_pure_name + '.xlsx'
 
+        self.merge_source = 'Full ID'
+        self.merge_column = 'ID'
+
         #By default we load the M file
         self.load_the_M_file()
 
@@ -55,7 +58,8 @@ class Merger:
         LSM = 'LTC_Serology_Master'
         self.LSM_path = os.path.join('..', LSM)
         self.LSM_obj  = LTC_Serology_Master.\
-                LTCSerologyMaster(self.LSM_path)
+                LTCSerologyMaster(self.LSM_path,
+                                  self)
 
         SID = 'Sample_Inventory_Data'
         self.SID_path = os.path.join('..', SID)
@@ -66,7 +70,8 @@ class Merger:
         LND = 'LTC_Neutralization_Data'
         self.LND_path = os.path.join('..', LND)
         self.LND_obj  = LTC_Neutralization_Data.\
-                LTCNeutralizationData(self.LND_path)
+                LTCNeutralizationData(self.LND_path,
+                                      self)
 
         REP = 'Reporter'
         self.REP_path = os.path.join('..', REP)
@@ -89,8 +94,8 @@ class Merger:
     def update_master_using_SID(self):
         #This function updates the merged file M with the
         #Sample Inventory Data file provided by Megan.
-        folder = 'Megan_26_oct_2022'
-        fname = 'sid.xlsx'
+        folder = 'Megan_oct_31_2022'
+        fname = 'SID.xlsx'
         fname = os.path.join(self.requests_path, folder, fname)
         #We are only interested in the first column (ID=A) and the 
         #Blood draw columns (W to BF).
@@ -353,7 +358,7 @@ class Merger:
             print(f'{col:35}: {dtype}')
 
     def merge_with_M_and_return_M(self, df_up, merge_column, kind='update+'):
-        #Oct 12, 2022
+        #Oct 31, 2022
         #This function is commonly used and now
         #has a separate definition to avoid code
         #repetition.
@@ -363,39 +368,10 @@ class Merger:
         #If the kind is 'correct', then we give priority to the update.
         #If the kind is 'complement', we prioritize the M file 
         #and only fill empty cells.
-
-        M = pd.merge(self.df, df_up, on=merge_column, how='outer')
-        for column in df_up.columns:
-            if column not in self.df.columns:
-                print(column)
-                raise ValueError('All columns in the update should be common')
-            if column == merge_column:
-                continue
-            left  = column + '_x'
-            right = column + '_y'
-            #Check if we have new data
-            is_new_data = M[left].isnull() & M[right].notnull()
-            if is_new_data.any():
-                print(f'{column=} has new information.')
-            else:
-                print(f'{column=} was already complete.')
-            if kind == 'update++':
-                #Only trust the update
-                M[column] = M[right]
-            elif kind == 'update+':
-                #The update has a higher priority.
-                #Keep the update if not empty.
-                #Otherwise, use the original.
-                M[column] = M[right].where(M[right].notnull(), M[left])
-            elif kind == 'original+':
-                #The original has a higher priority.
-                #Keep the original if not empty.
-                #Otherwise, use the update.
-                M[column] = M[left].where(M[left].notnull(), M[right])
-            else:
-                raise ValueError('Unexpected kind for the update.')
-            M.drop(columns=[left, right], inplace=True)
-        return M[self.df.columns]
+        return self.merge_X_with_Y_and_return_Z(self.df,
+                                                df_up,
+                                                merge_column,
+                                                kind=kind)
 
 
     def update_LSM(self):
@@ -415,16 +391,8 @@ class Merger:
 
         #Uncomment the following line if you want to verify
         #that the LSM dates are consistent with the SID file.
-        #self.SID_obj.check_LSM_dates_using_SID()
+        #self.SID_obj.check_df_dates_using_SID(self.LSM_obj.df)
 
-
-        #want_to_print = input('Are you sure you want to overwrite the LSM? ')
-        #if want_to_print == 'y':
-            #print('Writing to LSM >>>')
-        #else:
-            #print('Writing aborted.')
-
-        #Note==>
         #The writing process should be executed 
         #externally for safery reasons.
 
@@ -433,7 +401,137 @@ class Merger:
         #This function makes sure that all the dates
         #in the LSM file are consistent with the 
         #dates in the SID file.
-        self.SID_obj.check_LSM_dates_using_SID()
+        self.SID_obj.check_df_dates_using_SID(self.LSM_obj.df)
+
+    def merge_X_with_Y_and_return_Z(self, X, Y, merge_column, kind='update+'):
+        #Oct 31, 2022
+        #This function is commonly used and now
+        #has a separate definition to avoid code
+        #repetition.
+        #Merge on: merge_column
+        #Outer-type merge
+        #We check that all columns are common.
+        #If the kind is 'update+', then we give priority to the update Y.
+        #If the kind is 'original+', we prioritize the X file 
+        #and only fill empty cells.
+        Z = pd.merge(X, Y, on=merge_column, how='outer')
+        for column in Y.columns:
+            if column not in X.columns:
+                print(column)
+                raise ValueError('All columns in the update should be common.')
+            if column == merge_column:
+                continue
+            left  = column + '_x'
+            right = column + '_y'
+            #Check if we have new data
+            is_new_data = Z[left].isnull() & Z[right].notnull()
+            if is_new_data.any():
+                print(f'{column=} has new information.')
+            else:
+                print(f'{column=} was already complete.')
+            if kind == 'update++':
+                #Only trust the update
+                Z[column] = Z[right]
+            elif kind == 'update+':
+                #The update has a higher priority.
+                #Keep the update if not empty.
+                #Otherwise, use the original.
+                Z[column] = Z[right].where(Z[right].notnull(), Z[left])
+            elif kind == 'original+':
+                #The original has a higher priority.
+                #Keep the original if not empty.
+                #Otherwise, use the update.
+                Z[column] = Z[left].where(Z[left].notnull(), Z[right])
+            else:
+                raise ValueError('Unexpected kind for the update.')
+            Z.drop(columns=[left, right], inplace=True)
+        return Z[X.columns]
+
+    def create_df_with_ID_from_full_ID(self, Y):
+        #This function was updated on Oct 31, 2022
+        #For safety reasons we create a copy of the 
+        #original data frame.
+        #This function is used inside the LND and LSM
+        #classes.
+        X = Y.copy()
+        flag_needs_order = False
+        if self.merge_column not in X.columns:
+            print('Creating the ID column.')
+            flag_needs_order = True
+            column_order = [self.merge_column] + X.columns.to_list()
+            X[self.merge_column] = ''
+        else:
+            print('The ID column already exists.')
+        id_rx = re.compile('(?P<ID>[0-9]+[-][0-9]+)[-][A-Z]+')
+
+        def get_id_from_full_id(txt):
+            obj = id_rx.match(txt)
+            if obj is None:
+                print(txt)
+                raise ValueError('ID is not compliant.')
+            return obj.group('ID')
+
+        X[self.merge_column] =\
+                X[self.merge_source].apply(get_id_from_full_id)
+        print('ID column has been updated inside the X file.')
+
+        if flag_needs_order:
+            print('Reordering the columns.')
+            X = X[column_order]
+
+        if X[self.merge_source].value_counts().gt(1).any():
+            raise ValueError('No repetitions should be present.')
+        print('The merge operation is complete. Returning merged DF.')
+        return X
+
+    def whole_blood_update(self):
+        folder = 'Megan_oct_31_2022'
+        fname = 'whole_blood.xlsx'
+        fname = os.path.join('..','requests',folder, fname)
+        df_up = pd.read_excel(fname)
+        print(df_up)
+        self.df = self.merge_X_with_Y_and_return_Z(self.df,
+                                         df_up,
+                                         self.merge_column,
+                                         kind='update+')
+
+    def jessica_oct_31_2022(self):
+        #Updating the neutralization data file.
+        fname = 'mnt_data.xlsx'
+        folder = 'Jessica_oct_31_2022'
+        fname = os.path.join('..','requests',folder, fname)
+        df_up = pd.read_excel(fname)
+        df_up.dropna(axis=0, subset='Full ID', inplace=True)
+        if df_up[self.merge_source].value_counts().gt(1).any():
+            selector = df_up[self.merge_source].value_counts().gt(1)
+            duplicates = selector.loc[selector]
+            print(duplicates)
+            raise ValueError('There are duplicates in the update.')
+        fname = 'missing_dates_oct_12_2022.xlsx'
+        folder = 'Jessica_oct_31_2022'
+        fname = os.path.join('..','requests',folder, fname)
+        df_change_id = pd.read_excel(fname)
+        for index, row in df_change_id.iterrows():
+            old_id = row['Original']
+            new_id = row['New']
+            selector = df_up['Full ID'] == old_id
+            if selector.any():
+                df_up.loc[selector, 'Full ID'] = new_id
+        print(df_up)
+        M = self.merge_X_with_Y_and_return_Z(self.LND_obj.df,
+                                             df_up,
+                                             self.merge_source,
+                                             kind='update+')
+        M = self.create_df_with_ID_from_full_ID(M)
+        self.SID_obj.check_df_dates_using_SID(M)
+        #self.write_df_to_excel(M, label='LND')
+        M = self.merge_X_with_Y_and_return_Z(self.LSM_obj.df,
+                                             M,
+                                             self.merge_source,
+                                             kind='update+')
+        self.SID_obj.check_df_dates_using_SID(M)
+        self.LSM_obj.df = M
+        self.LSM_obj.write_to_excel()
 
 
 
@@ -481,4 +579,11 @@ obj = Merger()
 #obj.MPD_obj.missing_DOR()
 #Oct 27 2022
 #obj.LIS_obj.get_serology_dates_for_infection_dates()
-obj.LIS_obj.compute_slopes_for_serology()
+#obj.LIS_obj.compute_slopes_for_serology()
+#Oct 31 2022
+#obj.update_master_using_SID()
+#obj.write_the_M_file_to_excel()
+#obj.whole_blood_update()
+#obj.write_the_M_file_to_excel()
+obj.LND_obj.clean_LND_file()
+obj.jessica_oct_31_2022()
