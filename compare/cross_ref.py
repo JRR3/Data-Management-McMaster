@@ -492,7 +492,6 @@ class Comparator:
 
 
 
-
     def update_PCR(self):
         #Oct 03, 2022
         self.LIS_obj.update_PCR_and_infection_status()
@@ -507,6 +506,7 @@ class Comparator:
 
     #Oct 10,11,12 2022
     def tara_req_oct_3_2022(self):
+        #Too specific.
         fname = 'sv_data.xlsx'
         folder = 'Tara_oct_03_2022'
         fname = os.path.join('..','requests',folder, fname)
@@ -637,6 +637,7 @@ class Comparator:
         self.df = self.merge_with_M_and_return_M(df_up, 'ID', kind='correct')
 
     def tara_req_oct_5_2022(self):
+        #Too specific.
         fname = 'CovidLTC_DataCoordination_site_13_Oct_5_2022.xlsx'
         folder = 'Tara_oct_5_2022'
         fname = os.path.join('..','requests',folder, fname)
@@ -683,11 +684,6 @@ class Comparator:
         #self.LSM_obj.write_to_excel()
 
 
-    #Oct 15 2022
-    #obj.tara_req_oct_13_2022()
-    #obj.extract_date_and_method()
-    #obj.LIS_obj.order_infections_and_vaccines()
-    #obj.write_the_M_file_to_excel()
     def extract_date_and_method(self):
         #This function was developed for the site_01 data
         #given by Tara on Oct 13 2022.
@@ -766,6 +762,7 @@ class Comparator:
 
 
     def tara_req_oct_13_2022(self):
+        #Too specific.
         fname = 'site_01.xlsx'
         folder = 'Tara_13_oct_2022'
         fname = os.path.join('..','requests',folder, fname)
@@ -1534,8 +1531,6 @@ class Comparator:
         plt.savefig(fname)
         #NOTE: Function is terminated abruptly.
         return
-
-
         unique_rows = df_med.drop_duplicates()
         print(unique_rows)
         print('# unique rows:', len(unique_rows))
@@ -1555,6 +1550,60 @@ class Comparator:
                     print('==========')
                     print(x)
                     print(rows)
+
+    #Oct 31 2022
+    def whole_blood_update(self):
+        folder = 'Megan_oct_31_2022'
+        fname = 'whole_blood.xlsx'
+        fname = os.path.join('..','requests',folder, fname)
+        df_up = pd.read_excel(fname)
+        print(df_up)
+        self.df = self.merge_X_with_Y_and_return_Z(self.df,
+                                         df_up,
+                                         self.merge_column,
+                                         kind='update+')
+
+    def jessica_oct_31_2022(self):
+        #Updating the neutralization data file.
+        fname = 'mnt_data_updated.xlsx'
+        folder = 'Jessica_oct_31_2022'
+        fname = os.path.join('..','requests',folder, fname)
+        df_up = pd.read_excel(fname)
+        df_up.dropna(axis=0, subset='Full ID', inplace=True)
+        if df_up[self.merge_source].value_counts().gt(1).any():
+            selector = df_up[self.merge_source].value_counts().gt(1)
+            duplicates = selector.loc[selector]
+            print(duplicates)
+            raise ValueError('There are duplicates in the update.')
+        fname = 'missing_dates_oct_12_2022.xlsx'
+        folder = 'Jessica_oct_31_2022'
+        fname = os.path.join('..','requests',folder, fname)
+        df_change_id = pd.read_excel(fname)
+        for index, row in df_change_id.iterrows():
+            old_id = row['Original']
+            new_id = row['New']
+            selector = df_up['Full ID'] == old_id
+            if selector.any():
+                df_up.loc[selector, 'Full ID'] = new_id
+        print(df_up)
+        M = self.merge_X_with_Y_and_return_Z(self.LND_obj.df,
+                                             df_up,
+                                             self.merge_source,
+                                             kind='update+')
+        M = self.create_df_with_ID_from_full_ID(M)
+        self.SID_obj.check_df_dates_using_SID(M)
+        #self.write_df_to_excel(M, label='LND')
+        M = self.merge_X_with_Y_and_return_Z(self.LSM_obj.df,
+                                             M,
+                                             self.merge_source,
+                                             kind='update+')
+        self.SID_obj.check_df_dates_using_SID(M)
+        self.LSM_obj.df = M
+
+    def tara_oct_31_2022(self):
+        self.extract_and_update_DOR_Reason_Infection()
+        self.df['Reason'] = self.df['Reason'].str.replace('Moved Out', 'Moved')
+        print(self.df['Reason'].value_counts())
 
 
 
@@ -1607,3 +1656,53 @@ class Comparator:
 #obj.extract_and_update_DOR_Reason_Infection()
 #obj.tara_req_oct_5_2022()
 #obj.merge_M_with_LSM()
+#Oct 12 2022
+#obj.update_LSM()
+#obj.update_master_using_SID()
+#obj.check_LSM_dates()
+#obj.REP_obj.merge_and_plot_Ab_data()
+#obj.REP_obj.find_short_jumps()
+#Oct 14 2022
+#obj.extract_and_update_DOR_Reason_Infection()
+#Oct 15 2022
+#obj.tara_req_oct_13_2022()
+#obj.extract_date_and_method()
+#obj.LIS_obj.order_infections_and_vaccines()
+#obj.write_the_M_file_to_excel()
+#Oct 19 2022
+#obj.update_master_using_SID()
+#obj.MPD_obj.update_M_from_comments_and_dates()
+#Oct 20 2022
+#obj.LIS_obj.get_serology_dates_for_infection_dates()
+#obj.LIS_obj.compute_slopes_for_serology()
+#obj.REP_obj.plot_serology_slopes_from_selection()
+#obj.REP_obj.plot_serology_slope_progression()
+#obj.REP_obj.plot_serology_slope_vs_days_after_infection()
+#obj.REP_obj.plot_serology_slope_vs_bins_after_infection()
+#Oct 25/26 2022
+#obj.check_zains()
+#obj.MPD_obj.compute_age_from_dob()
+#obj.write_the_M_file_to_excel()
+#Oct 26 2022
+#obj.update_master_using_SID()
+#obj.write_the_M_file_to_excel()
+#Oct 26 2022
+#obj.update_LSM()
+#obj.LSM_obj.write_to_excel()
+#obj.check_LSM_dates()
+#obj.LSM_obj.write_to_excel()
+#obj.MPD_obj.update_active_status_column()
+#obj.LIS_obj.update_PCR_and_infection_status()
+#obj.write_the_M_file_to_excel()
+#obj.merge_M_with_LSM()
+#obj.MPD_obj.missing_DOR()
+#Oct 27 2022
+#obj.LIS_obj.get_serology_dates_for_infection_dates()
+#obj.LIS_obj.compute_slopes_for_serology()
+#Oct 31 2022
+#obj.update_master_using_SID()
+#obj.write_the_M_file_to_excel()
+#obj.whole_blood_update()
+#obj.write_the_M_file_to_excel()
+#obj.LND_obj.clean_LND_file()
+#obj.jessica_oct_31_2022()

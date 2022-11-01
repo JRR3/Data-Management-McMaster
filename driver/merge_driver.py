@@ -212,6 +212,8 @@ class Merger:
 
 
     def extract_and_update_DOR_Reason_Infection(self):
+        #Modified on Nov 1, 2022
+        #Moved Out --> Moved
         #On a first pass you might not want to modify
         #the M file until you are convinced that the
         #text was correctly parsed.
@@ -223,32 +225,39 @@ class Merger:
         #Examples
         #50-1910008 Deceased Sep 15 2022
         #14-5077158  Positive Oct 2 2022
+        #14-5077158  Positive Oct 2 (No year)
         flag_update_active = False
         flag_update_waves  = False
         infection_dictionary = {'ID':[], 'date':[]}
         reason_dictionary = {'ID':[],
                              self.MPD_obj.reason:[],
                              'date':[]}
-        fname = 'data.xlsx'
-        folder = 'Tara_oct_14_2022'
+        fname = 'up.xlsx'
+        folder = 'Tara_oct_31_2022'
         fname = os.path.join(self.requests_path, folder, fname)
         df_up = pd.read_excel(fname, header=None)
         df_up.dropna(axis=0, inplace=True)
         id_rx     = re.compile('[0-9]+[-][0-9]+')
-        reason_rx = re.compile('[a-zA-Z]+([ ][a-zA-Z]+)*')
-        date_rx   = re.compile('[a-zA-Z]+[ ]+[0-9]{1,2}[ ]+[0-9]+')
+        #This version is deprecated since we no longer
+        #use the status 'Moved Out'. Now we use 'Moved'.
+        #reason_rx = re.compile('[a-zA-Z]+([ ][a-zA-Z]+)*')
+        reason_rx = re.compile('[a-zA-Z]+')
+        date_rx   = re.compile('[a-zA-Z]+[ ]+[0-9]{1,2}(?P<year>[ ]+[0-9]+)?')
         #We assume the data frame has only one column.
         for txt in df_up[0]:
             print(txt)
             date_obj = date_rx.search(txt)
             if date_obj:
                 date   = date_obj.group(0)
-                print(f'{date=}')
                 txt_m_date = txt.replace(date, '')
+                if date_obj.group('year'):
+                    pass
+                else:
+                    #If no year is given, we infer that 2022 is meant.
+                    date += ' 2022'
                 id_obj = id_rx.search(txt_m_date)
                 if id_obj:
                     ID = id_obj.group(0)
-                    print(f'{ID=}')
                     txt_m_date_m_id = txt_m_date.replace(ID, '')
                     reason_obj = reason_rx.search(txt_m_date_m_id)
                     if reason_obj:
@@ -261,9 +270,9 @@ class Merger:
             else:
                 raise ValueError('Unable to parse string.')
 
-            #print(f'{ID=}')
-            #print(f'{reason=}')
-            #print(f'{date=}')
+            print(f'{ID=}')
+            print(f'{reason=}')
+            print(f'{date=}')
             print('---------Extraction is complete.')
             selector = self.df['ID'] == ID
             if reason.lower() in self.MPD_obj.removal_states_l:
@@ -285,11 +294,10 @@ class Merger:
             self.MPD_obj.update_reason_dates_and_status(df_up)
         if flag_update_waves:
             df_up = pd.DataFrame(infection_dictionary)
-            df_up['date'] = pd.to_datetime(df_up['date'])
+            df_up['DOI'] = pd.to_datetime(df_up['date'])
             print(df_up)
             self.LIS_obj.update_the_dates_and_waves(df_up)
         print('Not currently writing')
-        #self.write_the_M_file_to_excel()
 
 
     def check_id_format(self, df, col):
@@ -484,111 +492,25 @@ class Merger:
         print('The merge operation is complete. Returning merged DF.')
         return X
 
-    def whole_blood_update(self):
-        folder = 'Megan_oct_31_2022'
-        fname = 'whole_blood.xlsx'
-        fname = os.path.join('..','requests',folder, fname)
-        df_up = pd.read_excel(fname)
-        print(df_up)
-        self.df = self.merge_X_with_Y_and_return_Z(self.df,
-                                         df_up,
-                                         self.merge_column,
-                                         kind='update+')
-
-    def jessica_oct_31_2022(self):
-        #Updating the neutralization data file.
-        fname = 'mnt_data.xlsx'
-        folder = 'Jessica_oct_31_2022'
-        fname = os.path.join('..','requests',folder, fname)
-        df_up = pd.read_excel(fname)
-        df_up.dropna(axis=0, subset='Full ID', inplace=True)
-        if df_up[self.merge_source].value_counts().gt(1).any():
-            selector = df_up[self.merge_source].value_counts().gt(1)
-            duplicates = selector.loc[selector]
-            print(duplicates)
-            raise ValueError('There are duplicates in the update.')
-        fname = 'missing_dates_oct_12_2022.xlsx'
-        folder = 'Jessica_oct_31_2022'
-        fname = os.path.join('..','requests',folder, fname)
-        df_change_id = pd.read_excel(fname)
-        for index, row in df_change_id.iterrows():
-            old_id = row['Original']
-            new_id = row['New']
-            selector = df_up['Full ID'] == old_id
-            if selector.any():
-                df_up.loc[selector, 'Full ID'] = new_id
-        print(df_up)
-        M = self.merge_X_with_Y_and_return_Z(self.LND_obj.df,
-                                             df_up,
-                                             self.merge_source,
-                                             kind='update+')
-        M = self.create_df_with_ID_from_full_ID(M)
-        self.SID_obj.check_df_dates_using_SID(M)
-        #self.write_df_to_excel(M, label='LND')
-        M = self.merge_X_with_Y_and_return_Z(self.LSM_obj.df,
-                                             M,
-                                             self.merge_source,
-                                             kind='update+')
-        self.SID_obj.check_df_dates_using_SID(M)
-        self.LSM_obj.df = M
-        self.LSM_obj.write_to_excel()
 
 
 
 
 obj = Merger()
-#Oct 12 2022
-#obj.update_LSM()
-#obj.update_master_using_SID()
-#obj.check_LSM_dates()
-#obj.REP_obj.merge_and_plot_Ab_data()
-#obj.REP_obj.find_short_jumps()
-#Oct 14 2022
-#obj.extract_and_update_DOR_Reason_Infection()
-#Oct 15 2022
-#obj.tara_req_oct_13_2022()
-#obj.extract_date_and_method()
-#obj.LIS_obj.order_infections_and_vaccines()
-#obj.write_the_M_file_to_excel()
-#Oct 19 2022
-#obj.update_master_using_SID()
-#obj.MPD_obj.update_M_from_comments_and_dates()
-#Oct 20 2022
-#obj.LIS_obj.get_serology_dates_for_infection_dates()
-#obj.LIS_obj.compute_slopes_for_serology()
-#obj.REP_obj.plot_serology_slopes_from_selection()
-#obj.REP_obj.plot_serology_slope_progression()
-#obj.REP_obj.plot_serology_slope_vs_days_after_infection()
-#obj.REP_obj.plot_serology_slope_vs_bins_after_infection()
-#Oct 25/26 2022
-#obj.check_zains()
-#obj.MPD_obj.compute_age_from_dob()
-#obj.write_the_M_file_to_excel()
-#Oct 26 2022
-#obj.update_master_using_SID()
-#obj.write_the_M_file_to_excel()
-#Oct 26 2022
-#obj.update_LSM()
-#obj.LSM_obj.write_to_excel()
-#obj.check_LSM_dates()
-#obj.LSM_obj.write_to_excel()
-#obj.MPD_obj.update_active_status_column()
-#obj.LIS_obj.update_PCR_and_infection_status()
-#obj.write_the_M_file_to_excel()
-#obj.merge_M_with_LSM()
-#obj.MPD_obj.missing_DOR()
-#Oct 27 2022
-#obj.LIS_obj.get_serology_dates_for_infection_dates()
-#obj.LIS_obj.compute_slopes_for_serology()
 #Oct 31 2022
-#obj.update_master_using_SID()
-#obj.write_the_M_file_to_excel()
-#obj.whole_blood_update()
-#obj.write_the_M_file_to_excel()
+#Generate the slope plots respecting the thresholds.
+#obj.REP_obj.plot_serology_one_Ig_from_df(Ig='G', max_n_inf=5)
+#obj.REP_obj.plot_serology_one_Ig_from_df(Ig='A', max_n_inf=5)
+#obj.REP_obj.plot_serology_one_Ig_from_df(Ig='G', max_n_inf=1)
+#obj.REP_obj.plot_serology_one_Ig_from_df(Ig='A', max_n_inf=1)
+#Oct 31 2022 (Recompute Serology Update)
 #obj.LND_obj.clean_LND_file()
 #obj.jessica_oct_31_2022()
-#Oct 31 2022 (B)
-obj.REP_obj.plot_serology_one_Ig_from_df(Ig='G', max_n_inf=5)
-obj.REP_obj.plot_serology_one_Ig_from_df(Ig='A', max_n_inf=5)
-obj.REP_obj.plot_serology_one_Ig_from_df(Ig='G', max_n_inf=1)
-obj.REP_obj.plot_serology_one_Ig_from_df(Ig='A', max_n_inf=1)
+#obj.LSM_obj.write_to_excel()
+#Oct 31 2022 (Tara's update)
+#obj.tara_oct_31_2022()
+#obj.write_the_M_file_to_excel()
+#obj.LIS_obj.compute_waves_of_infection()
+#obj.LIS_obj.assume_PCR_if_empty()
+#obj.LIS_obj.update_PCR_and_infection_status()
+#obj.write_the_M_file_to_excel()

@@ -24,7 +24,8 @@ class MasterParticipantData:
         self.reason   = 'Reason'
         self.is_active   = 'Active'
         self.comments = 'Notes/Comments'
-        self.removal_states = ['Deceased', 'Discharged', 'Moved Out',
+        #Moved Out --> Moved
+        self.removal_states = ['Deceased', 'Discharged', 'Moved',
                                'Decline', 'Withdraw from Study']
         self.removal_states_l = [x.lower() for x in self.removal_states]
 

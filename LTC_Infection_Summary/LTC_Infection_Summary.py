@@ -538,6 +538,7 @@ class LTCInfectionSummary:
                 raise ValueError('Permutation')
 
     def assume_PCR_if_empty(self):
+        print('Assume PCR if (method of collection) MOC is unknown.')
         for index, row in self.parent.df.iterrows():
             ID = row['ID']
             p_dates = row[self.positive_date_cols]
