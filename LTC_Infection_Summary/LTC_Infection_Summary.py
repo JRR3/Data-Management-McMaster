@@ -456,6 +456,8 @@ class LTCInfectionSummary:
         self.compute_waves_of_infection()
         self.assume_PCR_if_empty()
         self.update_PCR_and_infection_status()
+        print('Remember to write the Excel file.')
+
 
     def update_PCR_and_infection_status(self):
         #This function determines if there 
@@ -769,6 +771,20 @@ class LTCInfectionSummary:
         print(f'The {fpure=} file has been written to Excel.')
 
 
+    def update_ahmad_file(self):
+        df_up = self.parent.load_single_column_df_for_update(sheet='ahmad')
+        print(df_up)
+
+        (flag_update_active,
+                flag_update_waves,
+                infection_dictionary,
+                reason_dictionary) =\
+                        self.parent.generate_infection_and_reason_dictionaries(df_up)
+        if flag_update_waves:
+            df_up = pd.DataFrame(infection_dictionary)
+            df_up['DOI'] = pd.to_datetime(df_up['date'])
+            print(df_up)
+            self.LIS_obj.update_the_dates_and_waves(df_up)
 
 
 

@@ -209,38 +209,33 @@ class Merger:
         #self.write_the_M_file_to_excel()
 
 
+    def load_single_column_df_for_update(self, sheet=0):
+        #We assume
+        fname = 'up.xlsx'
+        folder = 'Ahmad_oct_31_2022'
+        fname = os.path.join(self.requests_path, folder, fname)
+        df_up = pd.read_excel(fname, header=None, sheet_name=sheet)
+        df_up.dropna(axis=0, inplace=True)
+        return df_up
 
-
-    def extract_and_update_DOR_Reason_Infection(self):
-        #Modified on Nov 1, 2022
-        #Moved Out --> Moved
-        #On a first pass you might not want to modify
-        #the M file until you are convinced that the
-        #text was correctly parsed.
-        #This function updates:
-        #MPD
-        #LIS
-        #This function is able to identify date of removal, reason,
-        #and infection date.
-        #Examples
-        #50-1910008 Deceased Sep 15 2022
-        #14-5077158  Positive Oct 2 2022
-        #14-5077158  Positive Oct 2 (No year)
+    def generate_infection_and_reason_dictionaries(self, df_up):
         flag_update_active = False
         flag_update_waves  = False
         infection_dictionary = {'ID':[], 'date':[]}
         reason_dictionary = {'ID':[],
                              self.MPD_obj.reason:[],
                              'date':[]}
-        fname = 'up.xlsx'
-        folder = 'Tara_oct_31_2022'
-        fname = os.path.join(self.requests_path, folder, fname)
-        df_up = pd.read_excel(fname, header=None)
-        df_up.dropna(axis=0, inplace=True)
+        #fname = 'up.xlsx'
+        #folder = 'Tara_oct_31_2022'
+        #fname = os.path.join(self.requests_path, folder, fname)
+        #df_up = pd.read_excel(fname, header=None)
+        #df_up.dropna(axis=0, inplace=True)
+
         id_rx     = re.compile('[0-9]+[-][0-9]+')
-        #This version is deprecated since we no longer
-        #use the status 'Moved Out'. Now we use 'Moved'.
+        #The following regexp is no longer in use.
         #reason_rx = re.compile('[a-zA-Z]+([ ][a-zA-Z]+)*')
+        #Moved Out --> Moved
+        #Now we use the following.
         reason_rx = re.compile('[a-zA-Z]+')
         date_rx   = re.compile('[a-zA-Z]+[ ]+[0-9]{1,2}(?P<year>[ ]+[0-9]+)?')
         #We assume the data frame has only one column.
@@ -287,6 +282,36 @@ class Merger:
                 infection_dictionary['ID'].append(ID)
                 infection_dictionary['date'].append(date)
 
+        return (flag_update_active,
+                flag_update_waves,
+                infection_dictionary,
+                reason_dictionary)
+
+
+    def extract_and_update_DOR_Reason_Infection(self, df_up):
+        #Modified on Nov 1, 2022
+        #Moved Out --> Moved
+        #On a first pass you might not want to modify
+        #the M file until you are convinced that the
+        #text was correctly parsed.
+        #This function updates:
+        #MPD
+        #LIS
+        #This function is able to identify date of removal, reason,
+        #and infection date.
+        #Examples
+        #50-1910008 Deceased Sep 15 2022
+        #14-5077158  Positive Oct 2 2022
+        #14-5077158  Positive Oct 2 (No year)
+
+        df_up = self.load_single_column_df_for_update()
+
+        (flag_update_active,
+                flag_update_waves,
+                infection_dictionary,
+                reason_dictionary) =\
+                        self.generate_infection_and_reason_dictionaries(df_up)
+
         if flag_update_active:
             df_up = pd.DataFrame(reason_dictionary)
             df_up['date'] = pd.to_datetime(df_up['date'])
@@ -297,7 +322,7 @@ class Merger:
             df_up['DOI'] = pd.to_datetime(df_up['date'])
             print(df_up)
             self.LIS_obj.update_the_dates_and_waves(df_up)
-        print('Not currently writing')
+        print('Please write to Excel externally.')
 
 
     def check_id_format(self, df, col):
@@ -492,6 +517,80 @@ class Merger:
         print('The merge operation is complete. Returning merged DF.')
         return X
 
+    def check_Ahmad_inf_file(self):
+        #What is different between Ahmad's file
+        #and the master file.
+        folder = 'Ahmad_oct_31_2022'
+        fname = 'ahmad.xlsx'
+        fname = os.path.join(self.requests_path, folder, fname)
+        df_up = pd.read_excel(fname)
+        df_up.replace('.', np.nan, inplace=True)
+        self.print_column_and_datatype(df_up)
+        L = ['Positive_date_1','Positive_type_1',
+                'Positive_date_2','Positive_type_2',
+                'Positive_date_3','Positive_type_3',
+                'Positive_date_4','Positive_type_4',
+                'Positive_date_5','Positive_type_5']
+        def change_to_local(txt):
+            txt = txt.replace('_date_',' Date ')
+            txt = txt.replace('_type_',' Type ')
+            return txt
+        dc = {}
+        for label in L:
+            dc[label] = change_to_local(label)
+            if 'date' in label:
+                df_up[label] = pd.to_datetime(df_up[label])
+        df_up.rename(columns=dc, inplace=True)
+        print(df_up)
+        #self.print_column_and_datatype(df_up)
+        self.positive_date_cols  = []
+        self.positive_type_cols  = []
+        for index, row in df_up.iterrows():
+            ID = row['ID']
+            selection = self.df['ID'] == ID
+            print('------------------------------')
+            print(f'{ID=}')
+            print('------------------------------')
+            if ~selection.any():
+                raise ValueError('ID DNE')
+            row_m = self.df[selection].iloc[0]
+            for type_col, date_col in zip(self.LIS_obj.positive_type_cols,
+                    self.LIS_obj.positive_date_cols):
+                print('>>>>>>>>>')
+                print(f'Looking at {date_col=}')
+                print('>>>>>>>>>')
+                d_a = row[date_col]
+                t_a = row[type_col]
+                d_m = row_m[date_col]
+                t_m = row_m[type_col]
+                if pd.isnull(d_a) and pd.isnull(d_m):
+                    print('Both dates are empty')
+                elif pd.isnull(d_a):
+                    print('Ahmad date is null')
+                    print(f'{d_m=}')
+                    print(f'{t_m=}')
+                elif pd.isnull(d_m):
+                    print('Master date is null')
+                    print(f'{d_a=}')
+                    print(f'{t_a=}')
+                else:
+                    if t_m == t_a:
+                        print('Method of detection is equal')
+                    else:
+                        print('Method of detection is not equal')
+                        print(f'{t_m=}')
+                        print(f'{t_a=}')
+                    delta = d_a - d_m
+                    delta /= np.timedelta64(1,'D')
+                    delta = np.abs(delta)
+                    if delta < 1:
+                        print('Dates are equal')
+                    else:
+                        print('Dates are not equal')
+                        print(f'{d_a=}')
+                        print(f'{d_m=}')
+
+
 
 
 
@@ -514,3 +613,6 @@ obj = Merger()
 #obj.LIS_obj.assume_PCR_if_empty()
 #obj.LIS_obj.update_PCR_and_infection_status()
 #obj.write_the_M_file_to_excel()
+#Nov 02 2022
+#obj.check_Ahmad_inf_file()
+obj.LIS_obj.update_ahmad_file()
