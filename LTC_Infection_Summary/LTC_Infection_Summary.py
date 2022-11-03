@@ -8,6 +8,9 @@ import matplotlib as mpl
 mpl.rcParams['figure.dpi']=300
 import matplotlib.pyplot as plt
 import datetime
+import shutil
+import plotly.express as pxp
+
 # <b> Section: LTC_InfectionSummary </b>
 # From this Excel file we have to extract the PCR and DBS infections by date.
 # Note that the wave type can be computed separately
@@ -22,6 +25,7 @@ class LTCInfectionSummary:
 
         self.parent = None
         self.dpath = path
+        self.backups_path = os.path.join('..', 'backups')
 
         #Ahmad infection DF
         self.df_ah = None
@@ -32,6 +36,7 @@ class LTCInfectionSummary:
         self.wave_fname = os.path.join(self.dpath, wave_fname)
 
         self.df_waves   = None
+        self.DOI = 'Infection date'
         self.positive_date_cols  = []
         self.positive_type_cols  = []
         self.wave_of_inf_cols    = []
@@ -643,7 +648,15 @@ class LTCInfectionSummary:
         cols_to_melt += type_cols
         doe = self.parent.MPD_obj.DOE
         dor = self.parent.MPD_obj.DOR
-        cols_to_keep  = ['ID', 'Active', doe, dor, 'Site', '# infections']
+        site_type = self.parent.MPD_obj.site_type
+        cols_to_keep  = ['ID',
+                'Active',
+                doe,
+                dor,
+                'Site',
+                site_type,
+                '# infections']
+        #A type of melting process.
         df = self.parent.df.pivot_longer(index = cols_to_keep,
                 column_names = cols_to_melt,
                 names_to = ['Infection event', 'Infection type'],
@@ -828,7 +841,8 @@ class LTCInfectionSummary:
             doi = row['DOI']
             selector = self.df_ah['ID'] == ID
             if ~selector.any():
-                print('ID does not exist. We will include it.')
+                print('ID does not exist in Ahmad file.')
+                print('We will include it.')
                 self.add_1st_inf_to_ahmad_dict(dc_ah, ID, doi)
                 print('ah_dict length=',len(dc_ah['ID']))
             else:
@@ -852,11 +866,122 @@ class LTCInfectionSummary:
         if 0 < len(dc_ah['ID']):
             print('Adding new rows to Ahmad file.')
             new_rows = pd.DataFrame(dc_ah)
+            print(new_rows)
             self.df_ah = pd.concat([self.df_ah, new_rows],
                                    ignore_index = True)
+            print('Do not forget to write the file to Excel.')
+
+    def backup_ahmad_file(self):
+        fname = 'ahmad_infection_file.xlsx'
+        original = os.path.join(self.dpath, fname)
+        today = datetime.datetime.now()
+        date  = today.strftime('%d_%m_%Y_time_%H_%M_%S')
+        bname = 'ahmad_infection_file' + '_backup_' + date
+        bname += '.xlsx'
+        backup   = os.path.join(self.backups_path, bname)
+        shutil.copyfile(original, backup)
+        print('A backup for Ahmads file has been generated.')
+
+    def write_ahmad_df_to_excel(self):
+        self.backup_ahmad_file()
+        fname = 'ahmad_infection_file.xlsx'
+        fname = os.path.join(self.dpath, fname)
+        print('Writing Ahmads file to Excel.')
+        self.df_ah.to_excel(fname, index = False)
+        print('Ahmads file has been written to Excel.')
 
 
 
+    def plot_dawns_infection_count(self):
+        folder = 'Dawn_nov_03_2022'
+        fname = 'infection_dates_slope.xlsx'
+        fname = os.path.join(self.parent.requests_path, folder, fname)
+        df_i = pd.read_excel(fname)
+        site_type = self.parent.MPD_obj.site_type
+        df_i = df_i[self.DOI].groupby([df_i[self.DOI].dt.to_period('M'),
+            df_i[site_type]]).agg('count')
+        df_i = df_i.unstack(level=1)
+        print(df_i)
+        #===================Serology
+        s_label = 'Spike-IgG-100'
+        is_above ='Seroconversion'
+        threshold = 0.5487
+        selection = self.parent.LSM_obj.df[s_label].notnull()
+        DOC = self.parent.LSM_obj.DOC
+        df_s = self.parent.LSM_obj.df[selection].copy()
+        selection = df_s[s_label] > threshold
+        sconv_table = selection.value_counts()
+        df_s[is_above] = 1
+        df_s[is_above] = df_s[is_above].where(threshold < df_s[s_label], 0)
+        samples = df_s[DOC].groupby(df_s[DOC].dt.to_period('M')).agg('count')
+        sconv = df_s.groupby(df_s[DOC].dt.to_period('M'))[is_above].sum()
+        print(sconv)
+        print(samples)
+        df_s = samples.to_frame().join(sconv)
+        dc = {'Date Collected':'all', 'Seroconversion':'+'}
+        df_s.rename(columns=dc, inplace=True)
+        df_s['ratio'] = df_s['+'] / df_s['all'] * 100
+        ratio_S = df_s['ratio']
+        print(df_s)
+
+        width=0.35
+        labels = df_i.index.to_timestamp().strftime("%b-%y")
+        fig, ax = plt.subplots()
+        ax.bar(labels, df_i['LTC'], width, label='LTC')
+        ax.bar(labels, df_i['RH'], width, label='RH', bottom=df_i['LTC'])
+        ax.set_ylabel('Infection Count')
+
+        sub_labels = df_s.index.to_timestamp().strftime("%b-%y")
+        n_labels = len(labels)
+        n_sub_labels = len(sub_labels)
+        counter = 0
+        ratios = []
+        for label in labels:
+            if n_sub_labels <= counter:
+                ratios.append(np.nan)
+                continue
+            if label == sub_labels[counter]:
+                ratios.append(ratio_S.iloc[counter])
+                counter += 1
+            else:
+                ratios.append(np.nan)
+        #print(ratios)
+
+        x = list(range(n_labels))
+        plt.legend(loc='upper left')
+        plt.xticks(rotation=90)
+        plt.tight_layout()
+
+        ax2 = ax.twinx()
+        ax2.plot(x,ratios, 'bo', linestyle='-', label='% SC')
+        ax2.set_ylabel('% Seroconversion (SC)')
+        ax2.set_ylim([0, 100])
+        plt.legend(loc='upper right')
+
+        plt.xticks(rotation=90)
+        plt.tight_layout()
+
+        fname = 'plot.png'
+        fname = os.path.join(self.parent.requests_path, folder, fname)
+        fig.savefig(fname)
+        return
+
+        #Plotly
+        fig = pxp.bar(df, x=labels, y=['LTC', 'RH'])
+        fig.update_xaxes(tickangle=45)
+        fig.update_xaxes(type='category')
+        fig.update_layout( yaxis_title='Infection Count')
+        fig.update_layout( xaxis_title=None)
+        fig.update_layout( legend_title='Site')
+        #fig.update_layout(font_size=20)
+        #fig.update_layout(hoverlabel={'font_size':20})
+        fname = 'plot.html'
+        fname = os.path.join(self.parent.requests_path, folder, fname)
+        #fig.savefig(fname)
+        fig.write_html(fname)
+        fname = 'plot.png'
+        fname = os.path.join(self.parent.requests_path, folder, fname)
+        fig.write_image(fname, scale=6)
 
 
 

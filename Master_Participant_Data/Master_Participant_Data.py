@@ -20,10 +20,11 @@ class MasterParticipantData:
         self.merge_column = 'ID'
         self.DOR      = 'Date Removed from Study'
         self.DOE      = 'Enrollment Date'
-        self.note     = 'Notes/Comments'
         self.reason   = 'Reason'
         self.is_active   = 'Active'
+        self.site_type = 'LTC or RH'
         self.comments = 'Notes/Comments'
+        #self.note     = 'Notes/Comments'
         #Moved Out --> Moved
         self.removal_states = ['Deceased', 'Discharged', 'Moved',
                                'Decline', 'Withdraw from Study']
@@ -220,7 +221,7 @@ class MasterParticipantData:
         def get_site(txt):
             obj = rexp.search(txt)
             if obj:
-                return obj.group('site')
+                return int(obj.group('site'))
             else:
                 raise ValueError('Unable to extract site')
 
@@ -229,6 +230,10 @@ class MasterParticipantData:
             return
         self.parent.df[site] = self.parent.df['ID']
         self.parent.df[site] = self.parent.df[site].apply(get_site)
+        self.parent.df[self.site_type] = 'LTC'
+        self.parent.df[self.site_type] =\
+                self.parent.df[self.site_type].where(
+                        self.parent.df[site] < 50, 'RH')
 
     ##########Oct 19 2022##################
     def update_M_from_comments_and_dates(self):

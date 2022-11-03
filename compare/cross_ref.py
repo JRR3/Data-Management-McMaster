@@ -1635,6 +1635,57 @@ class Comparator:
 
 
 
+    def compare_ahmad_infection_file_w_M(self):
+        #November 03 2022
+        #What is different between Ahmad's file
+        #and the master file.
+        self.LIS_obj.load_ahmad_file()
+
+        for index, row in self.LIS_obj.df_ah.iterrows():
+            ID = row['ID']
+            selection = self.df['ID'] == ID
+            print('------------------------------')
+            print(f'{ID=}')
+            print('------------------------------')
+            if ~selection.any():
+                raise ValueError('ID DNE')
+            row_m = self.df[selection].iloc[0]
+            for type_col, date_col in zip(self.LIS_obj.positive_type_cols,
+                    self.LIS_obj.positive_date_cols):
+                print('>>>>>>>>>')
+                print(f'Looking at {date_col=}')
+                print('>>>>>>>>>')
+                d_a = row[date_col]
+                t_a = row[type_col]
+                d_m = row_m[date_col]
+                t_m = row_m[type_col]
+                if pd.isnull(d_a) and pd.isnull(d_m):
+                    print('Both dates are empty')
+                elif pd.isnull(d_a):
+                    print('Ahmad date is null')
+                    print(f'{d_m=}')
+                    print(f'{t_m=}')
+                elif pd.isnull(d_m):
+                    print('Master date is null')
+                    print(f'{d_a=}')
+                    print(f'{t_a=}')
+                else:
+                    if t_m == t_a:
+                        print('Method of detection is equal')
+                    else:
+                        print('Method of detection is not equal')
+                        print(f'{t_m=}')
+                        print(f'{t_a=}')
+                    delta = d_a - d_m
+                    delta /= np.timedelta64(1,'D')
+                    delta = np.abs(delta)
+                    if delta < 1:
+                        print('Dates are equal')
+                    else:
+                        print('Dates are not equal')
+                        print(f'{d_a=}')
+                        print(f'{d_m=}')
+
 
 
 

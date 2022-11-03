@@ -144,7 +144,7 @@ class Merger:
         self.df = pd.merge(A, self.SID_obj.df, on='ID', how='outer')
 
     def load_the_M_file(self):
-        #Load the merged file M
+        #Load the Master file M
         print('Make sure that this is a clone of the encrypted version!')
         fname = self.M_fname
         fname = os.path.join(self.outputs_path, fname)
@@ -349,7 +349,7 @@ class Merger:
 
 
     def merge_M_with_LSM(self):
-        self.load_the_M_file()
+        #self.load_the_M_file()
         W = pd.merge(self.LSM_obj.df, self.df, on='ID', how='outer')
         self.write_df_to_excel(W)
 
@@ -515,56 +515,6 @@ class Merger:
         print('The merge operation is complete. Returning merged DF.')
         return X
 
-    def compare_ahmad_infection_file_w_M(self):
-        #What is different between Ahmad's file
-        #and the master file.
-        self.LIS_obj.load_ahmad_file()
-
-        for index, row in self.LIS_obj.df_ah.iterrows():
-            ID = row['ID']
-            selection = self.df['ID'] == ID
-            print('------------------------------')
-            print(f'{ID=}')
-            print('------------------------------')
-            if ~selection.any():
-                raise ValueError('ID DNE')
-            row_m = self.df[selection].iloc[0]
-            for type_col, date_col in zip(self.LIS_obj.positive_type_cols,
-                    self.LIS_obj.positive_date_cols):
-                print('>>>>>>>>>')
-                print(f'Looking at {date_col=}')
-                print('>>>>>>>>>')
-                d_a = row[date_col]
-                t_a = row[type_col]
-                d_m = row_m[date_col]
-                t_m = row_m[type_col]
-                if pd.isnull(d_a) and pd.isnull(d_m):
-                    print('Both dates are empty')
-                elif pd.isnull(d_a):
-                    print('Ahmad date is null')
-                    print(f'{d_m=}')
-                    print(f'{t_m=}')
-                elif pd.isnull(d_m):
-                    print('Master date is null')
-                    print(f'{d_a=}')
-                    print(f'{t_a=}')
-                else:
-                    if t_m == t_a:
-                        print('Method of detection is equal')
-                    else:
-                        print('Method of detection is not equal')
-                        print(f'{t_m=}')
-                        print(f'{t_a=}')
-                    delta = d_a - d_m
-                    delta /= np.timedelta64(1,'D')
-                    delta = np.abs(delta)
-                    if delta < 1:
-                        print('Dates are equal')
-                    else:
-                        print('Dates are not equal')
-                        print(f'{d_a=}')
-                        print(f'{d_m=}')
-
 
 
 
@@ -588,6 +538,11 @@ obj = Merger()
 #obj.LIS_obj.assume_PCR_if_empty()
 #obj.LIS_obj.update_PCR_and_infection_status()
 #obj.write_the_M_file_to_excel()
-#Nov 02 2022
+#Nov 02 2022 - Nov 03 2022
+#obj.LIS_obj.update_ahmad_file()
+#obj.LIS_obj.write_ahmad_df_to_excel()
 #obj.compare_ahmad_infection_file_w_M()
-obj.LIS_obj.update_ahmad_file()
+#Nov 03 2022
+#obj.LIS_obj.get_serology_dates_for_infection_dates()
+#obj.LIS_obj.compute_slopes_for_serology()
+obj.LIS_obj.plot_dawns_infection_count()
