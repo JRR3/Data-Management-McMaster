@@ -1605,6 +1605,34 @@ class Comparator:
         self.df['Reason'] = self.df['Reason'].str.replace('Moved Out', 'Moved')
         print(self.df['Reason'].value_counts())
 
+    def create_ahmad_infection_file(self):
+        #Create the 1st version of Ahmad's file.
+        #Nov 02 2022
+        folder = 'Ahmad_oct_31_2022'
+        fname = 'ahmad.xlsx'
+        fname = os.path.join(self.requests_path, folder, fname)
+        df_up = pd.read_excel(fname)
+        df_up.replace('.', np.nan, inplace=True)
+        self.print_column_and_datatype(df_up)
+        L = ['Positive_date_1','Positive_type_1',
+                'Positive_date_2','Positive_type_2',
+                'Positive_date_3','Positive_type_3',
+                'Positive_date_4','Positive_type_4',
+                'Positive_date_5','Positive_type_5']
+        def change_to_local(txt):
+            txt = txt.replace('_date_',' Date ')
+            txt = txt.replace('_type_',' Type ')
+            return txt
+        dc = {}
+        for label in L:
+            dc[label] = change_to_local(label)
+            if 'date' in label:
+                df_up[label] = pd.to_datetime(df_up[label])
+        df_up.rename(columns=dc, inplace=True)
+        print(df_up)
+        #self.write_df_to_excel(df_up,
+                               #label='ahmads_infection_file')
+
 
 
 

@@ -23,6 +23,9 @@ class LTCInfectionSummary:
         self.parent = None
         self.dpath = path
 
+        #Ahmad infection DF
+        self.df_ah = None
+
 
         self.merge_column = 'ID'
         wave_fname = "LTC_wave_start_dates.xlsx"
@@ -771,20 +774,88 @@ class LTCInfectionSummary:
         print(f'The {fpure=} file has been written to Excel.')
 
 
+    def load_ahmad_file(self):
+        fname = 'ahmad_infection_file.xlsx'
+        fname = os.path.join(self.dpath, fname)
+        self.df_ah = pd.read_excel(fname)
+        print(self.df_ah)
+
+
+    def create_empty_ahmad_dict(self):
+        dc = {}
+        for col in self.df_ah.columns:
+            dc[col] = []
+        return dc
+
+    def add_1st_inf_to_ahmad_dict(self, dic, ID, doi):
+        pos_dat_1 = self.positive_date_cols[0]
+        pos_typ_1 = self.positive_type_cols[0]
+        dic['ID'].append(ID)
+        dic[pos_dat_1].append(doi)
+        dic[pos_typ_1].append('PCR')
+        for date_col, type_col in zip(self.positive_date_cols[1:],
+                                      self.positive_type_cols[1:]):
+            dic[date_col].append(np.nan)
+            dic[type_col].append(np.nan)
+
+
+
+
     def update_ahmad_file(self):
-        df_up = self.parent.load_single_column_df_for_update(sheet='ahmad')
-        print(df_up)
+        self.load_ahmad_file()
+        dc_ah = self.create_empty_ahmad_dict()
+        fname = 'up.xlsx'
+        folder = 'Ahmad_oct_31_2022'
+        df_up = self.parent.load_single_column_df_for_update(fname,
+                                                             folder,
+                                                             sheet='ahmad')
 
         (flag_update_active,
                 flag_update_waves,
                 infection_dictionary,
                 reason_dictionary) =\
-                        self.parent.generate_infection_and_reason_dictionaries(df_up)
+                        self.parent.generate_infection_and_reason_dict(df_up)
         if flag_update_waves:
             df_up = pd.DataFrame(infection_dictionary)
             df_up['DOI'] = pd.to_datetime(df_up['date'])
             print(df_up)
-            self.LIS_obj.update_the_dates_and_waves(df_up)
+
+        pos_dat_1 = self.positive_date_cols[0]
+        pos_typ_1 = self.positive_type_cols[0]
+        for index, row in df_up.iterrows():
+            ID = row['ID']
+            print(f'{ID=}')
+            doi = row['DOI']
+            selector = self.df_ah['ID'] == ID
+            if ~selector.any():
+                print('ID does not exist. We will include it.')
+                self.add_1st_inf_to_ahmad_dict(dc_ah, ID, doi)
+                print('ah_dict length=',len(dc_ah['ID']))
+            else:
+                row_a   = self.df_ah[selector].iloc[0]
+                index_a = self.df_ah[selector].index[0]
+                flag_found = False
+                for date_col, type_col in zip(self.positive_date_cols,
+                                             self.positive_type_cols):
+                    if pd.notnull(row_a[date_col]):
+                        #There is already a date in this cell.
+                        pass
+                    else:
+                        self.df_ah.loc[index_a,date_col] = doi
+                        self.df_ah.loc[index_a,type_col] = 'PCR'
+                        flag_found = True
+                        break
+                if flag_found:
+                    pass
+                else:
+                    raise ValueError('Out of memory to store DOI.')
+        if 0 < len(dc_ah['ID']):
+            print('Adding new rows to Ahmad file.')
+            new_rows = pd.DataFrame(dc_ah)
+            self.df_ah = pd.concat([self.df_ah, new_rows],
+                                   ignore_index = True)
+
+
 
 
 

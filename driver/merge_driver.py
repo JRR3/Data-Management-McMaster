@@ -209,16 +209,14 @@ class Merger:
         #self.write_the_M_file_to_excel()
 
 
-    def load_single_column_df_for_update(self, sheet=0):
-        #We assume
-        fname = 'up.xlsx'
-        folder = 'Ahmad_oct_31_2022'
+    def load_single_column_df_for_update(self, fname, folder, sheet=0):
+        #Nov 2 2022
         fname = os.path.join(self.requests_path, folder, fname)
         df_up = pd.read_excel(fname, header=None, sheet_name=sheet)
-        df_up.dropna(axis=0, inplace=True)
+        #df_up.dropna(axis=0, inplace=True)
         return df_up
 
-    def generate_infection_and_reason_dictionaries(self, df_up):
+    def generate_infection_and_reason_dict(self, df_up):
         flag_update_active = False
         flag_update_waves  = False
         infection_dictionary = {'ID':[], 'date':[]}
@@ -310,7 +308,7 @@ class Merger:
                 flag_update_waves,
                 infection_dictionary,
                 reason_dictionary) =\
-                        self.generate_infection_and_reason_dictionaries(df_up)
+                        self.generate_infection_and_reason_dict(df_up)
 
         if flag_update_active:
             df_up = pd.DataFrame(reason_dictionary)
@@ -517,35 +515,12 @@ class Merger:
         print('The merge operation is complete. Returning merged DF.')
         return X
 
-    def check_Ahmad_inf_file(self):
+    def compare_ahmad_infection_file_w_M(self):
         #What is different between Ahmad's file
         #and the master file.
-        folder = 'Ahmad_oct_31_2022'
-        fname = 'ahmad.xlsx'
-        fname = os.path.join(self.requests_path, folder, fname)
-        df_up = pd.read_excel(fname)
-        df_up.replace('.', np.nan, inplace=True)
-        self.print_column_and_datatype(df_up)
-        L = ['Positive_date_1','Positive_type_1',
-                'Positive_date_2','Positive_type_2',
-                'Positive_date_3','Positive_type_3',
-                'Positive_date_4','Positive_type_4',
-                'Positive_date_5','Positive_type_5']
-        def change_to_local(txt):
-            txt = txt.replace('_date_',' Date ')
-            txt = txt.replace('_type_',' Type ')
-            return txt
-        dc = {}
-        for label in L:
-            dc[label] = change_to_local(label)
-            if 'date' in label:
-                df_up[label] = pd.to_datetime(df_up[label])
-        df_up.rename(columns=dc, inplace=True)
-        print(df_up)
-        #self.print_column_and_datatype(df_up)
-        self.positive_date_cols  = []
-        self.positive_type_cols  = []
-        for index, row in df_up.iterrows():
+        self.LIS_obj.load_ahmad_file()
+
+        for index, row in self.LIS_obj.df_ah.iterrows():
             ID = row['ID']
             selection = self.df['ID'] == ID
             print('------------------------------')
@@ -614,5 +589,5 @@ obj = Merger()
 #obj.LIS_obj.update_PCR_and_infection_status()
 #obj.write_the_M_file_to_excel()
 #Nov 02 2022
-#obj.check_Ahmad_inf_file()
+#obj.compare_ahmad_infection_file_w_M()
 obj.LIS_obj.update_ahmad_file()
