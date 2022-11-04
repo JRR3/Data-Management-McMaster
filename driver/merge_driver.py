@@ -302,7 +302,6 @@ class Merger:
         #14-5077158  Positive Oct 2 2022
         #14-5077158  Positive Oct 2 (No year)
 
-        df_up = self.load_single_column_df_for_update()
 
         (flag_update_active,
                 flag_update_waves,
@@ -516,6 +515,11 @@ class Merger:
         return X
 
 
+    def tara_nov_04_2022(self):
+        fname  = 'inf_and_removal_update.xlsx'
+        folder = 'Tara_nov_04_2022'
+        df_up = self.load_single_column_df_for_update(fname, folder)
+        self.extract_and_update_DOR_Reason_Infection(df_up)
 
 
 
@@ -545,4 +549,9 @@ obj = Merger()
 #Nov 03 2022
 #obj.LIS_obj.get_serology_dates_for_infection_dates()
 #obj.LIS_obj.compute_slopes_for_serology()
-obj.LIS_obj.plot_dawns_infection_count()
+#obj.LIS_obj.plot_dawns_infection_count()
+#Nov 04 2022
+obj.LIS_obj.update_ahmad_file()
+obj.LIS_obj.write_ahmad_df_to_excel()
+#obj.tara_nov_04_2022()
+#obj.write_the_M_file_to_excel()

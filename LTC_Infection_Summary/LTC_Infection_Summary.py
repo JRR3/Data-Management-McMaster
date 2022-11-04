@@ -372,6 +372,64 @@ class LTCInfectionSummary:
 
         print('Module: LTC_infection_summary.py FINISHED')
 
+    def update_infection_date_in_df(self, df, index_m, row_m, d_up, method=None):
+        #Nov 04 2022
+        flag_found_slot = False
+        is_a_new_date   = False
+        type_col_found  = ''
+        print(f'Working with {d_up=}')
+        #Iterate over the dates in the Target data frame.
+        for date_col, type_col in zip(self.positive_date_cols,
+                self.positive_type_cols):
+            if pd.notnull(row_m[date_col]):
+                #There is already a date in this cell.
+                d_m   = row_m[date_col]
+                delta = (d_m - d_up) / np.timedelta64(1,'D')
+                delta = np.abs(delta)
+                print(f'The cell already has {d_m=}')
+                print('Time delta:', delta, 'days.')
+                #X=https://www.ncbi.nlm.nih.gov/pmc/articles/PMC9106377/
+                #Accoding to X, 20 days is a lower bound.
+                if delta < 10:
+                    print('This DOI is compatible with the M dates.')
+                    print('Delta < 10 ==> Probably not a new date.')
+                    print('Moving to the next date.')
+                    type_col_found = type_col
+                    flag_found_slot = True
+                    break
+                else:
+                    #The dates are different, so keep looking.
+                    print('Moving to the next date.')
+                    continue
+            else:
+                #This slot is available.
+                df.loc[index_m, date_col] = d_up
+                print(f'Updating {date_col=} with {d_up=}')
+                type_col_found = type_col
+                flag_found_slot = True
+                is_a_new_date   = True
+                if method:
+                    #We only include a method if the
+                    #corresponding date exists.
+                    method = row['MOD']
+                    df.loc[index_m, type_col_found] = method
+                    print(f'Method {method=} has been included.')
+                else:
+                    pass
+                    #--------------------------------------Current
+                    #If empty, it will be filled later by the 
+                    #assume_PCR_if_empty() function
+                    #Otherwise, we leave it as it is.
+                    #--------------------------------------Before
+                    #Assume PCR: Instruction given by Tara
+                    #self.parent.df.loc[selector, type_col_found] = 'PCR'
+                    #print(f'Method PCR has been chosen.')
+                break
+        if not flag_found_slot:
+            txt = 'We need another column to include this new infection.'
+            raise ValueError(txt)
+        if is_a_new_date:
+            print('The data frame has been updated.')
 
     def update_the_dates_and_waves(self, df_up):
         #Update on Oct 10, 2022
@@ -388,79 +446,40 @@ class LTCInfectionSummary:
         #Iterate over the dates in the update.
         for index, row in df_up.iterrows():
             ID = row['ID']
+            print('==================')
             print(f'{ID=}')
-            date = row['DOI']
+            print('==================')
+            d_up = row['DOI']
             selector = self.parent.df['ID'] == ID
             if not selector.any():
                 raise ValueError('ID does not exist.')
+            row_m   = self.parent.df[selector].iloc[0]
+            index_m = self.parent.df[selector].index[0]
             if dob_in_update:
                 dob_up= row['DOB']
-                if self.parent.df.loc[selector,'DOB'].isnull().any():
-                    self.parent.df.loc[selector,'DOB'] = dob_up
+                dob_m = row_m['DOB']
+                if pd.isnull(dob_m):
+                    self.parent.df.loc[index_m,'DOB'] = dob_up
                 else:
-                    dob_m = self.parent.df.loc[selector,'DOB'].values[0]
                     delta = (dob_m - dob_up) / np.timedelta64(1,'D')
-                    if np.abs(delta) < 10:
+                    delta = np.abs(delta)
+                    if delta < 10:
                         pass
-                    elif np.abs(delta) < 700:
+                    elif delta < 700:
                         print(f'DOB {delta=}')
                         print(f'Replacing current DOB with update')
                         self.parent.df.loc[selector,'DOB'] = dob_up
                     else:
                         print(f'DOB {delta=}')
                         raise ValueError('Big discrepancy in DOB')
-            flag_found_slot = False
-            is_a_new_date     = False
-            type_col_found  = ''
-            #Iterate over the dates in the M file.
-            for date_col, type_col in zip(self.positive_date_cols,
-                                         self.positive_type_cols):
-                if self.parent.df.loc[selector, date_col].notnull().all():
-                    #There is already a date in this cell.
-                    stored_date = self.parent.df.loc[selector, date_col].values[0]
-                    delta = (stored_date - date) / np.timedelta64(1,'D')
-                    print('DOI')
-                    print('Time delta:', np.abs(delta), 'days.')
-                    #X=https://www.ncbi.nlm.nih.gov/pmc/articles/PMC9106377/
-                    #Accoding to X, 20 days is a lower bound.
-                    if np.abs(delta) < 10:
-                        print('This DOI is compatible with the M dates.')
-                        print('Delta < 10 ==> Probably not a new date.')
-                        print('Moving to the next date.')
-                        type_col_found = type_col
-                        flag_found_slot = True
-                        break
-                    else:
-                        #The dates are different, so keep looking.
-                        continue
-                else:
-                    #This slot is available.
-                    self.parent.df.loc[selector, date_col] = date
-                    print(date_col, date)
-                    type_col_found = type_col
-                    flag_found_slot = True
-                    is_a_new_date   = True
-                    break
-            if not flag_found_slot:
-                txt = 'We need another column to include this new infection.'
-                raise ValueError(txt)
+            #Infection date update
+            mod = None
             if method_in_update:
-                method = row['MOD']
-                self.parent.df.loc[selector, type_col_found] = method
-                print(f'Method {method=} has been included.')
-            else:
-                pass
-                #--------------------------------------Current
-                #If empty, it will be filled later by the 
-                #assume_PCR_if_empty() function
-                #Otherwise, we leave it as it is.
-                #--------------------------------------Before
-                #Assume PCR: Instruction given by Tara
-                #self.parent.df.loc[selector, type_col_found] = 'PCR'
-                #print(f'Method PCR has been chosen.')
-        print('The infection dates have been updated.')
-        if method_in_update:
-            print('The infection detection method has been updated.')
+                if pd.notnull(row['MOD']):
+                    mod = row['MOD']
+            self.update_infection_date_in_df(self.parent.df,
+                    index_m, row_m, d_up, method=mod)
+
         self.compute_waves_of_infection()
         self.assume_PCR_if_empty()
         self.update_PCR_and_infection_status()
@@ -817,11 +836,10 @@ class LTCInfectionSummary:
     def update_ahmad_file(self):
         self.load_ahmad_file()
         dc_ah = self.create_empty_ahmad_dict()
-        fname = 'up.xlsx'
-        folder = 'Ahmad_oct_31_2022'
+        fname = 'inf_and_removal_update.xlsx'
+        folder = 'Ahmad_nov_04_2022'
         df_up = self.parent.load_single_column_df_for_update(fname,
-                                                             folder,
-                                                             sheet='ahmad')
+                                                             folder)
 
         (flag_update_active,
                 flag_update_waves,
@@ -833,36 +851,29 @@ class LTCInfectionSummary:
             df_up['DOI'] = pd.to_datetime(df_up['date'])
             print(df_up)
 
-        pos_dat_1 = self.positive_date_cols[0]
-        pos_typ_1 = self.positive_type_cols[0]
-        for index, row in df_up.iterrows():
-            ID = row['ID']
+        method_in_update = 'MOD' in df_up.columns
+        for index, row_up in df_up.iterrows():
+            ID = row_up['ID']
+            print('=====================')
             print(f'{ID=}')
-            doi = row['DOI']
+            print('=====================')
+            d_up = row_up['DOI']
             selector = self.df_ah['ID'] == ID
             if ~selector.any():
                 print('ID does not exist in Ahmad file.')
                 print('We will include it.')
-                self.add_1st_inf_to_ahmad_dict(dc_ah, ID, doi)
-                print('ah_dict length=',len(dc_ah['ID']))
+                self.add_1st_inf_to_ahmad_dict(dc_ah, ID, d_up)
+                #print('ah_dict length=',len(dc_ah['ID']))
             else:
-                row_a   = self.df_ah[selector].iloc[0]
-                index_a = self.df_ah[selector].index[0]
-                flag_found = False
-                for date_col, type_col in zip(self.positive_date_cols,
-                                             self.positive_type_cols):
-                    if pd.notnull(row_a[date_col]):
-                        #There is already a date in this cell.
-                        pass
-                    else:
-                        self.df_ah.loc[index_a,date_col] = doi
-                        self.df_ah.loc[index_a,type_col] = 'PCR'
-                        flag_found = True
-                        break
-                if flag_found:
-                    pass
-                else:
-                    raise ValueError('Out of memory to store DOI.')
+                row_ah   = self.df_ah[selector].iloc[0]
+                index_ah = self.df_ah[selector].index[0]
+                #Infection date update
+                mod = None
+                if method_in_update:
+                    if pd.notnull(row['MOD']):
+                        mod = row['MOD']
+                self.update_infection_date_in_df(self.df_ah,
+                        index_ah, row_ah, d_up, method=mod)
         if 0 < len(dc_ah['ID']):
             print('Adding new rows to Ahmad file.')
             new_rows = pd.DataFrame(dc_ah)
@@ -901,77 +912,67 @@ class LTCInfectionSummary:
         intervals = pd.date_range(start='2019-12-31', end='2022-10-31', freq='M')
         periods   = pd.period_range(start='2020-01', end='2022-10', freq='M')
         periods   = periods.to_timestamp().strftime("%b-%y")
-        print(intervals)
-        print(periods)
+        #print(intervals)
+        #print(periods)
         bins = pd.cut(df_i[self.DOI], intervals, labels=periods)
         grouped_dates = df_i[self.DOI].groupby([bins,
                                                 df_i[site_type]]).agg('count')
         df_i = grouped_dates.unstack(level=1)
-        print(bins)
-        print(df_i)
-        return
-        df_i = df_i[self.DOI].groupby([df_i[self.DOI].dt.to_period('M'),
-            df_i[site_type]])
-        print(df_i.first())
+        df_i.replace(0,np.nan, inplace=True)
+        #print(bins)
+        #print(df_i)
+        #Old version
+        #df_i = df_i[self.DOI].groupby([df_i[self.DOI].dt.to_period('M'),
             #df_i[site_type]]).agg('count')
         #df_i = df_i.unstack(level=1)
-        #print(df_i)
-        #x = df_i[self.DOI].dt.to_period('M')
-        #print(x)
-        #print(len(df_i[self.DOI]))
-        return
         #===================Serology
         s_label = 'Spike-IgG-100'
-        is_above ='Seroconversion'
+        seroconversion ='Seroconversion'
         threshold = 0.5487
         selection = self.parent.LSM_obj.df[s_label].notnull()
         DOC = self.parent.LSM_obj.DOC
+        #Nonempty
         df_s = self.parent.LSM_obj.df[selection].copy()
+        #Above threshold
         selection = df_s[s_label] > threshold
         sconv_table = selection.value_counts()
-        df_s[is_above] = 1
-        df_s[is_above] = df_s[is_above].where(threshold < df_s[s_label], 0)
-        samples = df_s[DOC].groupby(df_s[DOC].dt.to_period('M')).agg('count')
-        sconv = df_s.groupby(df_s[DOC].dt.to_period('M'))[is_above].sum()
-        print(sconv)
-        print(samples)
-        df_s = samples.to_frame().join(sconv)
+        df_s[seroconversion] = 1
+        df_s[seroconversion] = df_s[seroconversion].where(threshold < df_s[s_label], 0)
+        bins = pd.cut(df_s[DOC], intervals, labels=periods)
+        gb_serology = df_s.groupby(bins)
+        all_samples = gb_serology[DOC].agg('count')
+        all_samples.replace(0,np.nan, inplace=True)
+        sconv = gb_serology[seroconversion].sum()
+        sconv.replace(0,np.nan, inplace=True)
+        #Old version
+        #all_samples = df_s[DOC].groupby(df_s[DOC].dt.to_period('M')).agg('count')
+        #sconv = df_s.groupby(df_s[DOC].dt.to_period('M'))[seroconversion].sum()
+        #print(sconv)
+        #print(all_samples)
+        df_s = all_samples.to_frame().join(sconv)
         dc = {'Date Collected':'all', 'Seroconversion':'+'}
         df_s.rename(columns=dc, inplace=True)
         df_s['ratio'] = df_s['+'] / df_s['all'] * 100
-        ratio_S = df_s['ratio']
         print(df_s)
 
+        #Plotting time
         width=0.35
-        labels = df_i.index.to_timestamp().strftime("%b-%y")
-        fig, ax = plt.subplots()
+        #labels = df_i.index.to_timestamp().strftime("%b-%y")
+        labels   = df_i.index
+        fig, ax  = plt.subplots()
         ax.bar(labels, df_i['LTC'], width, label='LTC')
         ax.bar(labels, df_i['RH'], width, label='RH', bottom=df_i['LTC'])
         ax.set_ylabel('Infection Count')
 
-        sub_labels = df_s.index.to_timestamp().strftime("%b-%y")
-        n_labels = len(labels)
-        n_sub_labels = len(sub_labels)
-        counter = 0
-        ratios = []
-        for label in labels:
-            if n_sub_labels <= counter:
-                ratios.append(np.nan)
-                continue
-            if label == sub_labels[counter]:
-                ratios.append(ratio_S.iloc[counter])
-                counter += 1
-            else:
-                ratios.append(np.nan)
-        #print(ratios)
 
-        x = list(range(n_labels))
         plt.legend(loc='upper left')
         plt.xticks(rotation=90)
         plt.tight_layout()
 
         ax2 = ax.twinx()
-        ax2.plot(x,ratios, 'bo', linestyle='-', label='% SC')
+        n_labels = len(labels)
+        x = list(range(n_labels))
+        ax2.plot(x,df_s['ratio'], 'bo', linestyle='-', label='% SC')
         ax2.set_ylabel('% Seroconversion (SC)')
         ax2.set_ylim([0, 100])
         plt.legend(loc='upper right')
@@ -979,27 +980,27 @@ class LTCInfectionSummary:
         plt.xticks(rotation=90)
         plt.tight_layout()
 
-        fname = 'plot.png'
+        fname = 'plot_inf_plus_sconv.png'
         fname = os.path.join(self.parent.requests_path, folder, fname)
         fig.savefig(fname)
-        return
 
         #Plotly
-        fig = pxp.bar(df, x=labels, y=['LTC', 'RH'])
-        fig.update_xaxes(tickangle=45)
-        fig.update_xaxes(type='category')
-        fig.update_layout( yaxis_title='Infection Count')
-        fig.update_layout( xaxis_title=None)
-        fig.update_layout( legend_title='Site')
-        #fig.update_layout(font_size=20)
-        #fig.update_layout(hoverlabel={'font_size':20})
-        fname = 'plot.html'
-        fname = os.path.join(self.parent.requests_path, folder, fname)
-        #fig.savefig(fname)
-        fig.write_html(fname)
-        fname = 'plot.png'
-        fname = os.path.join(self.parent.requests_path, folder, fname)
-        fig.write_image(fname, scale=6)
+        if False:
+            fig = pxp.bar(df, x=labels, y=['LTC', 'RH'])
+            fig.update_xaxes(tickangle=45)
+            fig.update_xaxes(type='category')
+            fig.update_layout( yaxis_title='Infection Count')
+            fig.update_layout( xaxis_title=None)
+            fig.update_layout( legend_title='Site')
+            #fig.update_layout(font_size=20)
+            #fig.update_layout(hoverlabel={'font_size':20})
+            fname = 'plot.html'
+            fname = os.path.join(self.parent.requests_path, folder, fname)
+            #fig.savefig(fname)
+            fig.write_html(fname)
+            fname = 'plot.png'
+            fname = os.path.join(self.parent.requests_path, folder, fname)
+            fig.write_image(fname, scale=6)
 
 
 
