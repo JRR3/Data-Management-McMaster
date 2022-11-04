@@ -898,10 +898,28 @@ class LTCInfectionSummary:
         fname = os.path.join(self.parent.requests_path, folder, fname)
         df_i = pd.read_excel(fname)
         site_type = self.parent.MPD_obj.site_type
-        df_i = df_i[self.DOI].groupby([df_i[self.DOI].dt.to_period('M'),
-            df_i[site_type]]).agg('count')
-        df_i = df_i.unstack(level=1)
+        intervals = pd.date_range(start='2019-12-31', end='2022-10-31', freq='M')
+        periods   = pd.period_range(start='2020-01', end='2022-10', freq='M')
+        periods   = periods.to_timestamp().strftime("%b-%y")
+        print(intervals)
+        print(periods)
+        bins = pd.cut(df_i[self.DOI], intervals, labels=periods)
+        grouped_dates = df_i[self.DOI].groupby([bins,
+                                                df_i[site_type]]).agg('count')
+        df_i = grouped_dates.unstack(level=1)
+        print(bins)
         print(df_i)
+        return
+        df_i = df_i[self.DOI].groupby([df_i[self.DOI].dt.to_period('M'),
+            df_i[site_type]])
+        print(df_i.first())
+            #df_i[site_type]]).agg('count')
+        #df_i = df_i.unstack(level=1)
+        #print(df_i)
+        #x = df_i[self.DOI].dt.to_period('M')
+        #print(x)
+        #print(len(df_i[self.DOI]))
+        return
         #===================Serology
         s_label = 'Spike-IgG-100'
         is_above ='Seroconversion'
