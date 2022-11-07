@@ -515,11 +515,146 @@ class Merger:
         return X
 
 
-    def tara_nov_04_2022(self):
-        fname  = 'inf_and_removal_update.xlsx'
-        folder = 'Tara_nov_04_2022'
-        df_up = self.load_single_column_df_for_update(fname, folder)
-        self.extract_and_update_DOR_Reason_Infection(df_up)
+    def tara_nov_07_2022(self):
+        fname  = 'vaccine_update.xlsx'
+        folder = 'Tara_nov_07_2022'
+        fname = os.path.join('..','requests',folder, fname)
+        linf = 'last infection'
+        type_dict = {'ID1': 'str',
+                'ID2': 'str',
+                linf: 'str',
+                'DOB': 'str'}
+        df_up = pd.read_excel(fname, dtype=str)
+        df_up.replace('n/a', np.nan, inplace=True)
+        df_up.replace('refused', np.nan, inplace=True)
+        df_up.replace('Refused', np.nan, inplace=True)
+        df_up.replace('REFUSED', np.nan, inplace=True)
+        df_up.replace('None', np.nan, inplace=True)
+        df_up.replace('Unknown', np.nan, inplace=True)
+        df_up.replace('Yes - date unknown', np.nan, inplace=True)
+        df_up.replace('COVISHEILD', 'COVISHIELD', inplace=True)
+        df_up.replace(' ', np.nan, inplace=True)
+        df_up['ID'] = ''
+        #print(df_up)
+        DOR=self.MPD_obj.DOR
+        #df_up[DOR] = pd.to_datetime(df_up[DOR])
+        self.print_column_and_datatype(df_up)
+        regexp = re.compile('(?P<site>[0-9]{2})[-]?(?P<code>[0-9]{4}[ ]?[0-9]{3})')
+        def extract_id(txt):
+            obj = regexp.search(txt)
+            if obj:
+                site = obj.group('site')
+                code = obj.group('code')
+                code = code.replace(' ','')
+                ID   = site + '-' + code
+                return ID
+            else:
+                return None
+
+        def convert_str_to_date(txt):
+            if pd.isnull(txt):
+                raise ValueError('Object is NAN')
+            if '/' in txt:
+                #Month/Day/Year
+                date = pd.to_datetime(txt, dayfirst=False, yearfirst=False)
+            else:
+                date = pd.to_datetime(txt)
+            return date
+
+        date_sep_regexp = re.compile('[ ]*[,;]+[ ]*')
+
+        max_date = datetime.datetime(2000,1,1)
+        dc_id_to_inf = {}
+
+        for index_up, row_up in df_up.iterrows():
+            #=========================ID
+            id1 = row_up['ID1']
+            if pd.notnull(id1):
+                id1 = extract_id(id1)
+                ID = id1
+            else:
+                id2 = row_up['ID2']
+                id2 = extract_id(id2)
+                if id2:
+                    ID = id2
+                else:
+                    print(row_up)
+                    raise ValueError('Unable to extract ID')
+            df_up.loc[index_up, 'ID'] = ID
+            print(f'>>>>>>>>>>>{ID=}')
+            #=========================DOR
+            dor = row_up[DOR]
+            #print(dor)
+            dor = pd.to_datetime(dor)
+            #=========================Reason
+            reason = row_up['Reason']
+            if pd.notnull(reason):
+                if reason.lower() in self.MPD_obj.removal_states_l:
+                    pass
+                else:
+                    raise ValueError('Unknown reason')
+            #=========================DOB
+            dob = row_up['DOB']
+            if pd.notnull(dob):
+                dob = convert_str_to_date(dob)
+                if max_date < dob:
+                    dob = dob - pd.DateOffset(years=100)
+                    print('Removing 100 years from dob.')
+                df_up.loc[index_up, 'DOB'] = dob
+                #print(dob)
+            #=========================Infections
+            inf_str = row_up[linf]
+            if pd.notnull(inf_str):
+                obj = date_sep_regexp.search(inf_str)
+                L = []
+                if obj:
+                    inf_list = inf_str.replace(obj.group(0), ' ').split()
+                    for date in inf_list:
+                        inf = convert_str_to_date(date)
+                        L.append(inf)
+                else:
+                    inf = convert_str_to_date(inf_str)
+                    L.append(inf)
+                print(L)
+                dc_id_to_inf[ID] = L
+            #=========================Vaccines
+            for date_col, type_col in zip(self.LIS_obj.positive_date_cols,
+                    self.LIS_obj.positive_type_cols):
+                d_up = row_up[date_col]
+                t_up = row_up[type_col]
+                if pd.notnull(d_up):
+                    d_up = convert_str_to_date(d_up)
+                    df_up.loc[index_up, date_col] = d_up
+                if pd.notnull(t_up):
+                    t_up = t_up.strip()
+                    if t_up in self.LIS_obj.list_of_valid_vaccines:
+                        df_up.loc[index_up, type_col] = t_up
+                    else:
+                        print(f'{t_up=}')
+                        raise ValueError('Unknown vaccine type')
+        df_up.drop(columns=[linf, 'ID1', 'ID2'], inplace=True)
+        columns_with_dates = [DOR, 'DOB'] + self.LIS_obj.positive_date_cols
+        for column in columns_with_dates:
+            df_up[column] = pd.to_datetime(df_up[column])
+        self.print_column_and_datatype(df_up)
+        self.df = self.merge_with_M_and_return_M(df_up, 'ID', kind='original+')
+        #>>>>>>>>>>Infections
+        df_inf = pd.DataFrame.from_dict(dc_id_to_inf,
+                orient='index').reset_index(level=0)
+        df_inf.rename(columns={'index':'ID'}, inplace=True)
+        df_inf = pd.melt(df_inf, id_vars='ID',
+                value_vars=df_inf.columns[1:])
+        df_inf.dropna(subset='value', inplace=True)
+        df_inf.rename(columns={'variable':'Inf #',
+            'value':'DOI'},
+            inplace=True)
+        #print(df_inf)
+        #This has to be executed after the merging process
+        #in case we have new participants.
+        self.LIS_obj.update_the_dates_and_waves(df_inf)
+
+
+
 
 
 
@@ -551,7 +686,8 @@ obj = Merger()
 #obj.LIS_obj.compute_slopes_for_serology()
 #obj.LIS_obj.plot_dawns_infection_count()
 #Nov 04 2022
-obj.LIS_obj.update_ahmad_file()
-obj.LIS_obj.write_ahmad_df_to_excel()
-#obj.tara_nov_04_2022()
-#obj.write_the_M_file_to_excel()
+#obj.LIS_obj.update_ahmad_file()
+#obj.LIS_obj.write_ahmad_df_to_excel()
+#Nov 07 2022
+obj.tara_nov_07_2022()
+##obj.write_the_M_file_to_excel()

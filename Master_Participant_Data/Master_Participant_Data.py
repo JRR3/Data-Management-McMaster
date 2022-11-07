@@ -27,7 +27,8 @@ class MasterParticipantData:
         #self.note     = 'Notes/Comments'
         #Moved Out --> Moved
         self.removal_states = ['Deceased', 'Discharged', 'Moved',
-                               'Decline', 'Withdraw from Study']
+                               'Decline', 'Withdraw from Study',
+                               'Withdrew Consent']
         self.removal_states_l = [x.lower() for x in self.removal_states]
 
         if parent:

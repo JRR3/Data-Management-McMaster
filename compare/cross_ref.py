@@ -1686,6 +1686,12 @@ class Comparator:
                         print(f'{d_a=}')
                         print(f'{d_m=}')
 
+    def tara_nov_04_2022(self):
+        fname  = 'inf_and_removal_update.xlsx'
+        folder = 'Tara_nov_04_2022'
+        df_up = self.load_single_column_df_for_update(fname, folder)
+        self.extract_and_update_DOR_Reason_Infection(df_up)
+
 
 
 
