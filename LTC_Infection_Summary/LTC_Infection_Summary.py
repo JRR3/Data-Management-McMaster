@@ -522,22 +522,30 @@ class LTCInfectionSummary:
     def order_infections_and_vaccines(self):
         #October 8 2022
         print('Checking the order of the infections.')
-        self.set_chronological_order(self.positive_date_cols,
-                                     self.positive_type_cols,
-                                     'Infections')
+        self.set_chronological_order(self.df,
+                self.positive_date_cols,
+                self.positive_type_cols,
+                'Infections')
         print('Checking the order of the vaccines.')
-        self.set_chronological_order(self.vaccine_date_cols,
-                                     self.vaccine_type_cols,
-                                     'Vaccines')
+        self.set_chronological_order(self.df,
+                self.vaccine_date_cols,
+                self.vaccine_type_cols,
+                'Vaccines')
 
 
     def set_chronological_order(self,
-                                col_set,
-                                companion,
-                                descriptor=''):
-        #October 8 2022
+            df, col_set, companion, descriptor=''):
+        #Nov 8 2022
+        #This function can organize infection
+        #and vaccination dates.
+        #The col_set is the column of dates to organize.
+        #The companion is a set of columns that have an
+        #injective correspondence with the col_set, but which
+        #typically have no date information. For example,
+        #vaccine type or method of detection for an 
+        #infection.
         exp_indices = np.arange(len(col_set), dtype=int)
-        for index, row in self.parent.df.iterrows():
+        for index, row in df.iterrows():
             ID = row['ID']
             p_dates = row[col_set]
             p_types = row[companion]
@@ -559,12 +567,12 @@ class LTCInfectionSummary:
                 print(s_indices)
                 p_dates = p_dates[s_indices]
                 p_types = p_types[s_indices]
-                self.parent.df.loc[index, col_set] = p_dates
-                self.parent.df.loc[index, companion] = p_types
+                df.loc[index, col_set] = p_dates
+                df.loc[index, companion] = p_types
                 print('Modified:')
                 print(p_dates)
-                #For testing purposes.
-                raise ValueError('Permutation')
+                #Remove the comment for testing purposes.
+                #raise ValueError('Permutation')
 
     def assume_PCR_if_empty(self):
         print('Assume PCR if (method of collection) MOC is unknown.')

@@ -551,14 +551,49 @@ class Merger:
             else:
                 return None
 
+        yearfirst_regexp = re.compile('[0-9]{4}[-][0-9]{2}[-][0-9]{2}')
+        dayfirst_regexp = re.compile('[0-9]+[-][a-zA-Z]+[-](?P<year>[0-9]+)')
+        monthfirst_regexp = re.compile('(?P<month>[0-9]+)[/](?P<day>[0-9]+)[/](?P<year>[0-9]+)')
         def convert_str_to_date(txt):
             if pd.isnull(txt):
                 raise ValueError('Object is NAN')
             if '/' in txt:
                 #Month/Day/Year
-                date = pd.to_datetime(txt, dayfirst=False, yearfirst=False)
+                obj = monthfirst_regexp.search(txt)
+                if obj:
+                    date = obj.group(0)
+                    month_str = obj.group('month')
+                    month_int = int(month_str)
+                    if 12 < month_int:
+                        date = pd.to_datetime(date, dayfirst=True)
+                    else:
+                        date = pd.to_datetime(date, dayfirst=False, yearfirst=False)
+                else:
+                    print(txt)
+                    raise ValueError('Unknown format for date.')
             else:
-                date = pd.to_datetime(txt)
+                obj = yearfirst_regexp.search(txt)
+                if obj:
+                    date = obj.group(0)
+                    date = pd.to_datetime(date, yearfirst=True)
+                else:
+                    obj = dayfirst_regexp.search(txt)
+                    if obj:
+                        if len(obj.group('year')) == 2:
+                            year_str = txt[-2:]
+                            year_int = int(year_str)
+                            if year_int <= 22:
+                                year_int += 2000
+                            else:
+                                year_int += 1900
+                            year_str = str(year_int)
+                            date = txt[:-2] + year_str
+                        else:
+                            date = obj.group(0)
+                        date = pd.to_datetime(date, dayfirst=True)
+                    else:
+                        print(txt)
+                        raise ValueError('Unknown format for date.')
             return date
 
         date_sep_regexp = re.compile('[ ]*[,;]+[ ]*')
@@ -601,7 +636,7 @@ class Merger:
                     dob = dob - pd.DateOffset(years=100)
                     print('Removing 100 years from dob.')
                 df_up.loc[index_up, 'DOB'] = dob
-                #print(dob)
+                print(f'{dob=}')
             #=========================Infections
             inf_str = row_up[linf]
             if pd.notnull(inf_str):
@@ -616,10 +651,11 @@ class Merger:
                     inf = convert_str_to_date(inf_str)
                     L.append(inf)
                 print(L)
+                #We store the list of infections in the dictionary.
                 dc_id_to_inf[ID] = L
             #=========================Vaccines
-            for date_col, type_col in zip(self.LIS_obj.positive_date_cols,
-                    self.LIS_obj.positive_type_cols):
+            for date_col, type_col in zip(self.LIS_obj.vaccine_date_cols,
+                    self.LIS_obj.vaccine_type_cols):
                 d_up = row_up[date_col]
                 t_up = row_up[type_col]
                 if pd.notnull(d_up):
@@ -633,28 +669,55 @@ class Merger:
                         print(f'{t_up=}')
                         raise ValueError('Unknown vaccine type')
         df_up.drop(columns=[linf, 'ID1', 'ID2'], inplace=True)
-        columns_with_dates = [DOR, 'DOB'] + self.LIS_obj.positive_date_cols
+        columns_with_dates = [DOR, 'DOB'] + self.LIS_obj.vaccine_date_cols
         for column in columns_with_dates:
             df_up[column] = pd.to_datetime(df_up[column])
         self.print_column_and_datatype(df_up)
-        self.df = self.merge_with_M_and_return_M(df_up, 'ID', kind='original+')
+
+        #Storing the reformatted update.
+        fname  = 'Taras_update_reformatted.xlsx'
+        folder = 'Tara_nov_07_2022'
+        fname = os.path.join('..','requests',folder, fname)
+        df_up.to_excel(fname, index=False)
+
+        #Mergin step.
+        self.df = self.merge_with_M_and_return_M(df_up, 'ID', kind='update+')
         #>>>>>>>>>>Infections
         df_inf = pd.DataFrame.from_dict(dc_id_to_inf,
                 orient='index').reset_index(level=0)
-        df_inf.rename(columns={'index':'ID'}, inplace=True)
+        df_inf.rename(columns={'index':'ID', 0:1, 1:2, 2:3}, inplace=True)
         df_inf = pd.melt(df_inf, id_vars='ID',
                 value_vars=df_inf.columns[1:])
         df_inf.dropna(subset='value', inplace=True)
         df_inf.rename(columns={'variable':'Inf #',
             'value':'DOI'},
             inplace=True)
-        #print(df_inf)
+        print(df_inf)
+
+        #Storing the extracted infections in a separate file.
+        fname  = 'extracted_infections_from_Taras_update.xlsx'
+        folder = 'Tara_nov_07_2022'
+        fname = os.path.join('..','requests',folder, fname)
+        df_inf.to_excel(fname, index=False)
+
         #This has to be executed after the merging process
         #in case we have new participants.
         self.LIS_obj.update_the_dates_and_waves(df_inf)
+        self.LIS_obj.order_infections_and_vaccines()
 
 
 
+
+    def tara_nov_07_2022_part_2(self):
+        fname  = 'Taras_update_reformatted.xlsx'
+        folder = 'Tara_nov_07_2022'
+        fname = os.path.join('..','requests',folder, fname)
+        df_up = pd.read_excel(fname)
+        print('Checking the order of the vaccines.')
+        self.set_chronological_order(df_up,
+                self.vaccine_date_cols[:-1],
+                self.vaccine_type_cols[:-1],
+                'Vaccines')
 
 
 
@@ -689,5 +752,6 @@ obj = Merger()
 #obj.LIS_obj.update_ahmad_file()
 #obj.LIS_obj.write_ahmad_df_to_excel()
 #Nov 07 2022
-obj.tara_nov_07_2022()
-##obj.write_the_M_file_to_excel()
+#obj.tara_nov_07_2022()
+#obj.write_the_M_file_to_excel()
+obj.tara_nov_07_2022_part_2()
