@@ -515,17 +515,19 @@ class Merger:
         return X
 
 
-    def tara_nov_07_2022(self):
-        fname  = 'vaccine_update.xlsx'
-        folder = 'Tara_nov_07_2022'
+    def tara_nov_09_2022(self):
+        #Rename Reasons
+        #for old_reason, new_reason in zip(self.MPD_obj.removal_states,
+                #self.MPD_obj.new_removal_states):
+            #self.df['Reason'].replace(old_reason, new_reason, inplace=True)
+        fname  = 'update_amica.xlsx'
+        folder = 'Tara_nov_09_2022'
         fname = os.path.join('..','requests',folder, fname)
-        linf = 'last infection'
-        type_dict = {'ID1': 'str',
-                'ID2': 'str',
-                linf: 'str',
-                'DOB': 'str'}
+        linf = 'Infections'
+        #Read as columns of strings
         df_up = pd.read_excel(fname, dtype=str)
         df_up.replace('n/a', np.nan, inplace=True)
+        df_up.replace('N/A', np.nan, inplace=True)
         df_up.replace('refused', np.nan, inplace=True)
         df_up.replace('Refused', np.nan, inplace=True)
         df_up.replace('REFUSED', np.nan, inplace=True)
@@ -534,14 +536,13 @@ class Merger:
         df_up.replace('Yes - date unknown', np.nan, inplace=True)
         df_up.replace('COVISHEILD', 'COVISHIELD', inplace=True)
         df_up.replace(' ', np.nan, inplace=True)
-        df_up['ID'] = ''
-        #print(df_up)
+        df_up.replace('BmodernaO', 'BModernaO', inplace=True)
+        print(df_up)
         DOR=self.MPD_obj.DOR
-        #df_up[DOR] = pd.to_datetime(df_up[DOR])
-        self.print_column_and_datatype(df_up)
-        regexp = re.compile('(?P<site>[0-9]{2})[-]?(?P<code>[0-9]{4}[ ]?[0-9]{3})')
+
+        id_regexp = re.compile('(?P<site>[0-9]{2})[-]?(?P<code>[0-9]{4}[ ]?[0-9]{3})')
         def extract_id(txt):
-            obj = regexp.search(txt)
+            obj = id_regexp.search(txt)
             if obj:
                 site = obj.group('site')
                 code = obj.group('code')
@@ -553,12 +554,24 @@ class Merger:
 
         yearfirst_regexp = re.compile('[0-9]{4}[-][0-9]{2}[-][0-9]{2}')
         dayfirst_regexp = re.compile('[0-9]+[-][a-zA-Z]+[-](?P<year>[0-9]+)')
-        monthfirst_regexp = re.compile('(?P<month>[0-9]+)[/](?P<day>[0-9]+)[/](?P<year>[0-9]+)')
+        txt = ('(?P<month>[0-9]+)' + '[/]' +
+        '(?P<day>[0-9]+)' + '[/]' +
+        '(?P<year>[0-9]+)')
+        monthfirst_regexp = re.compile(txt)
+        txt = ('(?P<month>[a-zA-Z]+)' + '[ ]+' +
+        '(?P<day>[0-9]{1,2})' + '[,]?' + '[ ]+' +
+        '(?P<year>[0-9]{2,})')
+        monthfirst_as_text_regexp = re.compile(txt)
         def convert_str_to_date(txt):
             if pd.isnull(txt):
                 raise ValueError('Object is NAN')
-            if '/' in txt:
-                #Month/Day/Year
+            obj = monthfirst_as_text_regexp.search(txt)
+            if obj:
+                #Month(text)/Day/Year
+                date = obj.group(0)
+                date = pd.to_datetime(date, dayfirst=False, yearfirst=False)
+            elif '/' in txt:
+                #Month(number)/Day/Year
                 obj = monthfirst_regexp.search(txt)
                 if obj:
                     date = obj.group(0)
@@ -601,42 +614,88 @@ class Merger:
         max_date = datetime.datetime(2000,1,1)
         dc_id_to_inf = {}
 
+        check_ID     = False
+        check_DOR    = True
+        check_reason = True
         for index_up, row_up in df_up.iterrows():
             #=========================ID
-            id1 = row_up['ID1']
-            if pd.notnull(id1):
-                id1 = extract_id(id1)
-                ID = id1
+            if check_ID:
+                id1 = row_up['ID1']
+                if pd.notnull(id1):
+                    id1 = extract_id(id1)
+                    ID = id1
+                else:
+                    id2 = row_up['ID2']
+                    id2 = extract_id(id2)
+                    if id2:
+                        ID = id2
+                    else:
+                        print(row_up)
+                        raise ValueError('Unable to extract ID')
+                df_up.loc[index_up, 'ID'] = ID
             else:
-                id2 = row_up['ID2']
-                id2 = extract_id(id2)
-                if id2:
-                    ID = id2
-                else:
-                    print(row_up)
-                    raise ValueError('Unable to extract ID')
-            df_up.loc[index_up, 'ID'] = ID
+                ID = row_up['ID']
             print(f'>>>>>>>>>>>{ID=}')
-            #=========================DOR
-            dor = row_up[DOR]
-            #print(dor)
-            dor = pd.to_datetime(dor)
             #=========================Reason
-            reason = row_up['Reason']
-            if pd.notnull(reason):
-                if reason.lower() in self.MPD_obj.removal_states_l:
-                    pass
-                else:
-                    raise ValueError('Unknown reason')
+            if check_reason:
+                if 'Reason' not in df_up.columns:
+                    df_up['Reason'] = np.nan
+                #Assume that the reason is in a column
+                #named Reason+DOR
+                RpDOR = 'Reason+DOR'
+                rpdor = row_up[RpDOR]
+                if pd.notnull(rpdor):
+                    found_flag = False
+                    for removal_state in self.MPD_obj.removal_states:
+                        if removal_state in rpdor:
+                            found_flag = True
+                            df_up.loc[index_up, 'Reason'] = removal_state
+                            print(f'{removal_state=}')
+                            break
+                    if not found_flag:
+                        raise ValueError('Unknown reason')
+            else:
+                reason = row_up['Reason']
+                if pd.notnull(reason):
+                    found_flag = False
+                    reason = reason.lower()
+                    for k, removal_state in enumerate(self.MPD_obj.removal_states_l):
+                        if reason in removal_state:
+                            found_flag = True
+                            reason = self.MPD_obj.removal_states[k]
+                            df_up.loc[index_up,'Reason'] = reason
+                            break
+                    if not found_flag:
+                        raise ValueError('Unknown reason')
+            #=========================DOR
+            if check_DOR:
+                if DOR not in df_up.columns:
+                    df_up['Reason'] = np.nan
+                #Assume that the DOR is in a column
+                #named Reason+DOR
+                RpDOR = 'Reason+DOR'
+                rpdor = row_up[RpDOR]
+                if pd.notnull(rpdor):
+                    dor = convert_str_to_date(rpdor)
+                    df_up.loc[index_up, DOR] = dor
+                    print(f'{dor=}')
+            else:
+                #If DOR is np.nan, then we obtain NaT
+                #We assume there should be no problems
+                #with the format.
+                dor = row_up[DOR]
+                dor = pd.to_datetime(dor)
+                df_up.loc[index_up, DOR] = dor
             #=========================DOB
-            dob = row_up['DOB']
-            if pd.notnull(dob):
-                dob = convert_str_to_date(dob)
-                if max_date < dob:
-                    dob = dob - pd.DateOffset(years=100)
-                    print('Removing 100 years from dob.')
-                df_up.loc[index_up, 'DOB'] = dob
-                print(f'{dob=}')
+            if 'DOB' in df_up.columns:
+                dob = row_up['DOB']
+                if pd.notnull(dob):
+                    dob = convert_str_to_date(dob)
+                    if max_date < dob:
+                        dob = dob - pd.DateOffset(years=100)
+                        print('Removing 100 years from dob.')
+                    df_up.loc[index_up, 'DOB'] = dob
+                    print(f'{dob=}')
             #=========================Infections
             inf_str = row_up[linf]
             if pd.notnull(inf_str):
@@ -650,7 +709,7 @@ class Merger:
                 else:
                     inf = convert_str_to_date(inf_str)
                     L.append(inf)
-                print(L)
+                print(f'Infection list {L=}')
                 #We store the list of infections in the dictionary.
                 dc_id_to_inf[ID] = L
             #=========================Vaccines
@@ -668,24 +727,45 @@ class Merger:
                     else:
                         print(f'{t_up=}')
                         raise ValueError('Unknown vaccine type')
-        df_up.drop(columns=[linf, 'ID1', 'ID2'], inplace=True)
-        columns_with_dates = [DOR, 'DOB'] + self.LIS_obj.vaccine_date_cols
+        columns_to_drop = []
+        for column in df_up.columns:
+            if column not in self.df.columns:
+                columns_to_drop.append(column)
+        df_up.drop(columns=columns_to_drop, inplace=True)
+        columns_with_dates = [DOR] + self.LIS_obj.vaccine_date_cols
+        if 'DOB' in df_up.columns:
+            columns_with_dates.append('DOB')
         for column in columns_with_dates:
             df_up[column] = pd.to_datetime(df_up[column])
         self.print_column_and_datatype(df_up)
 
-        #Storing the reformatted update.
-        fname  = 'Taras_update_reformatted.xlsx'
-        folder = 'Tara_nov_07_2022'
-        fname = os.path.join('..','requests',folder, fname)
-        df_up.to_excel(fname, index=False)
+        #Date chronology
+        print('Checking vaccination chronology.')
+        self.LIS_obj.set_chronological_order(df_up,
+                self.LIS_obj.vaccine_date_cols[:-1],
+                self.LIS_obj.vaccine_type_cols[:-1],
+                'Vaccines')
 
-        #Mergin step.
-        self.df = self.merge_with_M_and_return_M(df_up, 'ID', kind='update+')
+        #Storing the reformatted update.
+        #fname  = 'Taras_update_reformatted.xlsx'
+        #folder = 'Tara_nov_09_2022'
+        #fname = os.path.join('..','requests',folder, fname)
+        #df_up.to_excel(fname, index=False)
+        #print(f'Wrote {fname=} to file.')
+
+        #Merging step.
+        #Be careful with the kind of update you want to execute.
+        #If necessary, you can first run it with "update+"
+        #and see if there are significant differences.
+        self.df = self.merge_with_M_and_return_M(df_up, 'ID', kind='original+')
+
+
+        self.LIS_obj.order_infections_and_vaccines()
         #>>>>>>>>>>Infections
         df_inf = pd.DataFrame.from_dict(dc_id_to_inf,
                 orient='index').reset_index(level=0)
-        df_inf.rename(columns={'index':'ID', 0:1, 1:2, 2:3}, inplace=True)
+        dc = {'index':'ID', 0:1, 1:2, 2:3, 3:4, 4:5, 5:6}
+        df_inf.rename(columns=dc, inplace=True)
         df_inf = pd.melt(df_inf, id_vars='ID',
                 value_vars=df_inf.columns[1:])
         df_inf.dropna(subset='value', inplace=True)
@@ -696,7 +776,7 @@ class Merger:
 
         #Storing the extracted infections in a separate file.
         fname  = 'extracted_infections_from_Taras_update.xlsx'
-        folder = 'Tara_nov_07_2022'
+        folder = 'Tara_nov_09_2022'
         fname = os.path.join('..','requests',folder, fname)
         df_inf.to_excel(fname, index=False)
 
@@ -704,20 +784,7 @@ class Merger:
         #in case we have new participants.
         self.LIS_obj.update_the_dates_and_waves(df_inf)
         self.LIS_obj.order_infections_and_vaccines()
-
-
-
-
-    def tara_nov_07_2022_part_2(self):
-        fname  = 'Taras_update_reformatted.xlsx'
-        folder = 'Tara_nov_07_2022'
-        fname = os.path.join('..','requests',folder, fname)
-        df_up = pd.read_excel(fname)
-        print('Checking the order of the vaccines.')
-        self.set_chronological_order(df_up,
-                self.vaccine_date_cols[:-1],
-                self.vaccine_type_cols[:-1],
-                'Vaccines')
+        self.MPD_obj.update_active_status_column()
 
 
 
@@ -754,4 +821,8 @@ obj = Merger()
 #Nov 07 2022
 #obj.tara_nov_07_2022()
 #obj.write_the_M_file_to_excel()
-obj.tara_nov_07_2022_part_2()
+#obj.tara_nov_07_2022_part_2()
+#obj.write_the_M_file_to_excel()
+#Nov 09 2022
+obj.tara_nov_09_2022()
+#obj.write_the_M_file_to_excel()

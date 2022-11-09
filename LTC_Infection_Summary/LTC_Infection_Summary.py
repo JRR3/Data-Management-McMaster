@@ -522,12 +522,12 @@ class LTCInfectionSummary:
     def order_infections_and_vaccines(self):
         #October 8 2022
         print('Checking the order of the infections.')
-        self.set_chronological_order(self.df,
+        self.set_chronological_order(self.parent.df,
                 self.positive_date_cols,
                 self.positive_type_cols,
                 'Infections')
         print('Checking the order of the vaccines.')
-        self.set_chronological_order(self.df,
+        self.set_chronological_order(self.parent.df,
                 self.vaccine_date_cols,
                 self.vaccine_type_cols,
                 'Vaccines')
@@ -572,7 +572,7 @@ class LTCInfectionSummary:
                 print('Modified:')
                 print(p_dates)
                 #Remove the comment for testing purposes.
-                #raise ValueError('Permutation')
+                raise ValueError('Permutation')
 
     def assume_PCR_if_empty(self):
         print('Assume PCR if (method of collection) MOC is unknown.')
