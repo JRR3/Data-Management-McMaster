@@ -20,11 +20,15 @@ class LTCNeutralizationData:
         self.merge_source = 'Full ID'
         self.merge_column = 'ID'
 
-        self.load_LND_file()
+        #We no longer load a file since
+        #the LSM class already controls the
+        #Serology Master file.
+        #self.load_LND_file()
 
         if parent:
             self.parent = parent
             print('LND class initialization from Manager.')
+            print('This class depends on the LSM file.')
         else:
             raise ValueError('Parent object is unavailable.')
 

@@ -572,7 +572,12 @@ class LTCInfectionSummary:
                 print('Modified:')
                 print(p_dates)
                 #Remove the comment for testing purposes.
-                raise ValueError('Permutation')
+                instruction = input('Should we proceed? :')
+                if instruction == 'y':
+                    pass
+                else:
+                    raise ValueError('Permutation')
+
 
     def assume_PCR_if_empty(self):
         print('Assume PCR if (method of collection) MOC is unknown.')

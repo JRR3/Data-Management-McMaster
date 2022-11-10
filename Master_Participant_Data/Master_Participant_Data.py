@@ -203,6 +203,7 @@ class MasterParticipantData:
         c2 = self.parent.df[self.reason].notnull()
         self.parent.df[self.is_active] = ~(c1 | c2)
         print('The active status column has been updated.')
+        print('Do not forget to write the df to Excel.')
 
     def full_run(self):
         self.relabel_ids()

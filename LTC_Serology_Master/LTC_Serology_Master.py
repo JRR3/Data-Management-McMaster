@@ -59,7 +59,7 @@ class LTCSerologyMaster:
         shutil.copyfile(original, backup)
         print('A backup for the LSM file has been generated.')
 
-    def write_to_excel(self):
+    def write_LSM_to_excel(self):
         self.backup_the_LSM_file()
         fname = 'LSM.xlsx'
         fname = os.path.join(self.dpath, fname)
@@ -149,3 +149,17 @@ class LTCSerologyMaster:
         self.update_id_column()
         print('End of merging process.')
 
+    def update_LND_data(self):
+        #Updated on Nov 10, 2022
+        fname  = 'LND_update.xlsx'
+        folder = 'Jessica_2_nov_10_2022'
+        fname = os.path.join('..','requests',folder, fname)
+        df_up = pd.read_excel(fname)
+        df_up.dropna(axis=0, how='all', inplace=True)
+        print(df_up)
+        kind = 'original+'
+        merge_at_column = 'Full ID'
+        self.df = self.parent.merge_X_with_Y_and_return_Z(self.df,
+                                                          df_up,
+                                                          merge_at_column,
+                                                          kind=kind)

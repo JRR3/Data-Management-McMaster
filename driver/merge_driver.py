@@ -13,14 +13,14 @@ sys.path.insert(1,'../Master_Participant_Data/')
 sys.path.insert(1,'../LTC_Infection_Summary/')
 sys.path.insert(1,'../LTC_Serology_Master/')
 sys.path.insert(1,'../Sample_Inventory_Data/')
-sys.path.insert(1,'../LTC_Neutralization_Data/')
+#sys.path.insert(1,'../LTC_Neutralization_Data/')
 sys.path.insert(1,'../Reporter/')
 
 import Master_Participant_Data
 import LTC_Infection_Summary
 import Sample_Inventory_Data
 import LTC_Serology_Master
-import LTC_Neutralization_Data
+#import LTC_Neutralization_Data
 import Reporter
 
 class Merger:
@@ -67,11 +67,12 @@ class Merger:
                 SampleInventoryData(self.SID_path,
                                     self)
 
-        LND = 'LTC_Neutralization_Data'
-        self.LND_path = os.path.join('..', LND)
-        self.LND_obj  = LTC_Neutralization_Data.\
-                LTCNeutralizationData(self.LND_path,
-                                      self)
+        #The LSM class now controls this section.
+        #LND = 'LTC_Neutralization_Data'
+        #self.LND_path = os.path.join('..', LND)
+        #self.LND_obj  = LTC_Neutralization_Data.\
+                #LTCNeutralizationData(self.LND_path,
+                                      #self)
 
         REP = 'Reporter'
         self.REP_path = os.path.join('..', REP)
@@ -94,8 +95,8 @@ class Merger:
     def update_master_using_SID(self):
         #This function updates the merged file M with the
         #Sample Inventory Data file provided by Megan.
-        folder = 'Megan_oct_31_2022'
-        fname = 'SID.xlsx'
+        folder = 'Megan_nov_10_2022'
+        fname = 'sid_update.xlsx'
         fname = os.path.join(self.requests_path, folder, fname)
         #We are only interested in the first column (ID=A) and the 
         #Blood draw columns (W to BF).
@@ -206,7 +207,6 @@ class Merger:
         df_up['date'] = pd.to_datetime(df_up['date'])
         print(df_up)
         self.LIS_obj.update_the_dates_and_waves(df_up)
-        #self.write_the_M_file_to_excel()
 
 
     def load_single_column_df_for_update(self, fname, folder, sheet=0):
@@ -405,10 +405,9 @@ class Merger:
 
 
     def update_LSM(self):
-        #This function was updated on 12-Oct-2022
-        #fname = 'june_ltc.xlsx'
-        fname = 'nc_ltc.xlsx'
-        folder = 'Jessica_oct_26_2022'
+        #This function was updated on 10-Nov-2022
+        fname = 'serology_update.xlsx'
+        folder = 'Jessica_nov_10_2022'
         fname = os.path.join('..','requests',folder, fname)
         book = pd.read_excel(fname, sheet_name=None, header=None)
         print(f'LSM is looking into the {folder=}')
@@ -424,7 +423,7 @@ class Merger:
         #self.SID_obj.check_df_dates_using_SID(self.LSM_obj.df)
 
         #The writing process should be executed 
-        #externally for safery reasons.
+        #externally for safety reasons.
 
     def check_LSM_dates(self):
         #This function was updated on 12-Oct-2022
@@ -515,13 +514,14 @@ class Merger:
         return X
 
 
-    def tara_nov_09_2022(self):
+    def tara_nov_10_2022(self):
         #Rename Reasons
+        store_reformatted_update = True
         #for old_reason, new_reason in zip(self.MPD_obj.removal_states,
                 #self.MPD_obj.new_removal_states):
             #self.df['Reason'].replace(old_reason, new_reason, inplace=True)
-        fname  = 'update_amica.xlsx'
-        folder = 'Tara_nov_09_2022'
+        fname  = 'update.xlsx'
+        folder = 'Tara_nov_10_2022'
         fname = os.path.join('..','requests',folder, fname)
         linf = 'Infections'
         #Read as columns of strings
@@ -553,31 +553,51 @@ class Merger:
                 return None
 
         yearfirst_regexp = re.compile('[0-9]{4}[-][0-9]{2}[-][0-9]{2}')
+
         dayfirst_regexp = re.compile('[0-9]+[-][a-zA-Z]+[-](?P<year>[0-9]+)')
+
         txt = ('(?P<month>[0-9]+)' + '[/]' +
         '(?P<day>[0-9]+)' + '[/]' +
         '(?P<year>[0-9]+)')
         monthfirst_regexp = re.compile(txt)
+
         txt = ('(?P<month>[a-zA-Z]+)' + '[ ]+' +
-        '(?P<day>[0-9]{1,2})' + '[,]?' + '[ ]+' +
+        '(?P<day>[0-9]{1,2})' + '[,/]?' + '[ ]*' +
         '(?P<year>[0-9]{2,})')
         monthfirst_as_text_regexp = re.compile(txt)
+
+        def short_year_to_long_year(obj):
+            date = obj.group(0)
+            if len(obj.group('year')) == 2:
+                year_str = date[-2:]
+                year_int = int(year_str)
+                if year_int <= 22:
+                    year_int += 2000
+                else:
+                    year_int += 1900
+                year_str = str(year_int)
+                date = date[:-2] + year_str
+            return date
+
         def convert_str_to_date(txt):
             if pd.isnull(txt):
                 raise ValueError('Object is NAN')
             obj = monthfirst_as_text_regexp.search(txt)
             if obj:
                 #Month(text)/Day/Year
-                date = obj.group(0)
+                #Check if we have a short year.
+                date = short_year_to_long_year(obj)
                 date = pd.to_datetime(date, dayfirst=False, yearfirst=False)
             elif '/' in txt:
                 #Month(number)/Day/Year
                 obj = monthfirst_regexp.search(txt)
                 if obj:
-                    date = obj.group(0)
+                    #Check if we have a short year.
+                    date = short_year_to_long_year(obj)
                     month_str = obj.group('month')
                     month_int = int(month_str)
                     if 12 < month_int:
+                        print('Unexpected format: Month/Day/Year but Month > 12')
                         date = pd.to_datetime(date, dayfirst=True)
                     else:
                         date = pd.to_datetime(date, dayfirst=False, yearfirst=False)
@@ -585,6 +605,7 @@ class Merger:
                     print(txt)
                     raise ValueError('Unknown format for date.')
             else:
+                #In this case we do not expect a short year.
                 obj = yearfirst_regexp.search(txt)
                 if obj:
                     date = obj.group(0)
@@ -592,17 +613,8 @@ class Merger:
                 else:
                     obj = dayfirst_regexp.search(txt)
                     if obj:
-                        if len(obj.group('year')) == 2:
-                            year_str = txt[-2:]
-                            year_int = int(year_str)
-                            if year_int <= 22:
-                                year_int += 2000
-                            else:
-                                year_int += 1900
-                            year_str = str(year_int)
-                            date = txt[:-2] + year_str
-                        else:
-                            date = obj.group(0)
+                        #Check if we have a short year.
+                        date = short_year_to_long_year(obj)
                         date = pd.to_datetime(date, dayfirst=True)
                     else:
                         print(txt)
@@ -611,12 +623,12 @@ class Merger:
 
         date_sep_regexp = re.compile('[ ]*[,;]+[ ]*')
 
-        max_date = datetime.datetime(2000,1,1)
+        max_date_for_DOB = datetime.datetime(2000,1,1)
         dc_id_to_inf = {}
 
         check_ID     = False
-        check_DOR    = True
-        check_reason = True
+        check_DOR    = False
+        check_reason = False
         for index_up, row_up in df_up.iterrows():
             #=========================ID
             if check_ID:
@@ -691,7 +703,7 @@ class Merger:
                 dob = row_up['DOB']
                 if pd.notnull(dob):
                     dob = convert_str_to_date(dob)
-                    if max_date < dob:
+                    if max_date_for_DOB < dob:
                         dob = dob - pd.DateOffset(years=100)
                         print('Removing 100 years from dob.')
                     df_up.loc[index_up, 'DOB'] = dob
@@ -728,6 +740,7 @@ class Merger:
                         print(f'{t_up=}')
                         raise ValueError('Unknown vaccine type')
         columns_to_drop = []
+        #We only keep columns that appear in the Master file.
         for column in df_up.columns:
             if column not in self.df.columns:
                 columns_to_drop.append(column)
@@ -738,6 +751,7 @@ class Merger:
         for column in columns_with_dates:
             df_up[column] = pd.to_datetime(df_up[column])
         self.print_column_and_datatype(df_up)
+        print(df_up)
 
         #Date chronology
         print('Checking vaccination chronology.')
@@ -746,12 +760,13 @@ class Merger:
                 self.LIS_obj.vaccine_type_cols[:-1],
                 'Vaccines')
 
+
         #Storing the reformatted update.
-        #fname  = 'Taras_update_reformatted.xlsx'
-        #folder = 'Tara_nov_09_2022'
-        #fname = os.path.join('..','requests',folder, fname)
-        #df_up.to_excel(fname, index=False)
-        #print(f'Wrote {fname=} to file.')
+        if store_reformatted_update:
+            fname  = 'Taras_update_reformatted.xlsx'
+            fname = os.path.join('..','requests',folder, fname)
+            df_up.to_excel(fname, index=False)
+            print(f'Wrote {fname=} to file.')
 
         #Merging step.
         #Be careful with the kind of update you want to execute.
@@ -775,10 +790,10 @@ class Merger:
         print(df_inf)
 
         #Storing the extracted infections in a separate file.
-        fname  = 'extracted_infections_from_Taras_update.xlsx'
-        folder = 'Tara_nov_09_2022'
-        fname = os.path.join('..','requests',folder, fname)
-        df_inf.to_excel(fname, index=False)
+        if store_reformatted_update:
+            fname  = 'extracted_infections_from_Taras_update.xlsx'
+            fname = os.path.join('..','requests',folder, fname)
+            df_inf.to_excel(fname, index=False)
 
         #This has to be executed after the merging process
         #in case we have new participants.
@@ -824,5 +839,15 @@ obj = Merger()
 #obj.tara_nov_07_2022_part_2()
 #obj.write_the_M_file_to_excel()
 #Nov 09 2022
-obj.tara_nov_09_2022()
+#obj.tara_nov_09_2022()
 #obj.write_the_M_file_to_excel()
+#Nov 10 2022
+#obj.tara_nov_10_2022()
+#obj.write_the_M_file_to_excel()
+#obj.update_LSM()
+#obj.LSM_obj.write_LSM_to_excel()
+#obj.update_master_using_SID()
+#obj.write_the_M_file_to_excel()
+#obj.LSM_obj.update_LND_data()
+#obj.LSM_obj.write_LSM_to_excel()
+obj.merge_M_with_LSM()
