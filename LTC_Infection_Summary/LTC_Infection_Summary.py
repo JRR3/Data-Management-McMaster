@@ -115,8 +115,10 @@ class LTCInfectionSummary:
         rexp = re.compile('[0-9]+')
         vaccine_type = 'vaccine type'
         vaccine_date = 'vaccine date'
-        pos_date = 'positive date'
-        pos_type = 'positive type'
+        pos_date = 'infection date'
+        pos_type = 'infection type'
+        #pos_date = 'positive date'
+        #pos_type = 'positive type'
 
         for column in self.parent.df:
             if column.lower().startswith(pos_date):
@@ -1017,5 +1019,105 @@ class LTCInfectionSummary:
 
 
 
+    def melt_infection_or_vaccination_dates(self, kind='Infection'):
+        #This function creates a column with all the infection dates.
+        #It also includes the corresponding method of detection.
+        if kind != 'Infection' and kind != 'Vaccine':
+            raise ValueError('Unexpected kind of column.')
+        self.parent.MPD_obj.add_site_column()
+        self.add_n_infections_column()
+        DOC = self.parent.LSM_obj.DOC
+        if kind == 'Infection':
+            type_cols     = self.positive_type_cols
+            cols_to_melt  = self.positive_date_cols
+        elif kind == 'Vaccine':
+            type_cols     = self.vaccine_type_cols
+            cols_to_melt  = self.vaccine_date_cols
+        cols_to_melt += type_cols
+        doe = self.parent.MPD_obj.DOE
+        dor = self.parent.MPD_obj.DOR
+        site_type = self.parent.MPD_obj.site_type
+        cols_to_keep  = ['ID',
+                'Active',
+                doe,
+                dor,
+                'Site',
+                site_type,
+                '# infections']
+        #A type of melting process.
+        df = self.parent.df.pivot_longer(index = cols_to_keep,
+                column_names = cols_to_melt,
+                names_to = [kind + ' event', kind + ' type'],
+                values_to = [kind + ' date', 'Method/Type'],
+                names_pattern = [kind + ' Date [0-9]+',
+                    kind + ' Type [0-9]+'],
+                )
+        df.dropna(subset=[kind + ' date'], axis=0, inplace=True)
+        df.drop(columns=[kind + ' type'], inplace=True)
+        df.sort_values(by=['ID', kind + ' event'], axis=0, inplace=True)
+        if kind == 'Infection':
+            selection = df['Method/Type'] != 'DBS'
+            df = df[selection]
+        print(df)
+        #======================================
+        #Add the new columns to the df
+        states = ['before', 'after']
+        Ig_cols = self.parent.LSM_obj.numeric_columns
+        add_cols = ['Date', 'Days'] + Ig_cols
+        new_col_names = []
+        state_slicer   = {'before':None, 'after':None}
+        numeric_slicer = {'before':None, 'after':None}
+        for state in states:
+            #Specify that we are using the serology data
+            L = ['S: ' + x + ' ' + state for x in add_cols]
+            state_slicer[state] = slice(L[0], L[-1])
+            numeric_slicer[state] = slice(L[2], L[-1])
+            new_col_names.extend(L)
+        ratio_columns = ['R: ' + x for x in Ig_cols]
+        new_col_names.extend(ratio_columns)
+        ratio_slicer   = slice(ratio_columns[0], ratio_columns[-1])
+
+        #Add new columns to the data frame.
+        df = df.reindex(columns = df.columns.to_list() + new_col_names)
+        #print(new_col_names)
+        #print(state_slicer)
+        #print(df)
+        #Up to this point the code has been tested.
+        #Time to call Serology.
+        #Iterate over the rows of the infection/vaccine data frame.
+        for index, row in df.iterrows():
+            ID = row['ID']
+            i_date = row[kind + ' date']
+            selector_lsm = self.parent.LSM_obj.df['ID'] == ID
+            if not selector_lsm.any():
+                print(f'{ID=} has no serology information.')
+                continue
+            print(f'Working with serology for {ID=}')
+            dates_lsm = self.parent.LSM_obj.df.loc[selector_lsm,DOC]
+            dc_lsm = {'before':[], 'after':[]}
+            for state in states:
+                (index_lsm,
+                date_lsm,
+                days_lsm) = self.find_closest_date_to_from(i_date,
+                        dates_lsm, when=state)
+                print(f'{date_lsm=}')
+                if pd.isnull(date_lsm):
+                    print(f'{state}: Date was not found')
+                    continue
+                Igs = self.parent.LSM_obj.df.loc[index_lsm, Ig_cols]
+                dc_lsm[state].extend((date_lsm, days_lsm))
+                dc_lsm[state].extend((Igs.values))
+                df.loc[index, state_slicer[state]] = dc_lsm[state]
+            #Compute ratios using the ratio_slicer
+            numerator   = df.loc[index, numeric_slicer['after']].values
+            denominator = df.loc[index, numeric_slicer['before']].values
+            df.loc[index, ratio_slicer] = numerator / denominator
+        return df
 
 
+    def produce_melted_files(self):
+        kinds = ['Infection', 'Vaccine']
+        for kind in kinds:
+            df = self.melt_infection_or_vaccination_dates(kind)
+            label = kind + '_dates_as_one_column'
+            self.parent.write_df_to_excel(df, label)

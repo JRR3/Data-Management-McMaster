@@ -21,9 +21,14 @@ class LTCSerologyMaster:
         self.backups_path = os.path.join('..', 'backups')
         self.merge_source = 'Full ID'
         self.merge_column = 'ID'
+        self.ID_columns   = [self.merge_source,
+                self.merge_column]
         self.DOC          = 'Date Collected'
+        self.non_numeric_columns = []
+        self.numeric_columns     = []
 
         self.load_LSM_file()
+
 
         if parent:
             self.parent = parent
@@ -38,6 +43,10 @@ class LTCSerologyMaster:
         fname = os.path.join(self.dpath, fname)
         #Read the Excel file containing the data
         self.df = pd.read_excel(fname)
+        self.non_numeric_columns = self.ID_columns + [self.DOC]
+        for column in self.df.columns:
+            if column not in self.non_numeric_columns:
+                self.numeric_columns.append(column)
 
         print('LSM class has been initialized with LSM file.')
 
@@ -149,17 +158,52 @@ class LTCSerologyMaster:
         self.update_id_column()
         print('End of merging process.')
 
+    def remap_E_type_individuals(self, df_up):
+        #Careful with the "E" type individuals.
+        fname  = 'remapping_list.xlsx'
+        fname = os.path.join(self.dpath, fname)
+        df_re = pd.read_excel(fname)
+        for index_re, row_re in df_re.iterrows():
+            old_id = row_re['Original']
+            new_id = row_re['New']
+            df_up[self.merge_source].replace(old_id, new_id, inplace=True)
+
     def update_LND_data(self):
         #Updated on Nov 10, 2022
         fname  = 'LND_update.xlsx'
         folder = 'Jessica_2_nov_10_2022'
         fname = os.path.join('..','requests',folder, fname)
         df_up = pd.read_excel(fname)
-        df_up.dropna(axis=0, how='all', inplace=True)
-        print(df_up)
+        #If no Full ID is provided, the row is removed.
+        df_up.dropna(axis=0, subset=self.merge_source, inplace=True)
+        #Remap faulty "Full IDs"
+        self.remap_E_type_individuals(df_up)
         kind = 'original+'
         merge_at_column = 'Full ID'
         self.df = self.parent.merge_X_with_Y_and_return_Z(self.df,
                                                           df_up,
                                                           merge_at_column,
                                                           kind=kind)
+    def what_is_missing(self):
+        col_to_ids = {}
+        max_count = -1
+        for column in self.df.columns:
+            if column in self.non_numeric_columns:
+                continue
+            selection = self.df[column].isnull()
+            n_of_empty_cells = selection.value_counts()[True]
+            if max_count < n_of_empty_cells:
+                max_count = n_of_empty_cells
+            df_s = self.df[selection]
+            IDs  = df_s[self.merge_source].values
+            col_to_ids[column] = IDs
+        print(f'{max_count=}')
+        for key, L in col_to_ids.items():
+            n_of_empty_cells = len(L)
+            n_nans = max_count - n_of_empty_cells
+            col_to_ids[key] = np.pad(L, (0,n_nans), 'empty')
+        df_m = pd.DataFrame(col_to_ids)
+        label = 'missing_data_for_serology_samples'
+        self.parent.write_df_to_excel(df_m, label)
+
+
