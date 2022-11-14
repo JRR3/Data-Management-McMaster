@@ -324,27 +324,29 @@ class Merger:
 
     def check_id_format(self, df, col):
         #Modified to be applicable to any df and given column.
-        user_length_set = set()
-        site_length_set = set()
-        rexp = re.compile('(?P<site>[0-9]+)[-](?P<user>[0-9]+)')
+        #user_length_set = set()
+        #site_length_set = set()
+        rexp = re.compile('(?P<site>[0-9]{2})[-](?P<user>[0-9]{7})')
         def is_id(txt):
             if isinstance(txt, str):
                 obj = rexp.match(txt)
                 if obj:
-                    user_length_set.add(len(obj.group('user')))
-                    site_length_set.add(len(obj.group('site')))
-                    return True
+                    #user_length_set.add(len(obj.group('user')))
+                    #site_length_set.add(len(obj.group('site')))
+                    #return True
+                    pass
                 else:
-                    return False
+                    print(txt)
+                    raise ValueError(f'Unexpected format for {col=}')
             else:
-                return False
+                raise ValueError(f'Unexpected type for {txt=}')
 
-        selector = df[col].apply(is_id)
-        if ~selector.all():
-            print('Not all IDs are compliant.')
-        else:
-            print('All IDs have the format ##-#...#')
-            print(f'{user_length_set=}, {site_length_set=}')
+        #selector = df[col].apply(is_id)
+        #if ~selector.all():
+            #print('Not all IDs are compliant.')
+        #else:
+            #print('All IDs have the format ##-#...#')
+            #print(f'{user_length_set=}, {site_length_set=}')
 
 
     def merge_M_with_LSM(self):
@@ -406,8 +408,8 @@ class Merger:
 
     def update_LSM(self):
         #This function was updated on 10-Nov-2022
-        fname = 'serology_update.xlsx'
-        folder = 'Jessica_nov_10_2022'
+        fname = 'update.xlsx'
+        folder = 'Jessica_nov_14_2022'
         fname = os.path.join('..','requests',folder, fname)
         book = pd.read_excel(fname, sheet_name=None, header=None)
         print(f'LSM is looking into the {folder=}')
@@ -424,6 +426,7 @@ class Merger:
 
         #The writing process should be executed 
         #externally for safety reasons.
+        print('Do not forget to write the write the file to Excel.')
 
     def check_LSM_dates(self):
         #This function was updated on 12-Oct-2022
@@ -491,7 +494,7 @@ class Merger:
             X[self.merge_column] = ''
         else:
             print('The ID column already exists.')
-        id_rx = re.compile('(?P<ID>[0-9]+[-][0-9]+)[-][A-Z]+')
+        id_rx = re.compile('(?P<ID>[0-9]{2}[-][0-9]{7})[-][A-Z]{1}')
 
         def get_id_from_full_id(txt):
             obj = id_rx.match(txt)
@@ -514,14 +517,16 @@ class Merger:
         return X
 
 
-    def tara_nov_10_2022(self):
-        #Rename Reasons
+    def tara_nov_11_2022(self):
+        #Use this function to update the Master file
+        #when using Retirement Home data.
         store_reformatted_update = True
+        #Rename Reasons
         #for old_reason, new_reason in zip(self.MPD_obj.removal_states,
                 #self.MPD_obj.new_removal_states):
             #self.df['Reason'].replace(old_reason, new_reason, inplace=True)
-        fname  = 'update.xlsx'
-        folder = 'Tara_nov_10_2022'
+        fname  = 'site_01_update.xlsx'
+        folder = 'Tara_nov_11_2022'
         fname = os.path.join('..','requests',folder, fname)
         linf = 'Infections'
         #Read as columns of strings
@@ -556,13 +561,16 @@ class Merger:
 
         dayfirst_regexp = re.compile('[0-9]+[-][a-zA-Z]+[-](?P<year>[0-9]+)')
 
+        dayfirst_with_slash_regexp = re.compile('[0-9]+[/][0-9]+[/](?P<year>[0-9]+)')
+
         txt = ('(?P<month>[0-9]+)' + '[/]' +
         '(?P<day>[0-9]+)' + '[/]' +
         '(?P<year>[0-9]+)')
         monthfirst_regexp = re.compile(txt)
 
         txt = ('(?P<month>[a-zA-Z]+)' + '[ ]+' +
-        '(?P<day>[0-9]{1,2})' + '[,/]?' + '[ ]*' +
+        '(?P<day>[0-9]{1,2})' + '[a-z]*' +
+        '[,/]?' + '[ ]*' +
         '(?P<year>[0-9]{2,})')
         monthfirst_as_text_regexp = re.compile(txt)
 
@@ -579,7 +587,17 @@ class Merger:
                 date = date[:-2] + year_str
             return date
 
-        def convert_str_to_date(txt):
+        def extract_method(txt):
+            if 'PCR' in txt:
+                return 'PCR'
+            elif 'RAT' in txt:
+                return 'RAT'
+            elif 'DBS' in txt:
+                return 'DBS'
+            else:
+                return None
+
+        def convert_str_to_date(txt, use_day_first_for_slash=False):
             if pd.isnull(txt):
                 raise ValueError('Object is NAN')
             obj = monthfirst_as_text_regexp.search(txt)
@@ -589,21 +607,29 @@ class Merger:
                 date = short_year_to_long_year(obj)
                 date = pd.to_datetime(date, dayfirst=False, yearfirst=False)
             elif '/' in txt:
-                #Month(number)/Day/Year
-                obj = monthfirst_regexp.search(txt)
-                if obj:
-                    #Check if we have a short year.
-                    date = short_year_to_long_year(obj)
-                    month_str = obj.group('month')
-                    month_int = int(month_str)
-                    if 12 < month_int:
-                        print('Unexpected format: Month/Day/Year but Month > 12')
+                if use_day_first_for_slash:
+                    obj = dayfirst_with_slash_regexp.search(txt)
+                    if obj:
+                        date = obj.group(0)
                         date = pd.to_datetime(date, dayfirst=True)
                     else:
-                        date = pd.to_datetime(date, dayfirst=False, yearfirst=False)
+                        raise ValueError('Unexpected date for slash with day first.')
                 else:
-                    print(txt)
-                    raise ValueError('Unknown format for date.')
+                    #Month(number)/Day/Year
+                    obj = monthfirst_regexp.search(txt)
+                    if obj:
+                        #Check if we have a short year.
+                        date = short_year_to_long_year(obj)
+                        month_str = obj.group('month')
+                        month_int = int(month_str)
+                        if 12 < month_int:
+                            print('Unexpected format: Month/Day/Year but Month > 12')
+                            date = pd.to_datetime(date, dayfirst=True)
+                        else:
+                            date = pd.to_datetime(date, dayfirst=False, yearfirst=False)
+                    else:
+                        print(txt)
+                        raise ValueError('Unknown format for date.')
             else:
                 #In this case we do not expect a short year.
                 obj = yearfirst_regexp.search(txt)
@@ -625,13 +651,16 @@ class Merger:
 
         max_date_for_DOB = datetime.datetime(2000,1,1)
         dc_id_to_inf = {}
+        dc_id_to_method = {}
 
-        check_ID     = False
-        check_DOR    = False
-        check_reason = False
+        ID_in_ID1_or_ID2          = False
+        DOR_is_merged_with_Reason = False
+        find_vaccines             = False
+        find_infections           = True
+
         for index_up, row_up in df_up.iterrows():
             #=========================ID
-            if check_ID:
+            if ID_in_ID1_or_ID2:
                 id1 = row_up['ID1']
                 if pd.notnull(id1):
                     id1 = extract_id(id1)
@@ -649,7 +678,7 @@ class Merger:
                 ID = row_up['ID']
             print(f'>>>>>>>>>>>{ID=}')
             #=========================Reason
-            if check_reason:
+            if DOR_is_merged_with_Reason:
                 if 'Reason' not in df_up.columns:
                     df_up['Reason'] = np.nan
                 #Assume that the reason is in a column
@@ -667,20 +696,21 @@ class Merger:
                     if not found_flag:
                         raise ValueError('Unknown reason')
             else:
-                reason = row_up['Reason']
-                if pd.notnull(reason):
-                    found_flag = False
-                    reason = reason.lower()
-                    for k, removal_state in enumerate(self.MPD_obj.removal_states_l):
-                        if reason in removal_state:
-                            found_flag = True
-                            reason = self.MPD_obj.removal_states[k]
-                            df_up.loc[index_up,'Reason'] = reason
-                            break
-                    if not found_flag:
-                        raise ValueError('Unknown reason')
+                if 'Reason' in df_up.columns:
+                    reason = row_up['Reason']
+                    if pd.notnull(reason):
+                        found_flag = False
+                        reason = reason.lower()
+                        for k, removal_state in enumerate(self.MPD_obj.removal_states_l):
+                            if reason in removal_state:
+                                found_flag = True
+                                reason = self.MPD_obj.removal_states[k]
+                                df_up.loc[index_up,'Reason'] = reason
+                                break
+                        if not found_flag:
+                            raise ValueError('Unknown reason')
             #=========================DOR
-            if check_DOR:
+            if DOR_is_merged_with_Reason:
                 if DOR not in df_up.columns:
                     df_up['Reason'] = np.nan
                 #Assume that the DOR is in a column
@@ -692,73 +722,91 @@ class Merger:
                     df_up.loc[index_up, DOR] = dor
                     print(f'{dor=}')
             else:
-                #If DOR is np.nan, then we obtain NaT
-                #We assume there should be no problems
-                #with the format.
-                dor = row_up[DOR]
-                dor = pd.to_datetime(dor)
-                df_up.loc[index_up, DOR] = dor
+                if DOR in df_up.columns:
+                    #If DOR is np.nan, then we obtain NaT
+                    #We assume there should be no problems
+                    #with the format.
+                    dor = row_up[DOR]
+                    dor = pd.to_datetime(dor)
+                    df_up.loc[index_up, DOR] = dor
             #=========================DOB
             if 'DOB' in df_up.columns:
                 dob = row_up['DOB']
                 if pd.notnull(dob):
-                    dob = convert_str_to_date(dob)
+                    dob = convert_str_to_date(dob, use_day_first_for_slash=True)
                     if max_date_for_DOB < dob:
                         dob = dob - pd.DateOffset(years=100)
                         print('Removing 100 years from dob.')
                     df_up.loc[index_up, 'DOB'] = dob
                     print(f'{dob=}')
             #=========================Infections
-            inf_str = row_up[linf]
-            if pd.notnull(inf_str):
-                obj = date_sep_regexp.search(inf_str)
-                L = []
-                if obj:
-                    inf_list = inf_str.replace(obj.group(0), ' ').split()
-                    for date in inf_list:
-                        inf = convert_str_to_date(date)
-                        L.append(inf)
-                else:
-                    inf = convert_str_to_date(inf_str)
-                    L.append(inf)
-                print(f'Infection list {L=}')
-                #We store the list of infections in the dictionary.
-                dc_id_to_inf[ID] = L
-            #=========================Vaccines
-            for date_col, type_col in zip(self.LIS_obj.vaccine_date_cols,
-                    self.LIS_obj.vaccine_type_cols):
-                d_up = row_up[date_col]
-                t_up = row_up[type_col]
-                if pd.notnull(d_up):
-                    d_up = convert_str_to_date(d_up)
-                    df_up.loc[index_up, date_col] = d_up
-                if pd.notnull(t_up):
-                    t_up = t_up.strip()
-                    if t_up in self.LIS_obj.list_of_valid_vaccines:
-                        df_up.loc[index_up, type_col] = t_up
+            if find_infections:
+                inf_str = row_up[linf]
+                if pd.notnull(inf_str):
+                    obj = date_sep_regexp.search(inf_str)
+                    L = []
+                    M = []
+                    if obj:
+                        #inf_list = inf_str.replace(obj.group(0), ' ').split()
+                        inf_list = inf_str.split(',')
+                        for inf in inf_list:
+                            method = extract_method(inf)
+                            inf = convert_str_to_date(inf)
+                            L.append(inf)
+                            if method:
+                                M.append(method)
                     else:
-                        print(f'{t_up=}')
-                        raise ValueError('Unknown vaccine type')
+                        method = extract_method(inf_str)
+                        inf = convert_str_to_date(inf_str)
+                        L.append(inf)
+                        if method:
+                            M.append(method)
+                    print(f'Infection list {L=}')
+                    #We store the list of infections in the dictionary.
+                    dc_id_to_inf[ID] = L
+                    if 0 < len(M):
+                        dc_id_to_method[ID] = M
+            #=========================Vaccines
+            if find_vaccines:
+                for date_col, type_col in zip(self.LIS_obj.vaccine_date_cols,
+                        self.LIS_obj.vaccine_type_cols):
+                    d_up = row_up[date_col]
+                    t_up = row_up[type_col]
+                    if pd.notnull(d_up):
+                        d_up = convert_str_to_date(d_up)
+                        df_up.loc[index_up, date_col] = d_up
+                    if pd.notnull(t_up):
+                        t_up = t_up.strip()
+                        if t_up in self.LIS_obj.list_of_valid_vaccines:
+                            df_up.loc[index_up, type_col] = t_up
+                        else:
+                            print(f'{t_up=}')
+                            raise ValueError('Unknown vaccine type')
         columns_to_drop = []
         #We only keep columns that appear in the Master file.
         for column in df_up.columns:
             if column not in self.df.columns:
                 columns_to_drop.append(column)
         df_up.drop(columns=columns_to_drop, inplace=True)
-        columns_with_dates = [DOR] + self.LIS_obj.vaccine_date_cols
+        columns_with_dates = []
         if 'DOB' in df_up.columns:
             columns_with_dates.append('DOB')
+        if 'DOR' in df_up.columns:
+            columns_with_dates.append('DOR')
+        if find_vaccines:
+            columns_with_dates.extend(self.LIS_obj.vaccine_date_cols)
         for column in columns_with_dates:
             df_up[column] = pd.to_datetime(df_up[column])
         self.print_column_and_datatype(df_up)
         print(df_up)
 
         #Date chronology
-        print('Checking vaccination chronology.')
-        self.LIS_obj.set_chronological_order(df_up,
-                self.LIS_obj.vaccine_date_cols[:-1],
-                self.LIS_obj.vaccine_type_cols[:-1],
-                'Vaccines')
+        if find_vaccines:
+            print('Checking vaccination chronology of the update.')
+            self.LIS_obj.set_chronological_order(df_up,
+                    self.LIS_obj.vaccine_date_cols[:-1],
+                    self.LIS_obj.vaccine_type_cols[:-1],
+                    'Vaccines')
 
 
         #Storing the reformatted update.
@@ -775,7 +823,9 @@ class Merger:
         self.df = self.merge_with_M_and_return_M(df_up, 'ID', kind='original+')
 
 
-        self.LIS_obj.order_infections_and_vaccines()
+        if find_vaccines:
+            print('Checking vaccination chronology of the merged file.')
+            self.LIS_obj.order_infections_and_vaccines()
         #>>>>>>>>>>Infections
         df_inf = pd.DataFrame.from_dict(dc_id_to_inf,
                 orient='index').reset_index(level=0)
@@ -788,6 +838,20 @@ class Merger:
             'value':'DOI'},
             inplace=True)
         print(df_inf)
+        #>>>>>>>>>>Method
+        if 0 < len(dc_id_to_method):
+            df_method = pd.DataFrame.from_dict(dc_id_to_method,
+                    orient='index').reset_index(level=0)
+            dc = {'index':'ID', 0:1, 1:2, 2:3, 3:4, 4:5, 5:6}
+            df_method.rename(columns=dc, inplace=True)
+            df_method = pd.melt(df_method, id_vars='ID',
+                    value_vars=df_method.columns[1:])
+            df_method.dropna(subset='value', inplace=True)
+            df_method.rename(columns={'variable':'Inf #',
+            'value':'Method'},
+            inplace=True)
+            print(df_method)
+        return
 
         #Storing the extracted infections in a separate file.
         if store_reformatted_update:
@@ -799,6 +863,40 @@ class Merger:
         #in case we have new participants.
         self.LIS_obj.update_the_dates_and_waves(df_inf)
         self.LIS_obj.order_infections_and_vaccines()
+        self.MPD_obj.update_active_status_column()
+
+    def lindsay_nov_14_2022(self):
+        folder = 'Lindsay_nov_10_2022'
+        fname = 'update.xlsx'
+        fname = os.path.join(self.requests_path, folder, fname)
+        df_up = pd.read_excel(fname, usecols='A:C')
+        df_up.replace('?', np.nan, inplace=True)
+        df_up['Reason'] = df_up['Reason'].str.replace('WITHDRAW', 'WITHDREW')
+        df_up.dropna(axis=0, subset='ID', inplace=True)
+        self.check_id_format(df_up, 'ID')
+        DOR = self.MPD_obj.DOR
+        for index_up, row_up in df_up.iterrows():
+            reason = row_up['Reason']
+            if pd.notnull(reason):
+                reason = reason.lower()
+                found_flag = False
+                for k,r_state in enumerate(self.MPD_obj.removal_states_l):
+                    if r_state in reason:
+                        reason = self.MPD_obj.removal_states[k]
+                        df_up.loc[index_up, 'Reason'] = reason
+                        found_flag = True
+                        break
+                if not found_flag:
+                    print(f'{reason=} is unknown.')
+                    df_up.loc[index_up, 'Reason'] = np.nan
+        dor = row_up[DOR]
+        if pd.notnull(dor):
+            dor = pd.to_datetime(dor)
+            df_up.loc[index_up, DOR] = dor
+
+        print(df_up)
+        self.print_column_and_datatype(df_up)
+        self.df = self.merge_with_M_and_return_M(df_up, 'ID', kind='original+')
         self.MPD_obj.update_active_status_column()
 
 
@@ -858,4 +956,10 @@ obj = Merger()
 #obj.LIS_obj.compute_slopes_for_serology()
 #obj.LIS_obj.produce_melted_files()
 #obj.LSM_obj.what_is_missing()
-obj.LIS_obj.produce_melted_files()
+#obj.LIS_obj.produce_melted_files()
+#Nov 14 2022
+#obj.lindsay_nov_14_2022()
+#obj.write_the_M_file_to_excel()
+#obj.update_LSM()
+#obj.LSM_obj.write_LSM_to_excel()
+obj.tara_nov_11_2022()

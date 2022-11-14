@@ -128,7 +128,8 @@ class LTCSerologyMaster:
             s = '-'.join([p,Ig,dil])
             col_indices[k] = s
 
-        merge_at_column = 'Full ID'
+        #Full ID
+        merge_at_column = self.merge_source
         #Set in the dictionary the mapping:
         #id_col_index -> merge_at_column
         col_indices[id_col_index] = merge_at_column
@@ -144,6 +145,8 @@ class LTCSerologyMaster:
                 return np.nan
         df_up[merge_at_column] = df_up[merge_at_column].apply(is_id)
         df_up.dropna(subset=merge_at_column, axis=0, inplace=True)
+        #Remove individuals with "E" type label.
+        self.remap_E_type_individuals(df_up)
         print('Ready to merge')
         #Check that the use of the dictionary can be replaced
         #with the modified data frame df_up
