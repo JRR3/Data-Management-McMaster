@@ -517,7 +517,7 @@ class Merger:
         return X
 
 
-    def tara_nov_11_2022(self):
+    def tara_nov_15_2022(self):
         #Use this function to update the Master file
         #when using Retirement Home data.
         store_reformatted_update = True
@@ -525,8 +525,8 @@ class Merger:
         #for old_reason, new_reason in zip(self.MPD_obj.removal_states,
                 #self.MPD_obj.new_removal_states):
             #self.df['Reason'].replace(old_reason, new_reason, inplace=True)
-        fname  = 'site_01_update.xlsx'
-        folder = 'Tara_nov_11_2022'
+        fname  = 'update.xlsx'
+        folder = 'Tara_nov_15_2022'
         fname = os.path.join('..','requests',folder, fname)
         linf = 'Infections'
         #Read as columns of strings
@@ -542,7 +542,13 @@ class Merger:
         df_up.replace('COVISHEILD', 'COVISHIELD', inplace=True)
         df_up.replace(' ', np.nan, inplace=True)
         df_up.replace('BmodernaO', 'BModernaO', inplace=True)
+        df_up.replace('Spikevax bivalent', 'BModernaO', inplace=True)
+        df_up.replace('DECLINED', np.nan, inplace=True)
+        df_up.replace('F', 'Female', inplace=True)
+        df_up.replace('M', 'Male', inplace=True)
+        df_up.replace('\xa0', np.nan, inplace=True)
         print(df_up)
+        #self.print_column_and_datatype(df_up)
         DOR=self.MPD_obj.DOR
 
         id_regexp = re.compile('(?P<site>[0-9]{2})[-]?(?P<code>[0-9]{4}[ ]?[0-9]{3})')
@@ -613,6 +619,7 @@ class Merger:
                         date = obj.group(0)
                         date = pd.to_datetime(date, dayfirst=True)
                     else:
+                        print(txt)
                         raise ValueError('Unexpected date for slash with day first.')
                 else:
                     #Month(number)/Day/Year
@@ -628,7 +635,7 @@ class Merger:
                         else:
                             date = pd.to_datetime(date, dayfirst=False, yearfirst=False)
                     else:
-                        print(txt)
+                        print(f'{txt=}')
                         raise ValueError('Unknown format for date.')
             else:
                 #In this case we do not expect a short year.
@@ -643,7 +650,7 @@ class Merger:
                         date = short_year_to_long_year(obj)
                         date = pd.to_datetime(date, dayfirst=True)
                     else:
-                        print(txt)
+                        print(f'{txt=}')
                         raise ValueError('Unknown format for date.')
             return date
 
@@ -655,7 +662,7 @@ class Merger:
 
         ID_in_ID1_or_ID2          = False
         DOR_is_merged_with_Reason = False
-        find_vaccines             = False
+        find_vaccines             = True
         find_infections           = True
 
         for index_up, row_up in df_up.iterrows():
@@ -733,7 +740,9 @@ class Merger:
             if 'DOB' in df_up.columns:
                 dob = row_up['DOB']
                 if pd.notnull(dob):
-                    dob = convert_str_to_date(dob, use_day_first_for_slash=True)
+                    #Careful with slash format
+                    #Month/Day/Year
+                    dob = convert_str_to_date(dob, use_day_first_for_slash=False)
                     if max_date_for_DOB < dob:
                         dob = dob - pd.DateOffset(years=100)
                         print('Removing 100 years from dob.')
@@ -851,7 +860,8 @@ class Merger:
             'value':'Method'},
             inplace=True)
             print(df_method)
-        return
+            df_inf = pd.merge(df_inf, df_method, on=['ID', 'Inf #'], how='outer')
+            #print(df_inf)
 
         #Storing the extracted infections in a separate file.
         if store_reformatted_update:
@@ -962,4 +972,10 @@ obj = Merger()
 #obj.write_the_M_file_to_excel()
 #obj.update_LSM()
 #obj.LSM_obj.write_LSM_to_excel()
-obj.tara_nov_11_2022()
+#Nov 15 2022
+#obj.tara_nov_11_2022()
+#obj.write_the_M_file_to_excel()
+#obj.LIS_obj.produce_melted_files()
+#obj.merge_M_with_LSM()
+obj.tara_nov_15_2022()
+obj.write_the_M_file_to_excel()
