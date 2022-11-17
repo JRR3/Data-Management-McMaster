@@ -2189,6 +2189,46 @@ class Comparator:
         self.MPD_obj.update_active_status_column()
 
 
+    def lindsay_nov_14_2022(self):
+        folder = 'Lindsay_nov_10_2022'
+        fname = 'update.xlsx'
+        fname = os.path.join(self.requests_path, folder, fname)
+        df_up = pd.read_excel(fname, usecols='A:C')
+        df_up.replace('?', np.nan, inplace=True)
+        df_up['Reason'] = df_up['Reason'].str.replace('WITHDRAW', 'WITHDREW')
+        df_up.dropna(axis=0, subset='ID', inplace=True)
+        self.check_id_format(df_up, 'ID')
+        DOR = self.MPD_obj.DOR
+        for index_up, row_up in df_up.iterrows():
+            reason = row_up['Reason']
+            if pd.notnull(reason):
+                reason = reason.lower()
+                found_flag = False
+                for k,r_state in enumerate(self.MPD_obj.removal_states_l):
+                    if r_state in reason:
+                        reason = self.MPD_obj.removal_states[k]
+                        df_up.loc[index_up, 'Reason'] = reason
+                        found_flag = True
+                        break
+                if not found_flag:
+                    print(f'{reason=} is unknown.')
+                    df_up.loc[index_up, 'Reason'] = np.nan
+        dor = row_up[DOR]
+        if pd.notnull(dor):
+            dor = pd.to_datetime(dor)
+            df_up.loc[index_up, DOR] = dor
+
+        print(df_up)
+        self.print_column_and_datatype(df_up)
+        self.df = self.merge_with_M_and_return_M(df_up, 'ID', kind='original+')
+        self.MPD_obj.update_active_status_column()
+
+
+    def tara_nov_17_2022(self):
+        fname  = 'updates_one_column.xlsx'
+        folder = 'Tara_nov_17_2022'
+        df_up = self.load_single_column_df_for_update(fname, folder)
+        self.extract_and_update_DOR_Reason_Infection(df_up)
 
 
 #obj = Comparator()

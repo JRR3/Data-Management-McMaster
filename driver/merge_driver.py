@@ -408,8 +408,8 @@ class Merger:
 
     def update_LSM(self):
         #This function was updated on 10-Nov-2022
-        fname = 'update.xlsx'
-        folder = 'Jessica_nov_14_2022'
+        fname = 'serology_update.xlsx'
+        folder = 'Jessica_nov_17_2022'
         fname = os.path.join('..','requests',folder, fname)
         book = pd.read_excel(fname, sheet_name=None, header=None)
         print(f'LSM is looking into the {folder=}')
@@ -449,7 +449,7 @@ class Merger:
         Z = pd.merge(X, Y, on=merge_column, how='outer')
         for column in Y.columns:
             if column not in X.columns:
-                print(column)
+                print(f'Unexpected {column=}')
                 raise ValueError('All columns in the update should be common.')
             if column == merge_column:
                 continue
@@ -494,7 +494,8 @@ class Merger:
             X[self.merge_column] = ''
         else:
             print('The ID column already exists.')
-        id_rx = re.compile('(?P<ID>[0-9]{2}[-][0-9]{7})[-][A-Z]{1}')
+
+        id_rx = re.compile('(?P<ID>[0-9]{2}[-][0-9]{7})[-][A-Z]{1,2}')
 
         def get_id_from_full_id(txt):
             obj = id_rx.match(txt)
@@ -517,7 +518,7 @@ class Merger:
         return X
 
 
-    def tara_nov_15_2022(self):
+    def tara_nov_16_2022(self):
         #Use this function to update the Master file
         #when using Retirement Home data.
         store_reformatted_update = True
@@ -525,17 +526,19 @@ class Merger:
         #for old_reason, new_reason in zip(self.MPD_obj.removal_states,
                 #self.MPD_obj.new_removal_states):
             #self.df['Reason'].replace(old_reason, new_reason, inplace=True)
-        fname  = 'update.xlsx'
-        folder = 'Tara_nov_15_2022'
+        fname  = 'guelph.xlsx'
+        folder = 'Tara_nov_16_2022'
         fname = os.path.join('..','requests',folder, fname)
         linf = 'Infections'
         #Read as columns of strings
         df_up = pd.read_excel(fname, dtype=str)
         df_up.replace('n/a', np.nan, inplace=True)
         df_up.replace('N/A', np.nan, inplace=True)
-        df_up.replace('refused', np.nan, inplace=True)
-        df_up.replace('Refused', np.nan, inplace=True)
-        df_up.replace('REFUSED', np.nan, inplace=True)
+        #df_up.replace('refused', np.nan, inplace=True)
+        #df_up.replace('Refused', np.nan, inplace=True)
+        #df_up.replace('REFUSED', np.nan, inplace=True)
+        #df_up.replace('DECLINED', np.nan, inplace=True)
+        df_up.replace('Refused Consent', 'Refused-Consent', inplace=True)
         df_up.replace('None', np.nan, inplace=True)
         df_up.replace('Unknown', np.nan, inplace=True)
         df_up.replace('Yes - date unknown', np.nan, inplace=True)
@@ -543,7 +546,6 @@ class Merger:
         df_up.replace(' ', np.nan, inplace=True)
         df_up.replace('BmodernaO', 'BModernaO', inplace=True)
         df_up.replace('Spikevax bivalent', 'BModernaO', inplace=True)
-        df_up.replace('DECLINED', np.nan, inplace=True)
         df_up.replace('F', 'Female', inplace=True)
         df_up.replace('M', 'Male', inplace=True)
         df_up.replace('\xa0', np.nan, inplace=True)
@@ -603,7 +605,7 @@ class Merger:
             else:
                 return None
 
-        def convert_str_to_date(txt, use_day_first_for_slash=False):
+        def convert_str_to_date(txt, use_day_first_for_slash=True):
             if pd.isnull(txt):
                 raise ValueError('Object is NAN')
             obj = monthfirst_as_text_regexp.search(txt)
@@ -617,6 +619,7 @@ class Merger:
                     obj = dayfirst_with_slash_regexp.search(txt)
                     if obj:
                         date = obj.group(0)
+                        print(date)
                         date = pd.to_datetime(date, dayfirst=True)
                     else:
                         print(txt)
@@ -663,7 +666,7 @@ class Merger:
         ID_in_ID1_or_ID2          = False
         DOR_is_merged_with_Reason = False
         find_vaccines             = True
-        find_infections           = True
+        find_infections           = False
 
         for index_up, row_up in df_up.iterrows():
             #=========================ID
@@ -742,7 +745,7 @@ class Merger:
                 if pd.notnull(dob):
                     #Careful with slash format
                     #Month/Day/Year
-                    dob = convert_str_to_date(dob, use_day_first_for_slash=False)
+                    dob = convert_str_to_date(dob)
                     if max_date_for_DOB < dob:
                         dob = dob - pd.DateOffset(years=100)
                         print('Removing 100 years from dob.')
@@ -835,78 +838,47 @@ class Merger:
         if find_vaccines:
             print('Checking vaccination chronology of the merged file.')
             self.LIS_obj.order_infections_and_vaccines()
-        #>>>>>>>>>>Infections
-        df_inf = pd.DataFrame.from_dict(dc_id_to_inf,
-                orient='index').reset_index(level=0)
-        dc = {'index':'ID', 0:1, 1:2, 2:3, 3:4, 4:5, 5:6}
-        df_inf.rename(columns=dc, inplace=True)
-        df_inf = pd.melt(df_inf, id_vars='ID',
-                value_vars=df_inf.columns[1:])
-        df_inf.dropna(subset='value', inplace=True)
-        df_inf.rename(columns={'variable':'Inf #',
-            'value':'DOI'},
-            inplace=True)
-        print(df_inf)
-        #>>>>>>>>>>Method
-        if 0 < len(dc_id_to_method):
-            df_method = pd.DataFrame.from_dict(dc_id_to_method,
+
+        if find_infections:
+            #>>>>>>>>>>Infections
+            df_inf = pd.DataFrame.from_dict(dc_id_to_inf,
                     orient='index').reset_index(level=0)
             dc = {'index':'ID', 0:1, 1:2, 2:3, 3:4, 4:5, 5:6}
-            df_method.rename(columns=dc, inplace=True)
-            df_method = pd.melt(df_method, id_vars='ID',
-                    value_vars=df_method.columns[1:])
-            df_method.dropna(subset='value', inplace=True)
-            df_method.rename(columns={'variable':'Inf #',
-            'value':'Method'},
-            inplace=True)
-            print(df_method)
-            df_inf = pd.merge(df_inf, df_method, on=['ID', 'Inf #'], how='outer')
-            #print(df_inf)
+            df_inf.rename(columns=dc, inplace=True)
+            df_inf = pd.melt(df_inf, id_vars='ID',
+                    value_vars=df_inf.columns[1:])
+            df_inf.dropna(subset='value', inplace=True)
+            df_inf.rename(columns={'variable':'Inf #',
+                'value':'DOI'},
+                inplace=True)
+            print(df_inf)
+            #>>>>>>>>>>Method
+            if 0 < len(dc_id_to_method):
+                df_method = pd.DataFrame.from_dict(dc_id_to_method,
+                        orient='index').reset_index(level=0)
+                dc = {'index':'ID', 0:1, 1:2, 2:3, 3:4, 4:5, 5:6}
+                df_method.rename(columns=dc, inplace=True)
+                df_method = pd.melt(df_method, id_vars='ID',
+                        value_vars=df_method.columns[1:])
+                df_method.dropna(subset='value', inplace=True)
+                df_method.rename(columns={'variable':'Inf #',
+                'value':'Method'},
+                inplace=True)
+                print(df_method)
+                df_inf = pd.merge(df_inf, df_method, on=['ID', 'Inf #'], how='outer')
+                #print(df_inf)
 
-        #Storing the extracted infections in a separate file.
-        if store_reformatted_update:
-            fname  = 'extracted_infections_from_Taras_update.xlsx'
-            fname = os.path.join('..','requests',folder, fname)
-            df_inf.to_excel(fname, index=False)
+            #Storing the extracted infections in a separate file.
+            if store_reformatted_update:
+                fname  = 'extracted_infections_from_Taras_update.xlsx'
+                fname = os.path.join('..','requests',folder, fname)
+                df_inf.to_excel(fname, index=False)
 
-        #This has to be executed after the merging process
-        #in case we have new participants.
-        self.LIS_obj.update_the_dates_and_waves(df_inf)
+            #This has to be executed after the merging process
+            #in case we have new participants.
+            self.LIS_obj.update_the_dates_and_waves(df_inf)
+
         self.LIS_obj.order_infections_and_vaccines()
-        self.MPD_obj.update_active_status_column()
-
-    def lindsay_nov_14_2022(self):
-        folder = 'Lindsay_nov_10_2022'
-        fname = 'update.xlsx'
-        fname = os.path.join(self.requests_path, folder, fname)
-        df_up = pd.read_excel(fname, usecols='A:C')
-        df_up.replace('?', np.nan, inplace=True)
-        df_up['Reason'] = df_up['Reason'].str.replace('WITHDRAW', 'WITHDREW')
-        df_up.dropna(axis=0, subset='ID', inplace=True)
-        self.check_id_format(df_up, 'ID')
-        DOR = self.MPD_obj.DOR
-        for index_up, row_up in df_up.iterrows():
-            reason = row_up['Reason']
-            if pd.notnull(reason):
-                reason = reason.lower()
-                found_flag = False
-                for k,r_state in enumerate(self.MPD_obj.removal_states_l):
-                    if r_state in reason:
-                        reason = self.MPD_obj.removal_states[k]
-                        df_up.loc[index_up, 'Reason'] = reason
-                        found_flag = True
-                        break
-                if not found_flag:
-                    print(f'{reason=} is unknown.')
-                    df_up.loc[index_up, 'Reason'] = np.nan
-        dor = row_up[DOR]
-        if pd.notnull(dor):
-            dor = pd.to_datetime(dor)
-            df_up.loc[index_up, DOR] = dor
-
-        print(df_up)
-        self.print_column_and_datatype(df_up)
-        self.df = self.merge_with_M_and_return_M(df_up, 'ID', kind='original+')
         self.MPD_obj.update_active_status_column()
 
 
@@ -977,5 +949,11 @@ obj = Merger()
 #obj.write_the_M_file_to_excel()
 #obj.LIS_obj.produce_melted_files()
 #obj.merge_M_with_LSM()
-obj.tara_nov_15_2022()
-obj.write_the_M_file_to_excel()
+#obj.tara_nov_15_2022()
+#obj.write_the_M_file_to_excel()
+#Nov 17 2022
+#obj.update_LSM()
+#obj.check_LSM_dates()
+#obj.LSM_obj.write_LSM_to_excel()
+obj.tara_nov_16_2022()
+#obj.write_the_M_file_to_excel()

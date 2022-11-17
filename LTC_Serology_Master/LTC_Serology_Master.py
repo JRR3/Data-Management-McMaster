@@ -83,7 +83,7 @@ class LTCSerologyMaster:
         relevant_proteins = ['Spike', 'RBD', 'Nuc']
         relevant_Igs      = ['IgG', 'IgA', 'IgM' ]
         rexp_n = re.compile('/[ ]*(?P<dilution>[0-9]+)')
-        rexp_c = re.compile('[0-9]+[-][0-9]+[-][a-zA-Z]+')
+        rexp_c = re.compile('[0-9]{2}[-][0-9]{7}[-][a-zA-Z]{1,2}')
         col_indices = {}
         exit_iterrows_flag = False
         row_start = -1
@@ -98,7 +98,7 @@ class LTCSerologyMaster:
                 if isinstance(item, str):
                     #Check if the item is an ID
                     obj = rexp_c.search(item)
-                    if obj is not None:
+                    if obj:
                         #print('Data start at row:', index)
                         id_col_index = col
                         row_start = index
@@ -116,7 +116,7 @@ class LTCSerologyMaster:
                             break
                     #Check if the item is a dilution
                     obj = rexp_n.search(item)
-                    if obj is not None:
+                    if obj:
                         dilution = obj.group('dilution')
                         col_indices[col] = None
                         list_of_dilutions.append(dilution)
@@ -148,9 +148,6 @@ class LTCSerologyMaster:
         #Remove individuals with "E" type label.
         self.remap_E_type_individuals(df_up)
         print('Ready to merge')
-        #Check that the use of the dictionary can be replaced
-        #with the modified data frame df_up
-        #for key, value in col_indices.items()
         #Merge process >>>
         #The update has a higher priority than the original data.
         kind = 'update+'
