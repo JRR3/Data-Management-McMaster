@@ -174,7 +174,8 @@ class Merger:
         print(df_up)
         method_rx = re.compile('(?P<method>[a-zA-Z]+)[ ]confirmed positive')
         id_rx = re.compile('[0-9]{2}[-][0-9]+([ ][0-9]+)?')
-        date_rx = re.compile('[0-9]+\D[0-9]+\D[0-9]+')
+        #date_rx = re.compile('[0-9]+\D[0-9]+\D[0-9]+')
+        date_rx = re.compile('[0-9]+[-/][0-9]+[-/][0-9]+')
         for txt in df_up[0]:
             method_obj = method_rx.search(txt)
             if method_obj:
@@ -229,35 +230,32 @@ class Merger:
         #df_up = pd.read_excel(fname, header=None)
         #df_up.dropna(axis=0, inplace=True)
 
-        id_rx     = re.compile('[0-9]+[-][0-9]+')
+        id_rx     = re.compile('[0-9]{2}[-][0-9]{7}')
         #The following regexp is no longer in use.
         #reason_rx = re.compile('[a-zA-Z]+([ ][a-zA-Z]+)*')
         #Moved Out --> Moved
         #Now we use the following.
         reason_rx = re.compile('[a-zA-Z]+')
-        date_rx   = re.compile('[a-zA-Z]+[ ]+[0-9]{1,2}(?P<year>[ ]+[0-9]+)?')
+
+        #Intead of using a REGEXP for the date, we use
+        #the functions we created in the MPD Class.
+        #date_rx   = re.compile('[a-zA-Z]+[ ]+[0-9]{1,2}(?P<year>[ ]+[0-9]+)?')
+
         #We assume the data frame has only one column.
         for txt in df_up[0]:
             print(txt)
-            date_obj = date_rx.search(txt)
-            if date_obj:
-                date   = date_obj.group(0)
-                txt_m_date = txt.replace(date, '')
-                if date_obj.group('year'):
-                    pass
-                else:
-                    #If no year is given, we infer that 2022 is meant.
-                    date += ' 2022'
-                id_obj = id_rx.search(txt_m_date)
-                if id_obj:
-                    ID = id_obj.group(0)
-                    txt_m_date_m_id = txt_m_date.replace(ID, '')
-                    reason_obj = reason_rx.search(txt_m_date_m_id)
-                    if reason_obj:
-                        reason = reason_obj.group(0)
-                        print(f'{reason=}')
-                    else:
-                        raise ValueError('Unable to parse string.')
+            #date_obj = date_rx.search(txt)
+            date, matched_str = self.MPD_obj.convert_str_to_date(txt,
+                    use_day_first_for_slash=True)
+            txt_m_date = txt.replace(matched_str, '')
+            id_obj = id_rx.search(txt_m_date)
+            if id_obj:
+                ID = id_obj.group(0)
+                txt_m_date_m_id = txt_m_date.replace(ID, '')
+                reason_obj = reason_rx.search(txt_m_date_m_id)
+                if reason_obj:
+                    reason = reason_obj.group(0)
+                    print(f'{reason=}')
                 else:
                     raise ValueError('Unable to parse string.')
             else:
@@ -298,9 +296,10 @@ class Merger:
         #This function is able to identify date of removal, reason,
         #and infection date.
         #Examples
+        #01-8580579 Deceased 13/08/2022
         #50-1910008 Deceased Sep 15 2022
         #14-5077158  Positive Oct 2 2022
-        #14-5077158  Positive Oct 2 (No year)
+        #>>>Removed 14-5077158  Positive Oct 2 (No year)
 
 
         (flag_update_active,
@@ -310,10 +309,15 @@ class Merger:
                         self.generate_infection_and_reason_dict(df_up)
 
         if flag_update_active:
+            DOR = self.MPD_obj.DOR
             df_up = pd.DataFrame(reason_dictionary)
-            df_up['date'] = pd.to_datetime(df_up['date'])
+            df_up[DOR] = pd.to_datetime(df_up['date'])
+            df_up.drop(columns='date', inplace=True)
             print(df_up)
-            self.MPD_obj.update_reason_dates_and_status(df_up)
+            #self.MPD_obj.update_reason_dates_and_status(df_up)
+            #Merge instead of point modifications
+            self.df = self.merge_with_M_and_return_M(df_up, 'ID', kind='original+')
+            self.MPD_obj.update_active_status_column()
         if flag_update_waves:
             df_up = pd.DataFrame(infection_dictionary)
             df_up['DOI'] = pd.to_datetime(df_up['date'])
@@ -551,7 +555,9 @@ class Merger:
         df_up.replace('\xa0', np.nan, inplace=True)
         print(df_up)
         #self.print_column_and_datatype(df_up)
+        DOB=self.MPD_obj.DOB
         DOR=self.MPD_obj.DOR
+        DOE=self.MPD_obj.DOE
 
         id_regexp = re.compile('(?P<site>[0-9]{2})[-]?(?P<code>[0-9]{4}[ ]?[0-9]{3})')
         def extract_id(txt):
@@ -565,35 +571,6 @@ class Merger:
             else:
                 return None
 
-        yearfirst_regexp = re.compile('[0-9]{4}[-][0-9]{2}[-][0-9]{2}')
-
-        dayfirst_regexp = re.compile('[0-9]+[-][a-zA-Z]+[-](?P<year>[0-9]+)')
-
-        dayfirst_with_slash_regexp = re.compile('[0-9]+[/][0-9]+[/](?P<year>[0-9]+)')
-
-        txt = ('(?P<month>[0-9]+)' + '[/]' +
-        '(?P<day>[0-9]+)' + '[/]' +
-        '(?P<year>[0-9]+)')
-        monthfirst_regexp = re.compile(txt)
-
-        txt = ('(?P<month>[a-zA-Z]+)' + '[ ]+' +
-        '(?P<day>[0-9]{1,2})' + '[a-z]*' +
-        '[,/]?' + '[ ]*' +
-        '(?P<year>[0-9]{2,})')
-        monthfirst_as_text_regexp = re.compile(txt)
-
-        def short_year_to_long_year(obj):
-            date = obj.group(0)
-            if len(obj.group('year')) == 2:
-                year_str = date[-2:]
-                year_int = int(year_str)
-                if year_int <= 22:
-                    year_int += 2000
-                else:
-                    year_int += 1900
-                year_str = str(year_int)
-                date = date[:-2] + year_str
-            return date
 
         def extract_method(txt):
             if 'PCR' in txt:
@@ -605,57 +582,6 @@ class Merger:
             else:
                 return None
 
-        def convert_str_to_date(txt, use_day_first_for_slash=True):
-            if pd.isnull(txt):
-                raise ValueError('Object is NAN')
-            obj = monthfirst_as_text_regexp.search(txt)
-            if obj:
-                #Month(text)/Day/Year
-                #Check if we have a short year.
-                date = short_year_to_long_year(obj)
-                date = pd.to_datetime(date, dayfirst=False, yearfirst=False)
-            elif '/' in txt:
-                if use_day_first_for_slash:
-                    obj = dayfirst_with_slash_regexp.search(txt)
-                    if obj:
-                        date = obj.group(0)
-                        print(date)
-                        date = pd.to_datetime(date, dayfirst=True)
-                    else:
-                        print(txt)
-                        raise ValueError('Unexpected date for slash with day first.')
-                else:
-                    #Month(number)/Day/Year
-                    obj = monthfirst_regexp.search(txt)
-                    if obj:
-                        #Check if we have a short year.
-                        date = short_year_to_long_year(obj)
-                        month_str = obj.group('month')
-                        month_int = int(month_str)
-                        if 12 < month_int:
-                            print('Unexpected format: Month/Day/Year but Month > 12')
-                            date = pd.to_datetime(date, dayfirst=True)
-                        else:
-                            date = pd.to_datetime(date, dayfirst=False, yearfirst=False)
-                    else:
-                        print(f'{txt=}')
-                        raise ValueError('Unknown format for date.')
-            else:
-                #In this case we do not expect a short year.
-                obj = yearfirst_regexp.search(txt)
-                if obj:
-                    date = obj.group(0)
-                    date = pd.to_datetime(date, yearfirst=True)
-                else:
-                    obj = dayfirst_regexp.search(txt)
-                    if obj:
-                        #Check if we have a short year.
-                        date = short_year_to_long_year(obj)
-                        date = pd.to_datetime(date, dayfirst=True)
-                    else:
-                        print(f'{txt=}')
-                        raise ValueError('Unknown format for date.')
-            return date
 
         date_sep_regexp = re.compile('[ ]*[,;]+[ ]*')
 
@@ -728,7 +654,7 @@ class Merger:
                 RpDOR = 'Reason+DOR'
                 rpdor = row_up[RpDOR]
                 if pd.notnull(rpdor):
-                    dor = convert_str_to_date(rpdor)
+                    dor, _ = self.MPD_obj.convert_str_to_date(rpdor)
                     df_up.loc[index_up, DOR] = dor
                     print(f'{dor=}')
             else:
@@ -740,17 +666,26 @@ class Merger:
                     dor = pd.to_datetime(dor)
                     df_up.loc[index_up, DOR] = dor
             #=========================DOB
-            if 'DOB' in df_up.columns:
-                dob = row_up['DOB']
+            if DOB in df_up.columns:
+                dob = row_up[DOB]
                 if pd.notnull(dob):
                     #Careful with slash format
                     #Month/Day/Year
-                    dob = convert_str_to_date(dob)
+                    dob, _ = self.MPD_obj.convert_str_to_date(dob)
                     if max_date_for_DOB < dob:
                         dob = dob - pd.DateOffset(years=100)
                         print('Removing 100 years from dob.')
-                    df_up.loc[index_up, 'DOB'] = dob
+                    df_up.loc[index_up, DOB] = dob
                     print(f'{dob=}')
+            #=========================DOE
+            if DOE in df_up.columns:
+                doe = row_up[DOE]
+                if pd.notnull(doe):
+                    #Careful with slash format
+                    #Month/Day/Year
+                    doe, _ = self.MPD_obj.convert_str_to_date(doe)
+                    df_up.loc[index_up, DOE] = doe
+                    print(f'{doe=}')
             #=========================Infections
             if find_infections:
                 inf_str = row_up[linf]
@@ -763,13 +698,13 @@ class Merger:
                         inf_list = inf_str.split(',')
                         for inf in inf_list:
                             method = extract_method(inf)
-                            inf = convert_str_to_date(inf)
+                            inf, _ = self.MPD_obj.convert_str_to_date(inf)
                             L.append(inf)
                             if method:
                                 M.append(method)
                     else:
                         method = extract_method(inf_str)
-                        inf = convert_str_to_date(inf_str)
+                        inf, _ = self.MPD_obj.convert_str_to_date(inf_str)
                         L.append(inf)
                         if method:
                             M.append(method)
@@ -783,17 +718,18 @@ class Merger:
                 for date_col, type_col in zip(self.LIS_obj.vaccine_date_cols,
                         self.LIS_obj.vaccine_type_cols):
                     d_up = row_up[date_col]
-                    t_up = row_up[type_col]
                     if pd.notnull(d_up):
-                        d_up = convert_str_to_date(d_up)
+                        d_up, _ = self.MPD_obj.convert_str_to_date(d_up)
                         df_up.loc[index_up, date_col] = d_up
-                    if pd.notnull(t_up):
-                        t_up = t_up.strip()
-                        if t_up in self.LIS_obj.list_of_valid_vaccines:
-                            df_up.loc[index_up, type_col] = t_up
-                        else:
-                            print(f'{t_up=}')
-                            raise ValueError('Unknown vaccine type')
+                    if type_col in df_up.columns:
+                        t_up = row_up[type_col]
+                        if pd.notnull(t_up):
+                            t_up = t_up.strip()
+                            if t_up in self.LIS_obj.list_of_valid_vaccines:
+                                df_up.loc[index_up, type_col] = t_up
+                            else:
+                                print(f'{t_up=}')
+                                raise ValueError('Unknown vaccine type')
         columns_to_drop = []
         #We only keep columns that appear in the Master file.
         for column in df_up.columns:
@@ -801,10 +737,12 @@ class Merger:
                 columns_to_drop.append(column)
         df_up.drop(columns=columns_to_drop, inplace=True)
         columns_with_dates = []
-        if 'DOB' in df_up.columns:
-            columns_with_dates.append('DOB')
-        if 'DOR' in df_up.columns:
-            columns_with_dates.append('DOR')
+        if DOB in df_up.columns:
+            columns_with_dates.append(DOB)
+        if DOR in df_up.columns:
+            columns_with_dates.append(DOR)
+        if DOE in df_up.columns:
+            columns_with_dates.append(DOE)
         if find_vaccines:
             columns_with_dates.extend(self.LIS_obj.vaccine_date_cols)
         for column in columns_with_dates:
@@ -816,8 +754,8 @@ class Merger:
         if find_vaccines:
             print('Checking vaccination chronology of the update.')
             self.LIS_obj.set_chronological_order(df_up,
-                    self.LIS_obj.vaccine_date_cols[:-1],
-                    self.LIS_obj.vaccine_type_cols[:-1],
+                    self.LIS_obj.vaccine_date_cols,
+                    self.LIS_obj.vaccine_type_cols,
                     'Vaccines')
 
 
@@ -880,6 +818,12 @@ class Merger:
 
         self.LIS_obj.order_infections_and_vaccines()
         self.MPD_obj.update_active_status_column()
+
+    def tara_nov_17_2022(self):
+        fname  = 'updates_one_column.xlsx'
+        folder = 'Tara_nov_17_2022'
+        df_up = self.load_single_column_df_for_update(fname, folder)
+        self.extract_and_update_DOR_Reason_Infection(df_up)
 
 
 
@@ -955,5 +899,7 @@ obj = Merger()
 #obj.update_LSM()
 #obj.check_LSM_dates()
 #obj.LSM_obj.write_LSM_to_excel()
-obj.tara_nov_16_2022()
+#obj.tara_nov_16_2022()
 #obj.write_the_M_file_to_excel()
+#obj.tara_nov_17_2022()
+obj.merge_M_with_LSM()

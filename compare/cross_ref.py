@@ -2230,6 +2230,122 @@ class Comparator:
         df_up = self.load_single_column_df_for_update(fname, folder)
         self.extract_and_update_DOR_Reason_Infection(df_up)
 
+    #Nov 18 2022
+    #Moving deprecated functions from MPD Class to Compare
+    def compute_DOB_from_enrollment(self):
+        #Estimate the DOB in case it is missing
+        dob = 'DOB'
+        #Convert integer age baseline to days.
+        age_in_days = pd.to_timedelta(self.parent.df['Age Baseline'] * 365, unit='D')
+        doe= 'Enrollment Date'
+        no_consent = 'no consent received'
+        exceptions = [no_consent, '00', '#N/A']
+        selection = self.parent.df[doe].isin(exceptions)
+        if selection.any():
+            #Note that we are using selection as a boolean
+            #vector for the loc argument of the selection 
+            #object itself.
+            indices = selection.loc[selection]
+            print('There are dates in the set of exceptions.')
+            #Print exceptions
+            for index, _ in indices.iteritems():
+                individual = self.parent.df.loc[index, 'ID']
+                exception = self.parent.df.loc[index, doe]
+                print('The date of enrollment for:', individual, end='')
+                print(' is:', exception)
+            #Relabel exception       
+            self.parent.df.loc[selection,doe] = np.nan
+        #Format as date
+        self.parent.df[doe] = pd.to_datetime(self.parent.df[doe], dayfirst=True)
+        #Compute DOB as DOE minus Age in days if DB does not exists.
+        T = self.parent.df[doe] - age_in_days
+        #Replace only if empty
+        self.parent.df[dob] = self.parent.df[dob].where(~self.parent.df[dob].isnull(), T)
+
+
+    def clean_date_removed_from_study(self):
+        col_name = 'Date Removed from Study'
+        L = []
+        for index, value in self.parent.df[col_name].iteritems():
+            if isinstance(value, str):
+                txt = value.lower()
+                #Remove spaces
+                if value.isspace():
+                    L.append(np.nan)
+                else:
+                    print(txt)
+                    L.append(txt)
+            else:
+                L.append(value)
+        #Convert to datetime format
+        self.parent.df[col_name] = pd.to_datetime(L)
+
+    def relabel_ids(self):
+        #We aim for a consistent and simple naming of variables 
+        dc = {'Sample ID':'ID', 'Enrollment Date (dd-mm-yyyy)':'Enrollment Date'}
+        self.parent.df.rename(columns=dc, inplace=True)
+
+
+    def delete_unnecessary_columns(self):
+        self.parent.df.drop(columns=['Inventory File', 'Combo'], inplace=True)
+
+
+    def remove_nan_ids(self):
+        self.parent.df.dropna(axis=0, subset=['ID'], inplace=True)
+
+    def full_run(self):
+        self.relabel_ids()
+        self.delete_unnecessary_columns()
+        self.remove_nan_ids()
+        self.check_for_repeats()
+        self.compute_DOB_from_enrollment()
+        self.clean_date_removed_from_study()
+        self.add_Y_in_the_Whole_Blood_column()
+        self.update_deceased_discharged()
+        self.generate_excel_file()
+        #self.compare_data_frames()
+
+        print('Module: module_Master_Participant_Data.py FINISHED')
+
+    def generate_excel_file(self):
+        fname = 'Master_Participant_Data_X.xlsx'
+        txt = os.path.join(self.dpath, fname)
+        self.parent.df.to_excel(txt, index=False)
+        print('Excel file was produced.')
+
+    def compare_data_frames(self):
+        df1 = pd.read_excel('./Master_Participant_Data_Y.xlsx')
+        df2 = pd.read_excel('./Master_Participant_Data_X.xlsx')
+        if df1.equals(df2):
+            print('They are equal')
+
+    def load_main_frame(self):
+        fname = 'Master_Participant_Data_X.xlsx'
+        fname = os.path.join(self.dpath, fname)
+        self.parent.df = pd.read_excel(fname)
+        print('Excel file was loaded.')
+
+    def initialize_class_with_df(self, df):
+        self.parent.df = df
+
+    def update_deceased_discharged(self):
+        fname = 'deceased_discharged_16_Sep_2022.xlsx'
+        txt = os.path.join(self.dpath, fname)
+        df_ids = pd.read_excel(txt)
+        up_col = 'Reason'
+        for _, update_row in df_ids.iterrows():
+            ID = update_row['ID']
+            state = update_row[up_col]
+            rows = self.parent.df[self.parent.df['ID']== ID]
+            for index, row in rows.iterrows():
+                value = row[up_col]
+                if pd.isnull(value):
+                    self.parent.df.loc[index, up_col] = state
+                    print('Made a change in the Reason column for', ID)
+                    print('Changed to', state)
+                else:
+                    print('Already had a value for', ID, ':', value)
+
 
 #obj = Comparator()
 #obj.load_the_rainbow()

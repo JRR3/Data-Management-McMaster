@@ -1,5 +1,5 @@
 #JRR @ McMaster University
-#Update: 18-Sep-2022
+#Update: 18-Nov-2022
 import numpy as np
 import pandas as pd
 import os
@@ -20,6 +20,8 @@ class MasterParticipantData:
         self.merge_column = 'ID'
         self.DOR      = 'Date Removed from Study'
         self.DOE      = 'Enrollment Date'
+        #Date of birth
+        self.DOB      = 'DOB'
         self.reason   = 'Reason'
         self.is_active   = 'Active'
         self.site_type = 'LTC or RH'
@@ -33,6 +35,23 @@ class MasterParticipantData:
                                'Declined', 'Withdrew', 'Withdrew',
                                'Refused-Consent']
         self.removal_states_l = [x.lower() for x in self.removal_states]
+
+        self.yearfirst_regexp = re.compile('[0-9]{4}[-][0-9]{2}[-][0-9]{2}')
+
+        self.dayfirst_regexp = re.compile('[0-9]+[-][a-zA-Z]+[-](?P<year>[0-9]+)')
+
+        self.dayfirst_with_slash_regexp = re.compile('[0-9]+[/][0-9]+[/](?P<year>[0-9]+)')
+
+        txt = ('(?P<month>[0-9]+)' + '[/]' +
+        '(?P<day>[0-9]+)' + '[/]' +
+        '(?P<year>[0-9]+)')
+        self.monthfirst_regexp = re.compile(txt)
+
+        txt = ('(?P<month>[a-zA-Z]+)' + '[ ]+' +
+        '(?P<day>[0-9]{1,2})' + '[a-z]*' +
+        '[,]?' + '[ ]*' +
+        '(?P<year>[0-9]{2,})')
+        self.monthfirst_as_text_regexp = re.compile(txt)
 
         if parent:
             self.parent = parent
@@ -48,18 +67,6 @@ class MasterParticipantData:
                                     sheet_name="Master", skiprows=[0])
 
 
-    def relabel_ids(self):
-        #We aim for a consistent and simple naming of variables 
-        dc = {'Sample ID':'ID', 'Enrollment Date (dd-mm-yyyy)':'Enrollment Date'}
-        self.parent.df.rename(columns=dc, inplace=True)
-
-
-    def delete_unnecessary_columns(self):
-        self.parent.df.drop(columns=['Inventory File', 'Combo'], inplace=True)
-
-
-    def remove_nan_ids(self):
-        self.parent.df.dropna(axis=0, subset=['ID'], inplace=True)
 
     def check_for_repeats(self):
         #We drop rows containing NA in the "Sample ID" from the
@@ -74,53 +81,6 @@ class MasterParticipantData:
         else:
             print('No repeats were found in Master Participant Data')
 
-    def compute_DOB_from_enrollment(self):
-        #Estimate the DOB in case it is missing
-        dob = 'DOB'
-        #Convert integer age baseline to days.
-        age_in_days = pd.to_timedelta(self.parent.df['Age Baseline'] * 365, unit='D')
-        doe= 'Enrollment Date'
-        no_consent = 'no consent received'
-        exceptions = [no_consent, '00', '#N/A']
-        selection = self.parent.df[doe].isin(exceptions)
-        if selection.any():
-            #Note that we are using selection as a boolean
-            #vector for the loc argument of the selection 
-            #object itself.
-            indices = selection.loc[selection]
-            print('There are dates in the set of exceptions.')
-            #Print exceptions
-            for index, _ in indices.iteritems():
-                individual = self.parent.df.loc[index, 'ID']
-                exception = self.parent.df.loc[index, doe]
-                print('The date of enrollment for:', individual, end='')
-                print(' is:', exception)
-            #Relabel exception       
-            self.parent.df.loc[selection,doe] = np.nan
-        #Format as date
-        self.parent.df[doe] = pd.to_datetime(self.parent.df[doe], dayfirst=True)
-        #Compute DOB as DOE minus Age in days if DB does not exists.
-        T = self.parent.df[doe] - age_in_days
-        #Replace only if empty
-        self.parent.df[dob] = self.parent.df[dob].where(~self.parent.df[dob].isnull(), T)
-
-
-    def clean_date_removed_from_study(self):
-        col_name = 'Date Removed from Study'
-        L = []
-        for index, value in self.parent.df[col_name].iteritems():
-            if isinstance(value, str):
-                txt = value.lower()
-                #Remove spaces
-                if value.isspace():
-                    L.append(np.nan)
-                else:
-                    print(txt)
-                    L.append(txt)
-            else:
-                L.append(value)
-        #Convert to datetime format
-        self.parent.df[col_name] = pd.to_datetime(L)
 
 
     def add_Y_in_the_Whole_Blood_column(self):
@@ -141,28 +101,8 @@ class MasterParticipantData:
                     print('Changed to', state)
 
 
-    def update_deceased_discharged(self):
-        fname = 'deceased_discharged_16_Sep_2022.xlsx'
-        txt = os.path.join(self.dpath, fname)
-        df_ids = pd.read_excel(txt)
-        up_col = 'Reason'
-        for _, update_row in df_ids.iterrows():
-            ID = update_row['ID']
-            state = update_row[up_col]
-            rows = self.parent.df[self.parent.df['ID']== ID]
-            for index, row in rows.iterrows():
-                value = row[up_col]
-                if pd.isnull(value):
-                    self.parent.df.loc[index, up_col] = state
-                    print('Made a change in the Reason column for', ID)
-                    print('Changed to', state)
-                else:
-                    print('Already had a value for', ID, ':', value)
 
     ##########Sep 22 2022##################
-
-    def initialize_class_with_df(self, df):
-        self.parent.df = df
 
     def update_reason_dates_and_status(self, df_up):
         print('Update the Reason, the DOR and the status (Active).')
@@ -181,24 +121,6 @@ class MasterParticipantData:
         self.update_active_status_column()
 
 
-    def generate_excel_file(self):
-        fname = 'Master_Participant_Data_X.xlsx'
-        txt = os.path.join(self.dpath, fname)
-        self.parent.df.to_excel(txt, index=False)
-        print('Excel file was produced.')
-
-    def compare_data_frames(self):
-        df1 = pd.read_excel('./Master_Participant_Data_Y.xlsx')
-        df2 = pd.read_excel('./Master_Participant_Data_X.xlsx')
-        if df1.equals(df2):
-            print('They are equal')
-
-    def load_main_frame(self):
-        fname = 'Master_Participant_Data_X.xlsx'
-        fname = os.path.join(self.dpath, fname)
-        self.parent.df = pd.read_excel(fname)
-        print('Excel file was loaded.')
-
     def update_active_status_column(self):
         c1 = self.parent.df[self.DOR].notnull()
         c2 = self.parent.df[self.reason].notnull()
@@ -206,19 +128,6 @@ class MasterParticipantData:
         print('The active status column has been updated.')
         print('Do not forget to write the df to Excel.')
 
-    def full_run(self):
-        self.relabel_ids()
-        self.delete_unnecessary_columns()
-        self.remove_nan_ids()
-        self.check_for_repeats()
-        self.compute_DOB_from_enrollment()
-        self.clean_date_removed_from_study()
-        self.add_Y_in_the_Whole_Blood_column()
-        self.update_deceased_discharged()
-        self.generate_excel_file()
-        #self.compare_data_frames()
-
-        print('Module: module_Master_Participant_Data.py FINISHED')
 
     ##########Oct 17 2022##################
     def add_site_column(self):
@@ -308,6 +217,75 @@ class MasterParticipantData:
         selector = S.notnull()
         S = S.loc[selector]
         print(S)
+
+    ##########Nov 18 2022##################
+    def short_year_to_long_year(self, obj):
+        #22 --> 2022
+        #23 --> 1923
+        date = obj.group(0)
+        if len(obj.group('year')) == 2:
+            year_str = date[-2:]
+            year_int = int(year_str)
+            if year_int <= 22:
+                year_int += 2000
+            else:
+                year_int += 1900
+            year_str = str(year_int)
+            date = date[:-2] + year_str
+        return date
+
+
+    def convert_str_to_date(self, txt, use_day_first_for_slash=True):
+        if pd.isnull(txt):
+            raise ValueError('Object is NAN')
+        obj = self.monthfirst_as_text_regexp.search(txt)
+        if obj:
+            #Month(text)/Day/Year
+            #Check if we have a short year.
+            date = self.short_year_to_long_year(obj)
+            date = pd.to_datetime(date, dayfirst=False, yearfirst=False)
+        elif '/' in txt:
+            if use_day_first_for_slash:
+                obj = self.dayfirst_with_slash_regexp.search(txt)
+                if obj:
+                    date = obj.group(0)
+                    date = pd.to_datetime(date, dayfirst=True)
+                else:
+                    print(txt)
+                    raise ValueError('Unexpected date for slash with day first.')
+            else:
+                #Month(number)/Day/Year
+                obj = self.monthfirst_regexp.search(txt)
+                if obj:
+                    #Check if we have a short year.
+                    date = self.short_year_to_long_year(obj)
+                    month_str = obj.group('month')
+                    month_int = int(month_str)
+                    if 12 < month_int:
+                        print('Unexpected format: Month/Day/Year but Month > 12')
+                        date = pd.to_datetime(date, dayfirst=True)
+                    else:
+                        date = pd.to_datetime(date, dayfirst=False, yearfirst=False)
+                else:
+                    print(f'{txt=}')
+                    raise ValueError('Unknown format for date.')
+        else:
+            #In this case we do not expect a short year.
+            obj = self.yearfirst_regexp.search(txt)
+            if obj:
+                date = obj.group(0)
+                date = pd.to_datetime(date, yearfirst=True)
+            else:
+                obj = self.dayfirst_regexp.search(txt)
+                if obj:
+                    #Check if we have a short year.
+                    date = obj.group(0)
+                    date = self.short_year_to_long_year(date)
+                    date = pd.to_datetime(date, dayfirst=True)
+                else:
+                    print(f'{txt=}')
+                    raise ValueError('Unknown format for date.')
+        return (date, obj.group(0))
 
 
 
