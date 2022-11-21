@@ -32,8 +32,7 @@ class MasterParticipantData:
                                #'Decline', 'Withdraw from Study',
                                #'Withdrew Consent']
         self.removal_states = ['Deceased', 'Discharged', 'Moved',
-                               'Declined', 'Withdrew', 'Withdrew',
-                               'Refused-Consent']
+                               'Declined', 'Withdrew', 'Refused-Consent']
         self.removal_states_l = [x.lower() for x in self.removal_states]
 
         self.yearfirst_regexp = re.compile('[0-9]{4}[-][0-9]{2}[-][0-9]{2}')
