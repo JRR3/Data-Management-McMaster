@@ -156,7 +156,7 @@ class LTCSerologyMaster:
                                                           merge_at_column,
                                                           kind=kind)
         self.update_id_column()
-        print('End of merging process.')
+        print('End of updating the LSM file.')
 
     def remap_E_type_individuals(self, df_up):
         #Careful with the "E" type individuals.
@@ -169,9 +169,9 @@ class LTCSerologyMaster:
             df_up[self.merge_source].replace(old_id, new_id, inplace=True)
 
     def update_LND_data(self):
-        #Updated on Nov 10, 2022
+        #Updated on Nov 22, 2022
         fname  = 'LND_update.xlsx'
-        folder = 'Jessica_2_nov_10_2022'
+        folder = 'Jessica_nov_22_2022'
         fname = os.path.join('..','requests',folder, fname)
         df_up = pd.read_excel(fname)
         #If no Full ID is provided, the row is removed.
@@ -184,6 +184,9 @@ class LTCSerologyMaster:
                                                           df_up,
                                                           merge_at_column,
                                                           kind=kind)
+        self.update_id_column()
+        print('End of LSM updating process.')
+
     def what_is_missing(self):
         col_to_ids = {}
         max_count = -1

@@ -217,23 +217,29 @@ class SampleInventoryData:
         print('Checking the dates of the LSM file using the SID.')
         doc = 'Date Collected'
         missing_dates = []
-        for index, row in df.iterrows():
-            ID = row['ID']
-            full_ID = row['Full ID']
+        for index_lsm, row_lsm in df.iterrows():
+            ID = row_lsm['ID']
+            full_ID = row_lsm['Full ID']
+            if pd.isnull(ID):
+                print(f'{full_ID=}')
+                print('The entry in the ID column of the LSM file is empty.')
+                raise ValueError('Empty ID.')
             letter_code = self.extract_letter_code(full_ID)
             col_name_for_code = self.blood_draw_code_to_col_name[letter_code]
             #Note that the doc cannot be empty because
             #it is connected to the letter code portion
             #of the full id.
-            doc_LSM = row[doc]
+            doc_LSM = row_lsm[doc]
             selector = self.parent.df['ID'] == ID
+            if not selector.any():
+                raise ValueError('This ID DNE.')
             doc_M = self.parent.df.loc[selector, col_name_for_code]
             if doc_M.isnull().any():
                 print(f'{full_ID=}')
                 missing_dates.append(full_ID)
                 continue
                 #raise ValueError('The date for this ID DNE in the M file.')
-            doc_M = doc_M.values[0]
+            doc_M = doc_M.iloc[0]
             if pd.notnull(doc_LSM):
                 delta = (doc_M - doc_LSM) / np.timedelta64(1, 'D')
                 delta = np.abs(delta)
@@ -243,7 +249,7 @@ class SampleInventoryData:
                 #If the date is empty in the LSM file, we 
                 #simply complete it with the M file.
                 print(f'{full_ID=} DOC was assigned from SID.')
-                df.loc[index, doc] = doc_M
+                df.loc[index_lsm, doc] = doc_M
         if  0 < len(missing_dates):
             print('The following Full IDs have missing dates:')
             S = pd.Series(missing_dates)
@@ -252,6 +258,26 @@ class SampleInventoryData:
             print('All dates in the LSM file are consistent.')
         #Overwriting the LSM file should be done externally for
         #safety reasons.
+
+
+    def how_many_samples(self):
+        R = slice('Blood Draw:Baseline - B',
+                'Blood Draw:Repeat - JR')
+        counter = 0
+        full_counter = 0
+        for index, row in self.parent.df.iterrows():
+            potential_dates=row[R]
+            for item in potential_dates:
+                print(item)
+                full_counter += 1
+                s = str(type(item))
+                if 'time' in s:
+                    print(s)
+                    print('>>>>>>>>>>>Yes')
+                    counter += 1
+        print(f'The number of dates is: {counter}.')
+        print(f'The number of cells is: {full_counter}.')
+        print(f'The % of used cells is: {counter/full_counter*100}.')
 
 
 
