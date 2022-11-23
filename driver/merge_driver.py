@@ -819,10 +819,13 @@ class Merger:
         self.LIS_obj.order_infections_and_vaccines()
         self.MPD_obj.update_active_status_column()
 
-    def tara_nov_17_2022(self):
-        fname  = 'updates_one_column.xlsx'
-        folder = 'Tara_nov_17_2022'
+    def tara_nov_23_2022(self):
+        #Use this function for updates using 
+        #the one-column format.
+        fname  = 'updates_scherer.xlsx'
+        folder = 'Tara_nov_23_2022'
         df_up = self.load_single_column_df_for_update(fname, folder)
+        print(df_up)
         self.extract_and_update_DOR_Reason_Infection(df_up)
 
 
@@ -908,4 +911,7 @@ obj = Merger()
 #obj.check_LSM_dates()
 #obj.LSM_obj.write_LSM_to_excel()
 #obj.merge_M_with_LSM()
-obj.SID_obj.how_many_samples()
+#obj.SID_obj.how_many_samples()
+#Nov 23 2022
+obj.tara_nov_23_2022()
+obj.write_the_M_file_to_excel()
