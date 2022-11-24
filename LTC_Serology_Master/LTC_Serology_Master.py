@@ -209,4 +209,13 @@ class LTCSerologyMaster:
         label = 'missing_data_for_serology_samples'
         self.parent.write_df_to_excel(df_m, label)
 
+    def extract_ending_from_full_id(self, full_id):
+        #Nov 24 2022
+        regexp = re.compile('[0-9]{2}[-][0-9]{7}[-](?P<collection>[a-zA-Z]{1,2})')
+        obj = regexp.match(full_id)
+        if obj:
+            return obj.group('collection')
+        else:
+            raise ValueError('Unable to extract collection identifier.')
+
 
