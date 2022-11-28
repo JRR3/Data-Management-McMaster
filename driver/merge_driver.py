@@ -323,6 +323,8 @@ class Merger:
             df_up['DOI'] = pd.to_datetime(df_up['date'])
             print(df_up)
             self.LIS_obj.update_the_dates_and_waves(df_up)
+            #Is this necessary?
+            self.MPD_obj.update_active_status_column()
         print('Please write to Excel externally.')
 
 
@@ -412,8 +414,8 @@ class Merger:
 
     def update_LSM(self):
         #This function was updated on 10-Nov-2022
-        fname = 'serology_update.xlsx'
-        folder = 'Jessica_nov_17_2022'
+        fname = 'update_lsm.xlsx'
+        folder = 'Jessica_nov_28_2022'
         fname = os.path.join('..','requests',folder, fname)
         book = pd.read_excel(fname, sheet_name=None, header=None)
         print(f'LSM is looking into the {folder=}')
@@ -819,14 +821,17 @@ class Merger:
         self.LIS_obj.order_infections_and_vaccines()
         self.MPD_obj.update_active_status_column()
 
-    def tara_nov_23_2022(self):
+    def single_column_update(self):
         #Use this function for updates using 
         #the one-column format.
-        fname  = 'updates_scherer.xlsx'
-        folder = 'Tara_nov_23_2022'
+        fname  = 'update_infection.xlsx'
+        folder = 'Tara_nov_28_2022'
         df_up = self.load_single_column_df_for_update(fname, folder)
         print(df_up)
         self.extract_and_update_DOR_Reason_Infection(df_up)
+        date = datetime.datetime(2022,11,16)
+        selection = self.df['Reason'] == 'Refused-Consent'
+        self.df.loc[selection,self.MPD_obj.DOR] = date
 
 
     #Nov 25 2022
@@ -846,51 +851,6 @@ class Merger:
 
 
 obj = Merger()
-#Oct 31 2022
-#Generate the slope plots respecting the thresholds.
-#obj.REP_obj.plot_serology_one_Ig_from_df(Ig='G', max_n_inf=5)
-#obj.REP_obj.plot_serology_one_Ig_from_df(Ig='A', max_n_inf=5)
-#obj.REP_obj.plot_serology_one_Ig_from_df(Ig='G', max_n_inf=1)
-#obj.REP_obj.plot_serology_one_Ig_from_df(Ig='A', max_n_inf=1)
-#Oct 31 2022 (Recompute Serology Update)
-#obj.LND_obj.clean_LND_file()
-#obj.jessica_oct_31_2022()
-#obj.LSM_obj.write_to_excel()
-#Oct 31 2022 (Tara's update)
-#obj.tara_oct_31_2022()
-#obj.write_the_M_file_to_excel()
-#obj.LIS_obj.compute_waves_of_infection()
-#obj.LIS_obj.assume_PCR_if_empty()
-#obj.LIS_obj.update_PCR_and_infection_status()
-#obj.write_the_M_file_to_excel()
-#Nov 02 2022 - Nov 03 2022
-#obj.LIS_obj.update_ahmad_file()
-#obj.LIS_obj.write_ahmad_df_to_excel()
-#obj.compare_ahmad_infection_file_w_M()
-#Nov 03 2022
-#obj.LIS_obj.get_serology_dates_for_infection_dates()
-#obj.LIS_obj.compute_slopes_for_serology()
-#obj.LIS_obj.plot_dawns_infection_count()
-#Nov 04 2022
-#obj.LIS_obj.update_ahmad_file()
-#obj.LIS_obj.write_ahmad_df_to_excel()
-#Nov 07 2022
-#obj.tara_nov_07_2022()
-#obj.write_the_M_file_to_excel()
-#obj.tara_nov_07_2022_part_2()
-#obj.write_the_M_file_to_excel()
-#Nov 09 2022
-#obj.tara_nov_09_2022()
-#obj.write_the_M_file_to_excel()
-#Nov 10 2022
-#obj.tara_nov_10_2022()
-#obj.write_the_M_file_to_excel()
-#obj.update_LSM()
-#obj.LSM_obj.write_LSM_to_excel()
-#obj.update_master_using_SID()
-#obj.write_the_M_file_to_excel()
-#obj.LSM_obj.update_LND_data()
-#obj.LSM_obj.write_LSM_to_excel()
 #Nov 11 2022
 #obj.update_master_using_SID()
 #obj.write_the_M_file_to_excel()
@@ -935,4 +895,11 @@ obj = Merger()
 #obj.update_master_using_SID()
 #obj.whole_blood_update()
 #obj.write_the_M_file_to_excel()
-obj.merge_M_with_LSM()
+#obj.merge_M_with_LSM()
+#Nov 28 2022
+#obj.update_LSM()
+#obj.check_LSM_dates()
+#obj.LSM_obj.write_LSM_to_excel()
+#obj.merge_M_with_LSM()
+obj.single_column_update()
+obj.write_the_M_file_to_excel()
