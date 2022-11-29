@@ -2347,7 +2347,7 @@ class Comparator:
 
         v_date_cols = self.LIS_obj.vaccine_date_cols
         inf_date_cols = self.LIS_obj.positive_date_cols
-        #Iterate over the LSM data frame and look for 'G'
+        #Iterate over the S+M data frame and look for 'G'
         candidates = 0
         case_to_list = {}
         case_to_list[1] = []
@@ -2408,12 +2408,16 @@ class Comparator:
             constraint_2 = selection.any()
 
             if constraint_1 and constraint_2:
-                print('Participant had only infections before or on Jun-30-2022 and at least one infection after or on Dec-15-2021')
+                txt = ('Participant had only infections before'
+                        'or on Jun-30-2022 and at least one'
+                        'infection after or on Dec-15-2021')
+                print(txt)
                 print('Case 3')
                 case_to_list[3].append(index)
                 continue
 
-            #Case 4/5: At least one infection between Dec 15 2021 and Jun 30 2022 (inclusive)
+            #Case 4/5: At least one infection between 
+            #Dec 15 2021 and Jun 30 2022 (inclusive)
             #AND
             #Case 4/5: At least one infection after Jun 30 2022
             selection  = inf_dates   <= jun_30_2022
@@ -2424,7 +2428,11 @@ class Comparator:
             constraint_2 = selection.any()
 
             if constraint_1 and constraint_2:
-                print('Participant had at least one infection between Dec-15-2021 and Jun-30-2022 (inclusive), and at least one infection after Jun-30-2022')
+                txt = ('Participant had at least one infection'
+                        'between Dec-15-2021 and Jun-30-2022'
+                        '(inclusive), and at least one infection'
+                        'after Jun-30-2022')
+                print(txt)
                 ba5_infection_dates = inf_dates[selection]
                 first_ba5_infection_date = ba5_infection_dates.iloc[0]
                 if sample_doc < first_ba5_infection_date:
