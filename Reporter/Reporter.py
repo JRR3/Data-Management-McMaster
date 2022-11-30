@@ -2,8 +2,8 @@
 #Update: 10-Oct-2022
 import numpy as np
 import pandas as pd
-pd.options.plotting.backend = 'plotly'
-import plotly.express as pxp
+#pd.options.plotting.backend = 'plotly'
+#import plotly.express as pxp
 import os
 import re
 import networkx as nx

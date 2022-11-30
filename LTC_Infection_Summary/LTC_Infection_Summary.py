@@ -9,7 +9,7 @@ mpl.rcParams['figure.dpi']=300
 import matplotlib.pyplot as plt
 import datetime
 import shutil
-import plotly.express as pxp
+#import plotly.express as pxp
 
 # <b> Section: LTC_InfectionSummary </b>
 # From this Excel file we have to extract the PCR and DBS infections by date.
@@ -932,10 +932,12 @@ class LTCInfectionSummary:
         bins = pd.cut(df_i[self.DOI], intervals, labels=periods)
         grouped_dates = df_i[self.DOI].groupby([bins,
                                                 df_i[site_type]]).agg('count')
+        print(grouped_dates)
         df_i = grouped_dates.unstack(level=1)
         df_i.replace(0,np.nan, inplace=True)
-        #print(bins)
-        #print(df_i)
+        print(bins)
+        print(df_i)
+        return
         #Old version
         #df_i = df_i[self.DOI].groupby([df_i[self.DOI].dt.to_period('M'),
             #df_i[site_type]]).agg('count')

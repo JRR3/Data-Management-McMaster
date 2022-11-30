@@ -2336,8 +2336,9 @@ class Comparator:
                     print('Already had a value for', ID, ':', value)
 
 
-
-    def tara_nov_24_2022(self):
+    def stratification_by_inf_and_vac(self):
+        #Tara requested this function on Nov 24 2022.
+        #Updated on Nov 30 2022
         #Generate_7_tables
         #Load the full master file.
         fname  = 'W.xlsx'
@@ -2409,8 +2410,8 @@ class Comparator:
 
             if constraint_1 and constraint_2:
                 txt = ('Participant had only infections before'
-                        'or on Jun-30-2022 and at least one'
-                        'infection after or on Dec-15-2021')
+                        ' or on Jun-30-2022 and at least one'
+                        ' infection after or on Dec-15-2021')
                 print(txt)
                 print('Case 3')
                 case_to_list[3].append(index)
@@ -2429,9 +2430,9 @@ class Comparator:
 
             if constraint_1 and constraint_2:
                 txt = ('Participant had at least one infection'
-                        'between Dec-15-2021 and Jun-30-2022'
-                        '(inclusive), and at least one infection'
-                        'after Jun-30-2022')
+                        ' between Dec-15-2021 and Jun-30-2022'
+                        ' (inclusive), and at least one infection'
+                        ' after Jun-30-2022')
                 print(txt)
                 ba5_infection_dates = inf_dates[selection]
                 first_ba5_infection_date = ba5_infection_dates.iloc[0]
@@ -2471,11 +2472,121 @@ class Comparator:
                     continue
 
         print(f'We have {candidates=}.')
-        for key,L in case_to_list.items():
-            print(f'For case #{key} we have {len(L)} elements.')
-            #df_slice = df.loc[L,:].copy()
-            #txt = 'case_' + str(key)
-            #self.write_df_to_excel(df_slice, txt)
+        fname = 'stratification_inf_vac_nov_30_2022.xlsx'
+        fname = os.path.join(self.outputs_path, fname)
+        with pd.ExcelWriter(fname) as writer:
+            for key,L in case_to_list.items():
+                print(f'For case #{key} we have {len(L)} elements.')
+                df_slice = df.loc[L,:].copy()
+                sh_name = 'case_' + str(key)
+                df_slice.to_excel(writer, sheet_name = sh_name, index = False)
+
+    def serology_decay_computation(self):
+        #Tara requested these computations
+        #on Nov 29 2022
+        #Last update: Nov 30 2022 4:28pm
+        fname  = 'W.xlsx'
+        fname = os.path.join(self.parent.outputs_path, fname)
+        df_w = pd.read_excel(fname)
+        DOC = self.DOC
+        marker = 'Wuhan (SB3)'
+        case_to_list = {}
+        case_to_list[1] = []
+        case_to_list[2] = []
+        case_to_list[3] = []
+        case_to_list[4] = []
+
+        case_to_delta_vac = {1:40, 2:8*30, 3:6*30, 4:9*30}
+
+        #List of tuples (x,y,z)
+        #x=Full ID
+        #y=DOC (date of collection)
+        #z=Wuhan MNT value
+        L = []
+
+        v_date_cols = self.parent.LIS_obj.vaccine_date_cols
+        inf_date_cols = self.parent.LIS_obj.positive_date_cols
+        #Iterate over the M file
+        for index_m, row_m in self.parent.df.iterrows():
+            ID = row_m['ID']
+            vaccine_dates = row_m[v_date_cols]
+            if vaccine_dates.count() < 3:
+                #We need at least 3 vaccines to proceed.
+                #The sample is collected
+                #between the 2nd and 3rd vaccines.
+                continue
+            #At this point we have an individual with at
+            #least 3 vaccines
+            first_dose  = vaccine_dates[0]
+            second_dose = vaccine_dates[1]
+            third_dose  = vaccine_dates[2]
+            delta_v2_v1 = second_dose - first_dose
+            delta_v2_v1 /= np.timedelta64(1,'D')
+            if delta_v2_v1 < 0:
+                raise ValueError('Time delta V2-V1 cannot be negative.')
+            if 40 < delta_v2_v1:
+                #We need less than or equal to 40 days between the first
+                #and second vaccinations.
+                continue
+            #Get samples for this individual
+            selection = self.df['ID'] == ID
+            if not selection.any():
+                print(f'{ID=} has no samples.')
+                continue
+            samples = self.df[selection]
+            #Iterate over samples
+            for index_s, row_s in samples.iterrows():
+                full_ID = row_s['Full ID']
+                wuhan_s = row_s[marker]
+                if pd.isnull(wuhan_s):
+                    print(f'{full_ID=} has no Wuhan.')
+                    continue
+                #The sample had to be collected between the
+                #2nd and 3rd doses.
+                doc_s = row_s[DOC]
+                if second_dose <= doc_s and doc_s <= third_dose:
+                    print(f'{full_ID=} is between the 2nd and 3rd dose.')
+                else:
+                    continue
+                #Now is time to check if no infections
+                #took place before or at the sample collection
+                infection_dates = row_m[inf_date_cols]
+                if infection_dates.count() == 0:
+                    print(f'{ID=} never had infections.')
+                    t = (full_ID, doc_s, wuhan_s)
+                    L.append(t)
+                    continue
+                selection = infection_dates.notnull()
+                infection_dates = infection_dates[selection]
+                constraint = doc_s < infection_dates
+                if constraint.all():
+                    #No infection at or before
+                    #the date of sample collection.
+                    print(f'{ID=} had no infections before or'
+                            ' at the time of sample collection.')
+                    t = (full_ID, doc_s, wuhan_s)
+                    L.append(t)
+                    continue
+
+        list_of_indices = []
+        for t in L:
+            full_ID = t[0]
+            selection = df_w['Full ID'] == full_ID
+            index = df_w[selection].index[0]
+            list_of_indices.append(index)
+
+        df_slice = df_w.loc[list_of_indices,:]
+        min_date = df_slice[DOC].min()
+        print(f'{min_date=}')
+        days_col = (df_slice[DOC] - min_date) / np.timedelta64(1,'D')
+        df_slice.insert(3,'Days since earliest sample', days_col)
+        df_slice.insert(4,'Log2-Wuhan', np.log2(df_slice[marker]))
+        fname = 'second_dose.xlsx'
+        folder = 'Tara_nov_30_2022'
+        fname = os.path.join(self.parent.requests_path, folder, fname)
+        df_slice.to_excel(fname, index=False)
+
+
 
 
 #obj = Comparator()

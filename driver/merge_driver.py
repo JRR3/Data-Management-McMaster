@@ -8,6 +8,9 @@ import janitor
 import numpy as np
 import shutil
 import datetime
+import matplotlib as mpl
+mpl.rcParams['figure.dpi'] = 300
+import matplotlib.pyplot as plt
 
 sys.path.insert(1,'../Master_Participant_Data/')
 sys.path.insert(1,'../LTC_Infection_Summary/')
@@ -412,10 +415,13 @@ class Merger:
                                                 kind=kind)
 
 
-    def update_LSM(self):
+    def update_LSM(self, file_name=None):
         #This function was updated on 10-Nov-2022
-        fname = 'update_lsm.xlsx'
-        folder = 'Jessica_nov_28_2022'
+        if file_name:
+            fname = file_name
+        else:
+            fname = '.xlsx'
+        folder = 'Jessica_nov_29_2022'
         fname = os.path.join('..','requests',folder, fname)
         book = pd.read_excel(fname, sheet_name=None, header=None)
         print(f'LSM is looking into the {folder=}')
@@ -846,101 +852,6 @@ class Merger:
                                          self.merge_column,
                                          kind='original+')
 
-    #Nov 29 2022
-    def serology_decay_plots(self):
-        fname  = 'W.xlsx'
-        fname = os.path.join('..','outputs', fname)
-        df_w = pd.read_excel(fname)
-        DOC = self.LSM_obj.DOC
-
-        #List of tuples (x,y,z)
-        #x=Full ID
-        #y=DOC (date of collection)
-        #z=Wuhan MNT value
-        L = []
-
-        v_date_cols = self.LIS_obj.vaccine_date_cols
-        inf_date_cols = self.LIS_obj.positive_date_cols
-        #Iterate over the M file
-        for index_m, row_m in self.df.iterrows():
-            ID = row_m['ID']
-            vaccine_dates = row_m[v_date_cols]
-            if vaccine_dates.count() < 3:
-                #We need at least 3 vaccines to proceed.
-                #The sample is collected
-                #between the 2nd and 3rd vaccines.
-                continue
-            #At this point we have an individual with at
-            #least 3 vaccines
-            first_dose  = vaccine_dates[0]
-            second_dose = vaccine_dates[1]
-            third_dose  = vaccine_dates[2]
-            delta_v2_v1 = second_dose - first_dose
-            delta_v2_v1 /= np.timedelta64(1,'D')
-            if delta_v2_v1 < 0:
-                raise ValueError('Time delta V2-V1 cannot be negative.')
-            if 40 < delta_v2_v1:
-                #We need less than or equal to 40 days between the first
-                #and second vaccinations.
-                continue
-            #Get samples for this individual
-            selection = self.LSM_obj.df['ID'] == ID
-            if not selection.any():
-                print(f'{ID=} has no samples.')
-                continue
-            samples = self.LSM_obj.df[selection]
-            #Iterate over samples
-            marker = 'Wuhan (SB3)'
-            for index_s, row_s in samples.iterrows():
-                full_ID = row_s['Full ID']
-                wuhan_s = row_s[marker]
-                if pd.isnull(wuhan_s):
-                    print(f'{full_ID=} has no Wuhan.')
-                    continue
-                #The sample had to be collected between the
-                #2nd and 3rd doses.
-                doc_s = row_s[DOC]
-                if second_dose <= doc_s and doc_s <= third_dose:
-                    print(f'{full_ID=} is between the 2nd and 3rd dose.')
-                else:
-                    continue
-                #Now is time to check if no infections
-                #took place before or at the sample collection
-                infection_dates = row_m[inf_date_cols]
-                if infection_dates.count() == 0:
-                    print(f'{ID=} never had infections.')
-                    t = (full_ID, doc_s, wuhan_s)
-                    L.append(t)
-                    continue
-                selection = infection_dates.notnull()
-                infection_dates = infection_dates[selection]
-                constraint = doc_s < infection_dates
-                if constraint.all():
-                    #No infection at or before
-                    #the date of sample collection.
-                    print(f'{ID=} had no infections before or'
-                            ' at the time of sample collection.')
-                    t = (full_ID, doc_s, wuhan_s)
-                    L.append(t)
-                    continue
-
-        list_of_indices = []
-        for t in L:
-            full_ID = t[0]
-            selection = df_w['Full ID'] == full_ID
-            index = df_w[selection].index[0]
-            list_of_indices.append(index)
-
-        df_slice = df_w.loc[list_of_indices,:]
-        min_date = df_slice[DOC].min()
-        print(f'{min_date=}')
-        days_col = (df_slice[DOC] - min_date) / np.timedelta64(1,'D')
-        df_slice.insert(3,'Days since earliest sample', days_col)
-        txt = 'second_dose'
-        self.write_df_to_excel(df_slice, txt)
-
-
-
 
 
 
@@ -999,4 +910,14 @@ obj = Merger()
 #obj.write_the_M_file_to_excel()
 #obj.merge_M_with_LSM()
 #Nov 29 2022
-obj.serology_decay_plots()
+#obj.serology_decay_plots()
+#Nov 30 2022
+#obj.update_LSM('update_sep_lsm.xlsx')
+#obj.update_LSM('update_nov_lsm.xlsx')
+#obj.check_LSM_dates()
+#obj.LSM_obj.write_LSM_to_excel()
+#obj.merge_M_with_LSM()
+#obj.stratification_by_inf_and_vac()
+#obj.LIS_obj.plot_dawns_infection_count()
+#obj.LSM_obj.serology_decay_computation()
+obj.LSM_obj.plot_decay_for_serology()

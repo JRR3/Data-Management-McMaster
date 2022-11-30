@@ -218,4 +218,180 @@ class LTCSerologyMaster:
         else:
             raise ValueError('Unable to extract collection identifier.')
 
+    def serology_decay_computation(self):
+        #Tara requested these computations
+        #on Nov 29 2022
+        #Last update: Nov 30 2022
+        fname  = 'W.xlsx'
+        fname = os.path.join(self.parent.outputs_path, fname)
+        df_w = pd.read_excel(fname)
+        DOC = self.DOC
+        marker = 'Wuhan (SB3)'
+        levels = [1,2,3,4]
+        level_to_list = {}
+        level_to_list[1] = []
+        level_to_list[2] = []
+        level_to_list[3] = []
+        level_to_list[4] = []
+
+        level_to_delta_vac = {1:40, 2:8*30, 3:6*30, 4:9*30}
+        #Careful with the last case.
+        level_to_n_vac = {1:3, 2:4, 3:5, 4:6}
+
+        #List of tuples (x,y,z)
+        #x=Full ID
+        #y=DOC (date of collection)
+        #z=Wuhan MNT value
+        L = []
+
+        v_date_cols = self.parent.LIS_obj.vaccine_date_cols
+        inf_date_cols = self.parent.LIS_obj.positive_date_cols
+        #Iterate over the M file
+        for index_m, row_m in self.parent.df.iterrows():
+            ID = row_m['ID']
+            vaccine_dates = row_m[v_date_cols]
+            for level in levels:
+                #For a given level we have a constraint
+                #for the distance between
+                #vaccine_dates[level-1] and
+                #vaccine_dates[level].
+                #Moreover, the sample has to
+                #be taken between
+
+                n_vac_req = level_to_n_vac[level]
+                if vaccine_dates.count() < n_vac_req:
+                    #We need at least "n_vac_req"
+                    #vaccines to proceed.
+                    #The sample is collected
+                    #between the (n_vac_req-1)
+                    #and (n_vac_req)
+                    continue
+                #At this point we have an individual with at
+                #least n_vac_req
+                first_dose  = vaccine_dates[0]
+                second_dose = vaccine_dates[1]
+                third_dose  = vaccine_dates[2]
+                delta_v2_v1 = second_dose - first_dose
+                delta_v2_v1 /= np.timedelta64(1,'D')
+                if delta_v2_v1 < 0:
+                    raise ValueError('Time delta V2-V1 cannot be negative.')
+                if 40 < delta_v2_v1:
+                    #We need less than or equal to 40 days between the first
+                    #and second vaccinations.
+                    continue
+                #Get samples for this individual
+                selection = self.df['ID'] == ID
+                if not selection.any():
+                    print(f'{ID=} has no samples.')
+                    continue
+                samples = self.df[selection]
+                #Iterate over samples
+                for index_s, row_s in samples.iterrows():
+                    full_ID = row_s['Full ID']
+                    wuhan_s = row_s[marker]
+                    if pd.isnull(wuhan_s):
+                        print(f'{full_ID=} has no Wuhan.')
+                        continue
+                    #The sample had to be collected between the
+                    #2nd and 3rd doses.
+                    doc_s = row_s[DOC]
+                    if second_dose <= doc_s and doc_s <= third_dose:
+                        print(f'{full_ID=} is between the 2nd and 3rd dose.')
+                    else:
+                        continue
+                    #Now is time to check if no infections
+                    #took place before or at the sample collection
+                    infection_dates = row_m[inf_date_cols]
+                    if infection_dates.count() == 0:
+                        print(f'{ID=} never had infections.')
+                        t = (full_ID, doc_s, wuhan_s)
+                        L.append(t)
+                        continue
+                    selection = infection_dates.notnull()
+                    infection_dates = infection_dates[selection]
+                    constraint = doc_s < infection_dates
+                    if constraint.all():
+                        #No infection at or before
+                        #the date of sample collection.
+                        print(f'{ID=} had no infections before or'
+                                ' at the time of sample collection.')
+                        t = (full_ID, doc_s, wuhan_s)
+                        L.append(t)
+                        continue
+
+        list_of_indices = []
+        for t in L:
+            full_ID = t[0]
+            selection = df_w['Full ID'] == full_ID
+            index = df_w[selection].index[0]
+            list_of_indices.append(index)
+
+        df_slice = df_w.loc[list_of_indices,:]
+        min_date = df_slice[DOC].min()
+        print(f'{min_date=}')
+        days_col = (df_slice[DOC] - min_date) / np.timedelta64(1,'D')
+        df_slice.insert(3,'Days since earliest sample', days_col)
+        df_slice.insert(4,'Log2-Wuhan', np.log2(df_slice[marker]))
+        fname = 'second_dose.xlsx'
+        folder = 'Tara_nov_30_2022'
+        fname = os.path.join(self.parent.requests_path, folder, fname)
+        df_slice.to_excel(fname, index=False)
+
+    def plot_decay_for_serology(self):
+        fname  = 'second_dose.xlsx'
+        folder = 'Tara_nov_30_2022'
+        marker = 'Wuhan (SB3)'
+        log_marker = 'Log2-Wuhan'
+        dses   = 'Days since earliest sample'
+        fname  = os.path.join(self.parent.requests_path, folder, fname)
+        df     = pd.read_excel(fname)
+        max_days = df[dses].max()
+        intervals = pd.date_range(start='2021-03-31', end='2022-01-01', freq='M')
+        periods   = pd.period_range(start='2021-04', end='2021-12', freq='M')
+        periods   = periods.to_timestamp().strftime("%b-%y")
+        bins = pd.cut(df[self.DOC], intervals, labels=periods)
+        df_g = df.groupby(bins)
+        log_wuhan_medians = df_g[log_marker].agg('median')
+        days_medians = df_g[dses].agg('median')
+        print(log_wuhan_medians)
+        print(days_medians)
+        n_cols = len(periods)
+        plt.close('all')
+        ax = df_g.boxplot(subplots=False,
+                #positions=range(len(periods)),
+                rot = 45,
+                column=log_marker,
+                showfliers=False)
+        ax.set_title('Second dose')
+        #ax.set_xlabel('')
+        ax.set_ylabel('$\log_2$(MNT50) (Wuhan)')
+
+        fname = 'second_dose_box_plot.png'
+        folder = 'Tara_nov_30_2022'
+        fname = os.path.join(self.parent.requests_path, folder, fname)
+        plt.xticks(range(1,n_cols+1),periods)
+        ax.figure.savefig(fname)
+
+        plt.close('all')
+        ax = df.plot.scatter(x=dses, y=log_marker, c='Blue')
+        const = np.log2(np.exp(1))
+        p = np.polyfit(days_medians,
+                log_wuhan_medians, 1)
+        t = np.linspace(0,max_days,300)
+        y = np.polyval(p, t) * const
+        ax.plot(t,y,'k-',linewidth=2)
+        ax.set_title('Second dose')
+        ax.set_ylabel('$\log_2$(MNT50) (Wuhan)')
+        half_life = -1/p[0]
+        txt = '$\lambda={0:.1f}$ days'
+        print(txt.format(half_life))
+
+        fname = 'second_dose_scatter_plot.png'
+        folder = 'Tara_nov_30_2022'
+        fname = os.path.join(self.parent.requests_path, folder, fname)
+        ax.figure.savefig(fname)
+
+
+
+
 
