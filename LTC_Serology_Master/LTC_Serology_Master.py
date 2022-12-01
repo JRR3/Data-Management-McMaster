@@ -227,22 +227,21 @@ class LTCSerologyMaster:
         df_w = pd.read_excel(fname)
         DOC = self.DOC
         marker = 'Wuhan (SB3)'
-        levels = [1,2,3,4]
+
+        n_levels = 4
+        levels = list(range(1,n_levels+1))
         level_to_list = {}
-        level_to_list[1] = []
-        level_to_list[2] = []
-        level_to_list[3] = []
-        level_to_list[4] = []
+        for level in levels:
+            level_to_list[level] = []
 
         level_to_delta_vac = {1:40, 2:8*30, 3:6*30, 4:9*30}
         #Careful with the last case.
-        level_to_n_vac = {1:3, 2:4, 3:5, 4:6}
+        level_to_n_vacs = {1:2, 2:3, 3:4, 4:5}
 
         #List of tuples (x,y,z)
         #x=Full ID
         #y=DOC (date of collection)
         #z=Wuhan MNT value
-        L = []
 
         v_date_cols = self.parent.LIS_obj.vaccine_date_cols
         inf_date_cols = self.parent.LIS_obj.positive_date_cols
@@ -257,46 +256,76 @@ class LTCSerologyMaster:
                 #vaccine_dates[level].
                 #Moreover, the sample has to
                 #be taken between
+                #vaccine_dates[level] and
+                #vaccine_dates[level+1] (if it exists).
 
-                n_vac_req = level_to_n_vac[level]
-                if vaccine_dates.count() < n_vac_req:
+                n_vacs_req = level_to_n_vacs[level]
+                n_vacs    = vaccine_dates.count()
+
+                if n_vacs < n_vacs_req:
                     #We need at least "n_vac_req"
                     #vaccines to proceed.
-                    #The sample is collected
-                    #between the (n_vac_req-1)
-                    #and (n_vac_req)
-                    continue
+
+                    #No more levels to check.
+                    #Move to next participant.
+                    break
+
                 #At this point we have an individual with at
                 #least n_vac_req
-                first_dose  = vaccine_dates[0]
-                second_dose = vaccine_dates[1]
-                third_dose  = vaccine_dates[2]
-                delta_v2_v1 = second_dose - first_dose
-                delta_v2_v1 /= np.timedelta64(1,'D')
-                if delta_v2_v1 < 0:
-                    raise ValueError('Time delta V2-V1 cannot be negative.')
-                if 40 < delta_v2_v1:
-                    #We need less than or equal to 40 days between the first
-                    #and second vaccinations.
-                    continue
+                #Note: Level 1 = 2nd dose
+                #Note: Level 2 = 3rd dose
+                #Note: Level 3 = 4th dose
+                #Note: Level 4 = 5th dose
+                previous_dose   = vaccine_dates[level-1]
+                current_dose    = vaccine_dates[level]
+                posterior_dose  = datetime.datetime(2023,1,1)
+                v_plus          = n_vacs_req + 1
+                if v_plus <= n_vacs:
+                    #This person has at least one more vaccination
+                    posterior_dose  = vaccine_dates[level+1]
+                else:
+                    print(f'{ID=} does not have the additional dose {v_plus}'.)
+                    print(f'However, we can still proceed.')
+                delta  = current_dose - previous_dose
+                delta /= np.timedelta64(1,'D')
+                if delta < 0:
+                    raise ValueError('Time delta cannot be negative.')
+                max_delta = level_to_delta_vac[level]
+                if max_delta < delta:
+                    #We need less than or equal to
+                    #delta days between the current
+                    #and previous vaccinations.
+
+                    #No more levels to check.
+                    #Move to next participant.
+                    break
                 #Get samples for this individual
                 selection = self.df['ID'] == ID
                 if not selection.any():
                     print(f'{ID=} has no samples.')
-                    continue
+                    #No more levels to check.
+                    #Move to next participant.
+                    break
+                #Nonempty LSM samples
                 samples = self.df[selection]
                 #Iterate over samples
                 for index_s, row_s in samples.iterrows():
                     full_ID = row_s['Full ID']
                     wuhan_s = row_s[marker]
                     if pd.isnull(wuhan_s):
-                        print(f'{full_ID=} has no Wuhan.')
+                        print(f'Sample {full_ID=} has no Wuhan.')
                         continue
                     #The sample had to be collected between the
-                    #2nd and 3rd doses.
+                    #current and posterior doses. 
+                    #In other words,
+                    #the sample was collected
+                    #between the (level)
+                    #and (level+1) vaccines 
+                    #(if it exists)
                     doc_s = row_s[DOC]
-                    if second_dose <= doc_s and doc_s <= third_dose:
-                        print(f'{full_ID=} is between the 2nd and 3rd dose.')
+                    if current_dose <= doc_s and doc_s <= posterior_dose:
+                        print(f'{full_ID=} is between the current and posterior dose.')
+                        print(f'{full_ID=} is between dose {level+1} and dose {level+2}.')
                     else:
                         continue
                     #Now is time to check if no infections
@@ -304,8 +333,10 @@ class LTCSerologyMaster:
                     infection_dates = row_m[inf_date_cols]
                     if infection_dates.count() == 0:
                         print(f'{ID=} never had infections.')
-                        t = (full_ID, doc_s, wuhan_s)
-                        L.append(t)
+                        #t = (full_ID, doc_s, wuhan_s)
+                        #L.append(t)
+                        level_to_list[level].append(full_ID)
+                        #Move to next sample.
                         continue
                     selection = infection_dates.notnull()
                     infection_dates = infection_dates[selection]
@@ -315,16 +346,22 @@ class LTCSerologyMaster:
                         #the date of sample collection.
                         print(f'{ID=} had no infections before or'
                                 ' at the time of sample collection.')
-                        t = (full_ID, doc_s, wuhan_s)
-                        L.append(t)
+                        #t = (full_ID, doc_s, wuhan_s)
+                        #L.append(t)
+                        level_to_list[level].append(full_ID)
+                        #Move to next sample.
                         continue
 
-        list_of_indices = []
-        for t in L:
-            full_ID = t[0]
-            selection = df_w['Full ID'] == full_ID
-            index = df_w[selection].index[0]
-            list_of_indices.append(index)
+        for key, L in level_to_list.items():
+            print(f'In level {key} we have {len(L)} participants.')
+            list_of_indices = []
+            for full_ID in L:
+                selection = df_w['Full ID'] == full_ID
+                index = df_w[selection].index[0]
+                list_of_indices.append(index)
+
+
+        return
 
         df_slice = df_w.loc[list_of_indices,:]
         min_date = df_slice[DOC].min()
