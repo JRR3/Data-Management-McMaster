@@ -287,6 +287,155 @@ class MasterParticipantData:
         return (date, obj.group(0))
 
 
+    def stratification_by_inf_and_vac(self):
+        #Tara requested this function on Nov 24 2022.
+        #Updated on Nov 30 2022
+        #Generate_7_tables
+        #Load the full master file.
+        print('Warning: Make sure the W file is updated.')
+        fname  = 'W.xlsx'
+        fname = os.path.join(self.parent.outputs_path, fname)
+        df = pd.read_excel(fname)
+        DOC = self.parent.LSM_obj.DOC
+
+        v_date_cols = self.parent.LIS_obj.vaccine_date_cols
+        inf_date_cols = self.parent.LIS_obj.positive_date_cols
+        #Iterate over the S+M data frame and look for 'G'
+        candidates = 0
+        case_to_list = {}
+        case_to_list[1] = []
+        case_to_list[2] = []
+        case_to_list[3] = []
+        case_to_list[4] = []
+        case_to_list[5] = []
+        case_to_list[6] = []
+        case_to_list[7] = []
+        for index, row in df.iterrows():
+            full_ID = row['Full ID']
+            if pd.isnull(full_ID):
+                continue
+            letter_ID = self.LSM_obj.extract_ending_from_full_id(full_ID)
+            if letter_ID != 'G':
+                #We need at a 'G' collection identifier.
+                continue
+            ID = row['ID']
+            vaccine_dates = row[v_date_cols].count()
+            if vaccine_dates < 5:
+                #We need at least 5 vaccines to proceed.
+                continue
+            #At this point we have an individual with a 'G'
+            #sample who had at least 5 vaccines.
+            sample_doc = row[DOC]
+            candidates += 1
+            print(f'=====================')
+            print(f'{ID=}')
+            inf_dates = row[inf_date_cols]
+            #Case 1: No infections
+            if inf_dates.count() == 0:
+                print('Participant had no infections.')
+                print('Case 1')
+                case_to_list[1].append(index)
+                continue
+
+            selector = inf_dates.notnull()
+            inf_dates = inf_dates[selector]
+
+            #Case 2: Only infection prior to Dec 15 2022
+            dec_15_2021 = datetime.datetime(2021,12,15)
+            selection = inf_dates < dec_15_2021
+
+            if selection.all():
+                print('Participant had only infections prior to Dec-15-2021')
+                print('Case 2')
+                case_to_list[2].append(index)
+                continue
+
+            jun_30_2022 = datetime.datetime(2022,6,30)
+            #Case 3: All infections before or at Jun 30 2022
+            #AND
+            #Case 3: At least one infection between Dec 15 2021 and Jun 30 2022
+            selection  = inf_dates   <= jun_30_2022
+            constraint_1 = selection.all()
+
+            selection  &= dec_15_2021 <= inf_dates
+            constraint_2 = selection.any()
+
+            if constraint_1 and constraint_2:
+                txt = ('Participant had only infections before'
+                        ' or on Jun-30-2022 and at least one'
+                        ' infection after or on Dec-15-2021')
+                print(txt)
+                print('Case 3')
+                case_to_list[3].append(index)
+                continue
+
+            #Case 4/5: At least one infection between 
+            #Dec 15 2021 and Jun 30 2022 (inclusive)
+            #AND
+            #Case 4/5: At least one infection after Jun 30 2022
+            selection  = inf_dates   <= jun_30_2022
+            selection  &= dec_15_2021 <= inf_dates
+            constraint_1 = selection.any()
+
+            selection    = jun_30_2022 < inf_dates
+            constraint_2 = selection.any()
+
+            if constraint_1 and constraint_2:
+                txt = ('Participant had at least one infection'
+                        ' between Dec-15-2021 and Jun-30-2022'
+                        ' (inclusive), and at least one infection'
+                        ' after Jun-30-2022')
+                print(txt)
+                ba5_infection_dates = inf_dates[selection]
+                first_ba5_infection_date = ba5_infection_dates.iloc[0]
+                if sample_doc < first_ba5_infection_date:
+                    #Case 4
+                    print('>>>Sample was collected before the first BA.5')
+                    print('Case 4')
+                    case_to_list[4].append(index)
+                    continue
+                else:
+                    #Case 5
+                    print('>>>Sample was collected after or at the first BA.5')
+                    print('Case 5')
+                    case_to_list[5].append(index)
+                    continue
+
+
+            #Case 6/7: Only infections after Jun 30 2022
+            selection    = jun_30_2022 < inf_dates
+            constraint_1 = selection.all()
+
+            if constraint_1:
+                print('Participant had only infections after Jun-30-2022')
+                ba5_infection_dates = inf_dates[selection]
+                first_ba5_infection_date = ba5_infection_dates.iloc[0]
+                if sample_doc < first_ba5_infection_date:
+                    #Case 6
+                    print('>>>Sample was collected before the first BA.5')
+                    print('Case 6')
+                    case_to_list[6].append(index)
+                    continue
+                else:
+                    #Case 7
+                    print('>>>Sample was collected after or at the first BA.5')
+                    print('Case 7')
+                    case_to_list[7].append(index)
+                    continue
+
+        print(f'We have {candidates=}.')
+        fname = 'stratification_inf_vac_nov_30_2022.xlsx'
+        folder= 'X'
+        fname = os.path.join(self.parent.requests_path,
+                folder, fname)
+        with pd.ExcelWriter(fname) as writer:
+            for key, L in case_to_list.items():
+                #The key represents the case
+                #L is the list of full_IDs for a given case.
+                print(f'For case #{key} we have {len(L)} elements.')
+                df_slice = df.loc[L,:].copy()
+                sh_name = 'case_' + str(key)
+                df_slice.to_excel(writer, sheet_name = sh_name, index = False)
 
 
 

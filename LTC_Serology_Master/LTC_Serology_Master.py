@@ -222,6 +222,7 @@ class LTCSerologyMaster:
         #Tara requested these computations
         #on Nov 29 2022
         #Last update: Nov 30 2022
+        print('Warning: Make sure the W file is updated.')
         fname  = 'W.xlsx'
         fname = os.path.join(self.parent.outputs_path, fname)
         df_w = pd.read_excel(fname)
@@ -231,8 +232,10 @@ class LTCSerologyMaster:
         n_levels = 4
         levels = list(range(1,n_levels+1))
         level_to_list = {}
+        level_to_n_cases_wo_posterior = {}
         for level in levels:
             level_to_list[level] = []
+            level_to_n_cases_wo_posterior[level] = 0
 
         level_to_delta_vac = {1:40, 2:8*30, 3:6*30, 4:9*30}
         #Careful with the last case.
@@ -280,12 +283,19 @@ class LTCSerologyMaster:
                 current_dose    = vaccine_dates[level]
                 posterior_dose  = datetime.datetime(2023,1,1)
                 v_plus          = n_vacs_req + 1
+                no_posterior_dose = False
                 if v_plus <= n_vacs:
                     #This person has at least one more vaccination
                     posterior_dose  = vaccine_dates[level+1]
                 else:
-                    print(f'{ID=} does not have the additional dose {v_plus}'.)
+                    print(f'{ID=} does not have the additional dose {v_plus}.')
                     print(f'However, we can still proceed.')
+                    no_posterior_dose = True
+                    #if level == 4:
+                        #pass
+                    #else:
+                        ##Force the requirement of the posterior dose.
+                        #break
                 delta  = current_dose - previous_dose
                 delta /= np.timedelta64(1,'D')
                 if delta < 0:
@@ -327,6 +337,7 @@ class LTCSerologyMaster:
                         print(f'{full_ID=} is between the current and posterior dose.')
                         print(f'{full_ID=} is between dose {level+1} and dose {level+2}.')
                     else:
+                        #Move to next sample
                         continue
                     #Now is time to check if no infections
                     #took place before or at the sample collection
@@ -336,6 +347,10 @@ class LTCSerologyMaster:
                         #t = (full_ID, doc_s, wuhan_s)
                         #L.append(t)
                         level_to_list[level].append(full_ID)
+
+                        if no_posterior_dose:
+                            level_to_n_cases_wo_posterior[level] += 1
+
                         #Move to next sample.
                         continue
                     selection = infection_dates.notnull()
@@ -349,84 +364,118 @@ class LTCSerologyMaster:
                         #t = (full_ID, doc_s, wuhan_s)
                         #L.append(t)
                         level_to_list[level].append(full_ID)
+
+                        if no_posterior_dose:
+                            level_to_n_cases_wo_posterior[level] += 1
+
                         #Move to next sample.
                         continue
 
-        for key, L in level_to_list.items():
-            print(f'In level {key} we have {len(L)} participants.')
-            list_of_indices = []
-            for full_ID in L:
-                selection = df_w['Full ID'] == full_ID
-                index = df_w[selection].index[0]
-                list_of_indices.append(index)
 
+        fname = 'decay_data.xlsx'
+        folder= 'Tara_nov_30_2022'
+        fname = os.path.join(self.parent.requests_path,
+                folder, fname)
 
-        return
+        with pd.ExcelWriter(fname) as writer:
+            print('Here')
+            for key,L in level_to_list.items():
+                print(f'For level #{key} we have {len(L)} elements.')
+                x = level_to_n_cases_wo_posterior[key]
+                cases_with_no_posterior_dose = x
+                print(f'{cases_with_no_posterior_dose=}.')
+                if len(L) == 0:
+                    continue
+                selection = df_w['Full ID'].isin(L)
+                df_slice = df_w.loc[selection,:].copy()
+                min_date = df_slice[DOC].min()
+                print(f'For level #{key} {min_date=}.')
+                days_col = (df_slice[DOC] - min_date) / np.timedelta64(1,'D')
+                df_slice.insert(3,'Days since earliest sample', days_col)
+                df_slice.insert(4,'Log2-Wuhan', np.log2(df_slice[marker]))
+                sh_name = 'dose_' + str(key+1)
+                df_slice.to_excel(writer, sheet_name = sh_name, index = False)
 
-        df_slice = df_w.loc[list_of_indices,:]
-        min_date = df_slice[DOC].min()
-        print(f'{min_date=}')
-        days_col = (df_slice[DOC] - min_date) / np.timedelta64(1,'D')
-        df_slice.insert(3,'Days since earliest sample', days_col)
-        df_slice.insert(4,'Log2-Wuhan', np.log2(df_slice[marker]))
-        fname = 'second_dose.xlsx'
-        folder = 'Tara_nov_30_2022'
-        fname = os.path.join(self.parent.requests_path, folder, fname)
-        df_slice.to_excel(fname, index=False)
 
     def plot_decay_for_serology(self):
-        fname  = 'second_dose.xlsx'
-        folder = 'Tara_nov_30_2022'
-        marker = 'Wuhan (SB3)'
+        marker     = 'Wuhan (SB3)'
         log_marker = 'Log2-Wuhan'
-        dses   = 'Days since earliest sample'
-        fname  = os.path.join(self.parent.requests_path, folder, fname)
-        df     = pd.read_excel(fname)
-        max_days = df[dses].max()
-        intervals = pd.date_range(start='2021-03-31', end='2022-01-01', freq='M')
-        periods   = pd.period_range(start='2021-04', end='2021-12', freq='M')
-        periods   = periods.to_timestamp().strftime("%b-%y")
-        bins = pd.cut(df[self.DOC], intervals, labels=periods)
-        df_g = df.groupby(bins)
-        log_wuhan_medians = df_g[log_marker].agg('median')
-        days_medians = df_g[dses].agg('median')
-        print(log_wuhan_medians)
-        print(days_medians)
-        n_cols = len(periods)
-        plt.close('all')
-        ax = df_g.boxplot(subplots=False,
-                #positions=range(len(periods)),
-                rot = 45,
-                column=log_marker,
-                showfliers=False)
-        ax.set_title('Second dose')
-        #ax.set_xlabel('')
-        ax.set_ylabel('$\log_2$(MNT50) (Wuhan)')
+        dses       = 'Days since earliest sample'
 
-        fname = 'second_dose_box_plot.png'
-        folder = 'Tara_nov_30_2022'
-        fname = os.path.join(self.parent.requests_path, folder, fname)
-        plt.xticks(range(1,n_cols+1),periods)
-        ax.figure.savefig(fname)
+        fname = 'decay_data.xlsx'
+        folder= 'Tara_nov_30_2022'
+        fname = os.path.join(self.parent.requests_path,
+                folder, fname)
+        book = pd.read_excel(fname, sheet_name=None)
+        for k, (sheet, df) in enumerate(book.items()):
+            print(f'Working with {sheet=}')
+            duration  = df[dses].max()
+            min_date  = df[self.DOC].min()
+            max_date  = df[self.DOC].max()
+            min_day   = min_date.day
+            max_day   = max_date.day
+            lower_label = min_date.replace(day=1)
+            upper_label = max_date.replace(day=1)
+            lower_range = lower_label - pd.DateOffset(days=1)
+            upper_range = upper_label + pd.DateOffset(months=1)
+            print(f'{max_date=}')
+            print(f'{min_date=}')
+            print(f'{lower_label=}')
+            print(f'{upper_label=}')
+            print(f'{lower_range=}')
+            print(f'{upper_range=}')
+            intervals = pd.date_range(start=lower_range,
+                    end=upper_range, freq='M')
+            periods   = pd.period_range(start=lower_label,
+                    end=upper_label, freq='M')
+            periods   = periods.to_timestamp().strftime("%b-%y")
+            bins = pd.cut(df[self.DOC], intervals, labels=periods)
+            df_g = df.groupby(bins)
+            plt.close('all')
+            ax = df_g.boxplot(subplots=False,
+                    #positions=range(len(periods)),
+                    rot = 45,
+                    column=log_marker,
+                    #showfliers=False,
+                    )
+            reg_exp= re.compile('[0-9]+')
+            obj = reg_exp.search(sheet) 
+            dose_n = obj.group(0)
+            txt = 'Dose ' + dose_n
+            ax.set_title(txt)
+            #ax.set_xlabel('')
+            ax.set_ylabel('$\log_2$(MNT50) (Wuhan)')
 
-        plt.close('all')
-        ax = df.plot.scatter(x=dses, y=log_marker, c='Blue')
-        const = np.log2(np.exp(1))
-        p = np.polyfit(days_medians,
-                log_wuhan_medians, 1)
-        t = np.linspace(0,max_days,300)
-        y = np.polyval(p, t) * const
-        ax.plot(t,y,'k-',linewidth=2)
-        ax.set_title('Second dose')
-        ax.set_ylabel('$\log_2$(MNT50) (Wuhan)')
-        half_life = -1/p[0]
-        txt = '$\lambda={0:.1f}$ days'
-        print(txt.format(half_life))
+            fname = 'dose_' + dose_n + '_box_plot.png'
+            folder = 'Tara_nov_30_2022'
+            fname = os.path.join(self.parent.requests_path, folder, fname)
+            n_cols = len(periods)
+            plt.xticks(range(1,n_cols+1),periods)
+            ax.figure.savefig(fname)
 
-        fname = 'second_dose_scatter_plot.png'
-        folder = 'Tara_nov_30_2022'
-        fname = os.path.join(self.parent.requests_path, folder, fname)
-        ax.figure.savefig(fname)
+            #Regression
+            log_wuhan_medians = df_g[log_marker].agg('median').dropna()
+            days_medians = df_g[dses].agg('median').dropna()
+            print(f'{log_wuhan_medians=}')
+            print(f'{days_medians=}')
+            plt.close('all')
+            ax = df.plot.scatter(x=dses, y=log_marker, c='Blue')
+            p = np.polyfit(df[dses], df[log_marker], 1)
+            #p = np.polyfit(days_medians,
+                    #log_wuhan_medians, 1)
+            t = np.linspace(0,duration,300)
+            y = np.polyval(p, t)
+            ax.plot(t,y,'k-',linewidth=2)
+            half_life = -1/p[0]
+            txt  = 'Dose ' + dose_n
+            txt += ': $\lambda={0:.1f}$ days'.format(half_life)
+            print(txt)
+            ax.set_title(txt)
+            ax.set_ylabel('$\log_2$(MNT50) (Wuhan)')
+            fname = 'dose_' + dose_n + '_scatter_plot.png'
+            folder = 'Tara_nov_30_2022'
+            fname = os.path.join(self.parent.requests_path, folder, fname)
+            ax.figure.savefig(fname)
 
 
 
