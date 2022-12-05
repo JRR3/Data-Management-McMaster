@@ -41,6 +41,7 @@ class MasterParticipantData:
 
         self.dayfirst_with_slash_regexp = re.compile('[0-9]+[/][0-9]+[/](?P<year>[0-9]+)')
 
+        self.use_day_first_for_slash = False
         txt = ('(?P<month>[0-9]+)' + '[/]' +
         '(?P<day>[0-9]+)' + '[/]' +
         '(?P<year>[0-9]+)')
@@ -234,7 +235,11 @@ class MasterParticipantData:
         return date
 
 
-    def convert_str_to_date(self, txt, use_day_first_for_slash=True):
+    def convert_str_to_date(self, txt, use_day_first_for_slash=None):
+        #Note that we are using an external variable to define
+        #the behavior.
+        if use_day_first_for_slash is None:
+            use_day_first_for_slash = self.use_day_first_for_slash
         if pd.isnull(txt):
             raise ValueError('Object is NAN')
         obj = self.monthfirst_as_text_regexp.search(txt)
@@ -278,8 +283,8 @@ class MasterParticipantData:
                 obj = self.dayfirst_regexp.search(txt)
                 if obj:
                     #Check if we have a short year.
-                    date = obj.group(0)
-                    date = self.short_year_to_long_year(date)
+                    #date = obj.group(0)
+                    date = self.short_year_to_long_year(obj)
                     date = pd.to_datetime(date, dayfirst=True)
                 else:
                     print(f'{txt=}')

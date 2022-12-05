@@ -695,7 +695,8 @@ class LTCInfectionSummary:
                 column_names = cols_to_melt,
                 names_to = ['Infection event', 'Infection type'],
                 values_to = ['Infection date', 'Method'],
-                names_pattern = ['Positive Date [0-9]+', 'Positive Type [0-9]+'],
+                names_pattern = ['Infection Date [0-9]+',
+                    'Infection Type [0-9]+'],
                 )
         df.dropna(subset=['Infection date'], axis=0, inplace=True)
         df.drop(columns=['Infection type'], inplace=True)
@@ -747,14 +748,14 @@ class LTCInfectionSummary:
 
 
         fpure = 'infection_dates_delta.xlsx'
-        folder= 'Braeden_oct_20_2022'
+        folder= 'one_column_files'
         fname = os.path.join(self.parent.requests_path, folder, fpure)
         df.to_excel(fname, index = False)
         print(f'The {fpure=} file has been written to Excel.')
 
     def compute_slopes_for_serology(self):
         fpure = 'infection_dates_delta.xlsx'
-        folder= 'Braeden_oct_20_2022'
+        folder= 'one_column_files'
         fname = os.path.join(self.parent.requests_path, folder, fpure)
         df = pd.read_excel(fname)
         print(df)
@@ -815,7 +816,7 @@ class LTCInfectionSummary:
 
         print(df)
         fpure = 'infection_dates_slope.xlsx'
-        folder= 'Braeden_oct_20_2022'
+        folder= 'one_column_files'
         fname = os.path.join(self.parent.requests_path, folder, fpure)
         df.to_excel(fname, index = False)
         print(f'The {fpure=} file has been written to Excel.')
@@ -919,10 +920,19 @@ class LTCInfectionSummary:
 
 
     def plot_dawns_infection_count(self):
-        folder = 'Dawn_nov_03_2022'
-        fname = 'infection_dates_slope.xlsx'
+        #This function generates a plot of infections for
+        #each month.
+        use_only_active_participants = True
+        plot_serology = False
+        folder = 'one_column_files'
+        #fname = 'infection_dates_slope.xlsx'
+        fname = 'Infection_dates_as_one_column.xlsx'
         fname = os.path.join(self.parent.requests_path, folder, fname)
         df_i = pd.read_excel(fname)
+        if use_only_active_participants:
+            selection = df_i['Active']
+            print(selection.value_counts())
+            df_i = df_i[selection]
         site_type = self.parent.MPD_obj.site_type
         intervals = pd.date_range(start='2019-12-31', end='2022-10-31', freq='M')
         periods   = pd.period_range(start='2020-01', end='2022-10', freq='M')
@@ -937,40 +947,40 @@ class LTCInfectionSummary:
         df_i.replace(0,np.nan, inplace=True)
         print(bins)
         print(df_i)
-        return
         #Old version
         #df_i = df_i[self.DOI].groupby([df_i[self.DOI].dt.to_period('M'),
             #df_i[site_type]]).agg('count')
         #df_i = df_i.unstack(level=1)
-        #===================Serology
-        s_label = 'Spike-IgG-100'
-        seroconversion ='Seroconversion'
-        threshold = 0.5487
-        selection = self.parent.LSM_obj.df[s_label].notnull()
-        DOC = self.parent.LSM_obj.DOC
-        #Nonempty
-        df_s = self.parent.LSM_obj.df[selection].copy()
-        #Above threshold
-        selection = df_s[s_label] > threshold
-        sconv_table = selection.value_counts()
-        df_s[seroconversion] = 1
-        df_s[seroconversion] = df_s[seroconversion].where(threshold < df_s[s_label], 0)
-        bins = pd.cut(df_s[DOC], intervals, labels=periods)
-        gb_serology = df_s.groupby(bins)
-        all_samples = gb_serology[DOC].agg('count')
-        all_samples.replace(0,np.nan, inplace=True)
-        sconv = gb_serology[seroconversion].sum()
-        sconv.replace(0,np.nan, inplace=True)
-        #Old version
-        #all_samples = df_s[DOC].groupby(df_s[DOC].dt.to_period('M')).agg('count')
-        #sconv = df_s.groupby(df_s[DOC].dt.to_period('M'))[seroconversion].sum()
-        #print(sconv)
-        #print(all_samples)
-        df_s = all_samples.to_frame().join(sconv)
-        dc = {'Date Collected':'all', 'Seroconversion':'+'}
-        df_s.rename(columns=dc, inplace=True)
-        df_s['ratio'] = df_s['+'] / df_s['all'] * 100
-        print(df_s)
+        if plot_serology:
+            #===================Serology
+            s_label = 'Spike-IgG-100'
+            seroconversion ='Seroconversion'
+            threshold = 0.5487
+            selection = self.parent.LSM_obj.df[s_label].notnull()
+            DOC = self.parent.LSM_obj.DOC
+            #Nonempty
+            df_s = self.parent.LSM_obj.df[selection].copy()
+            #Above threshold
+            selection = df_s[s_label] > threshold
+            sconv_table = selection.value_counts()
+            df_s[seroconversion] = 1
+            df_s[seroconversion] = df_s[seroconversion].where(threshold < df_s[s_label], 0)
+            bins = pd.cut(df_s[DOC], intervals, labels=periods)
+            gb_serology = df_s.groupby(bins)
+            all_samples = gb_serology[DOC].agg('count')
+            all_samples.replace(0,np.nan, inplace=True)
+            sconv = gb_serology[seroconversion].sum()
+            sconv.replace(0,np.nan, inplace=True)
+            #Old version
+            #all_samples = df_s[DOC].groupby(df_s[DOC].dt.to_period('M')).agg('count')
+            #sconv = df_s.groupby(df_s[DOC].dt.to_period('M'))[seroconversion].sum()
+            #print(sconv)
+            #print(all_samples)
+            df_s = all_samples.to_frame().join(sconv)
+            dc = {'Date Collected':'all', 'Seroconversion':'+'}
+            df_s.rename(columns=dc, inplace=True)
+            df_s['ratio'] = df_s['+'] / df_s['all'] * 100
+            print(df_s)
 
         #Plotting time
         width=0.35
@@ -985,19 +995,21 @@ class LTCInfectionSummary:
         plt.legend(loc='upper left')
         plt.xticks(rotation=90)
         plt.tight_layout()
+        fname = 'plot_inf_count.png'
 
-        ax2 = ax.twinx()
-        n_labels = len(labels)
-        x = list(range(n_labels))
-        ax2.plot(x,df_s['ratio'], 'bo', linestyle='-', label='% SC')
-        ax2.set_ylabel('% Seroconversion (SC)')
-        ax2.set_ylim([0, 100])
-        plt.legend(loc='upper right')
+        if plot_serology:
+            ax2 = ax.twinx()
+            n_labels = len(labels)
+            x = list(range(n_labels))
+            ax2.plot(x,df_s['ratio'], 'bo', linestyle='-', label='% SC')
+            ax2.set_ylabel('% Seroconversion (SC)')
+            ax2.set_ylim([0, 100])
+            plt.legend(loc='upper right')
+            plt.xticks(rotation=90)
+            plt.tight_layout()
+            fname = 'plot_inf_plus_sconv.png'
 
-        plt.xticks(rotation=90)
-        plt.tight_layout()
 
-        fname = 'plot_inf_plus_sconv.png'
         fname = os.path.join(self.parent.requests_path, folder, fname)
         fig.savefig(fname)
 
@@ -1121,5 +1133,7 @@ class LTCInfectionSummary:
         kinds = ['Infection', 'Vaccine']
         for kind in kinds:
             df = self.melt_infection_or_vaccination_dates(kind)
-            label = kind + '_dates_as_one_column'
-            self.parent.write_df_to_excel(df, label)
+            fname = kind + '_dates_as_one_column.xlsx'
+            folder = 'one_column_files'
+            fname = os.path.join(self.parent.requests_path, folder, fname)
+            df.to_excel(fname, index = False)

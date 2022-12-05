@@ -214,13 +214,16 @@ class Merger:
 
 
     def load_single_column_df_for_update(self, fname, folder, sheet=0):
-        #Nov 2 2022
+        #Dec 05 2022
         fname = os.path.join(self.requests_path, folder, fname)
         df_up = pd.read_excel(fname, header=None, sheet_name=sheet)
         #df_up.dropna(axis=0, inplace=True)
         return df_up
 
     def generate_infection_and_reason_dict(self, df_up):
+        #For infections from the Schlegel Village
+        #we use the format month/day/year
+        self.MPD_obj.use_day_first_for_slash = False
         flag_update_active = False
         flag_update_waves  = False
         infection_dictionary = {'ID':[], 'date':[]}
@@ -238,7 +241,7 @@ class Merger:
         #reason_rx = re.compile('[a-zA-Z]+([ ][a-zA-Z]+)*')
         #Moved Out --> Moved
         #Now we use the following.
-        reason_rx = re.compile('[a-zA-Z]+')
+        reason_rx = re.compile('[-a-zA-Z]+')
 
         #Intead of using a REGEXP for the date, we use
         #the functions we created in the MPD Class.
@@ -248,8 +251,7 @@ class Merger:
         for txt in df_up[0]:
             print(txt)
             #date_obj = date_rx.search(txt)
-            date, matched_str = self.MPD_obj.convert_str_to_date(txt,
-                    use_day_first_for_slash=True)
+            date, matched_str = self.MPD_obj.convert_str_to_date(txt)
             txt_m_date = txt.replace(matched_str, '')
             id_obj = id_rx.search(txt_m_date)
             if id_obj:
@@ -530,7 +532,7 @@ class Merger:
         return X
 
 
-    def tara_nov_16_2022(self):
+    def schlegel_village_update(self):
         #Use this function to update the Master file
         #when using Retirement Home data.
         store_reformatted_update = True
@@ -538,8 +540,8 @@ class Merger:
         #for old_reason, new_reason in zip(self.MPD_obj.removal_states,
                 #self.MPD_obj.new_removal_states):
             #self.df['Reason'].replace(old_reason, new_reason, inplace=True)
-        fname  = 'guelph.xlsx'
-        folder = 'Tara_nov_16_2022'
+        fname  = 'sv_update.xlsx'
+        folder = 'Tara_dec_05_2022'
         fname = os.path.join('..','requests',folder, fname)
         linf = 'Infections'
         #Read as columns of strings
@@ -550,12 +552,23 @@ class Merger:
         #df_up.replace('Refused', np.nan, inplace=True)
         #df_up.replace('REFUSED', np.nan, inplace=True)
         #df_up.replace('DECLINED', np.nan, inplace=True)
-        df_up.replace('Refused Consent', 'Refused-Consent', inplace=True)
+        df_up['Reason'].replace('Refused', 'Refused-Consent', inplace=True)
+        df_up['Reason'].replace('No Reconsent', 'Refused-Consent', inplace=True)
+        df_up['Reason'].replace('no reconsent signed', 'Refused-Consent', inplace=True)
+        df_up['Reason'].replace('Refused Consent', 'Refused-Consent', inplace=True)
+        df_up['Reason'].replace('Withdrew Consent', 'Refused-Consent', inplace=True)
+        txt = ('Personal history of COVID-19 – '
+                'unaware of specific date as it was before he came to FV.')
+        df_up.replace(txt, np.nan, inplace=True)
+        df_up.replace('Refused', np.nan, inplace=True)
+        df_up.replace('refused', np.nan, inplace=True)
+        df_up.replace('REFUSED', np.nan, inplace=True)
         df_up.replace('None', np.nan, inplace=True)
         df_up.replace('Unknown', np.nan, inplace=True)
         df_up.replace('Yes - date unknown', np.nan, inplace=True)
         df_up.replace('COVISHEILD', 'COVISHIELD', inplace=True)
         df_up.replace(' ', np.nan, inplace=True)
+        df_up.replace('n', np.nan, inplace=True)
         df_up.replace('BmodernaO', 'BModernaO', inplace=True)
         df_up.replace('Spikevax bivalent', 'BModernaO', inplace=True)
         df_up.replace('F', 'Female', inplace=True)
@@ -597,10 +610,10 @@ class Merger:
         dc_id_to_inf = {}
         dc_id_to_method = {}
 
-        ID_in_ID1_or_ID2          = False
+        ID_in_ID1_or_ID2          = True
         DOR_is_merged_with_Reason = False
         find_vaccines             = True
-        find_infections           = False
+        find_infections           = True
 
         for index_up, row_up in df_up.iterrows():
             #=========================ID
@@ -760,11 +773,13 @@ class Merger:
 
         #Date chronology
         if find_vaccines:
-            print('Checking vaccination chronology of the update.')
-            self.LIS_obj.set_chronological_order(df_up,
-                    self.LIS_obj.vaccine_date_cols,
-                    self.LIS_obj.vaccine_type_cols,
-                    'Vaccines')
+            #We use what is given.
+            pass
+            #print('Checking vaccination chronology of the update.')
+            #self.LIS_obj.set_chronological_order(df_up,
+                    #self.LIS_obj.vaccine_date_cols,
+                    #self.LIS_obj.vaccine_type_cols,
+                    #'Vaccines')
 
 
         #Storing the reformatted update.
@@ -830,14 +845,27 @@ class Merger:
     def single_column_update(self):
         #Use this function for updates using 
         #the one-column format.
-        fname  = 'update_infection.xlsx'
-        folder = 'Tara_nov_28_2022'
+        fname  = 'update_1.xlsx'
+        folder = 'Megan_dec_05_2022'
         df_up = self.load_single_column_df_for_update(fname, folder)
         print(df_up)
         self.extract_and_update_DOR_Reason_Infection(df_up)
-        date = datetime.datetime(2022,11,16)
-        selection = self.df['Reason'] == 'Refused-Consent'
-        self.df.loc[selection,self.MPD_obj.DOR] = date
+
+    def two_column_update(self):
+        #Use this function for updates using 
+        #the one-column format.
+        fname  = 'update_2.xlsx'
+        folder = 'Megan_dec_05_2022'
+        df_up = self.load_single_column_df_for_update(fname, folder)
+        df_up[0] = df_up[0].str.replace('LTC1-','')
+        txt = 'Refused Extension - Withdrawn on'
+        df_up[1] = df_up[1].str.replace(txt,'Refused-Consent')
+        txt = 'No Reconsent - Withdraw'
+        df_up[1] = df_up[1].str.replace(txt,'Refused-Consent')
+        df_up[1] = df_up[1].str.replace(',','')
+        df_up[0] = df_up[0] + ' ' + df_up[1]
+        print(df_up)
+        self.extract_and_update_DOR_Reason_Infection(df_up)
 
 
     #Nov 25 2022
@@ -919,5 +947,17 @@ obj = Merger()
 #obj.merge_M_with_LSM()
 #obj.stratification_by_inf_and_vac()
 #obj.LIS_obj.plot_dawns_infection_count()
-obj.LSM_obj.serology_decay_computation()
-obj.LSM_obj.plot_decay_for_serology()
+#obj.LSM_obj.serology_decay_computation()
+#obj.LSM_obj.plot_decay_for_serology()
+#Dec 05 2022
+#obj.LIS_obj.get_serology_dates_for_infection_dates()
+#obj.LIS_obj.compute_slopes_for_serology()
+#obj.LIS_obj.produce_melted_files()
+#obj.LIS_obj.plot_dawns_infection_count()
+#obj.schlegel_village_update()
+#obj.write_the_M_file_to_excel()
+#obj.single_column_update()
+#obj.two_column_update()
+#obj.write_the_M_file_to_excel()
+#obj.merge_M_with_LSM()
+obj.LIS_obj.produce_melted_files()
