@@ -213,124 +213,7 @@ class Merger:
         self.LIS_obj.update_the_dates_and_waves(df_up)
 
 
-    def load_single_column_df_for_update(self, fname, folder, sheet=0):
-        #Dec 05 2022
-        fname = os.path.join(self.requests_path, folder, fname)
-        df_up = pd.read_excel(fname, header=None, sheet_name=sheet)
-        #df_up.dropna(axis=0, inplace=True)
-        return df_up
 
-    def generate_infection_and_reason_dict(self, df_up):
-        #For infections from the Schlegel Village
-        #we use the format month/day/year
-        self.MPD_obj.use_day_first_for_slash = False
-        flag_update_active = False
-        flag_update_waves  = False
-        infection_dictionary = {'ID':[], 'date':[]}
-        reason_dictionary = {'ID':[],
-                             self.MPD_obj.reason:[],
-                             'date':[]}
-        #fname = 'up.xlsx'
-        #folder = 'Tara_oct_31_2022'
-        #fname = os.path.join(self.requests_path, folder, fname)
-        #df_up = pd.read_excel(fname, header=None)
-        #df_up.dropna(axis=0, inplace=True)
-
-        id_rx     = re.compile('[0-9]{2}[-][0-9]{7}')
-        #The following regexp is no longer in use.
-        #reason_rx = re.compile('[a-zA-Z]+([ ][a-zA-Z]+)*')
-        #Moved Out --> Moved
-        #Now we use the following.
-        reason_rx = re.compile('[-a-zA-Z]+')
-
-        #Intead of using a REGEXP for the date, we use
-        #the functions we created in the MPD Class.
-        #date_rx   = re.compile('[a-zA-Z]+[ ]+[0-9]{1,2}(?P<year>[ ]+[0-9]+)?')
-
-        #We assume the data frame has only one column.
-        for txt in df_up[0]:
-            print(txt)
-            #date_obj = date_rx.search(txt)
-            date, matched_str = self.MPD_obj.convert_str_to_date(txt)
-            txt_m_date = txt.replace(matched_str, '')
-            id_obj = id_rx.search(txt_m_date)
-            if id_obj:
-                ID = id_obj.group(0)
-                txt_m_date_m_id = txt_m_date.replace(ID, '')
-                reason_obj = reason_rx.search(txt_m_date_m_id)
-                if reason_obj:
-                    reason = reason_obj.group(0)
-                    print(f'{reason=}')
-                else:
-                    raise ValueError('Unable to parse string.')
-            else:
-                raise ValueError('Unable to parse string.')
-
-            print(f'{ID=}')
-            print(f'{reason=}')
-            print(f'{date=}')
-            print('---------Extraction is complete.')
-            selector = self.df['ID'] == ID
-            if reason.lower() in self.MPD_obj.removal_states_l:
-                #This individual has been removed
-                flag_update_active = True
-                reason_dictionary['ID'].append(ID)
-                reason_dictionary[self.MPD_obj.reason].append(reason)
-                reason_dictionary['date'].append(date)
-            elif reason.lower() == 'positive':
-                #This individual had an infection
-                flag_update_waves = True
-                infection_dictionary['ID'].append(ID)
-                infection_dictionary['date'].append(date)
-
-        return (flag_update_active,
-                flag_update_waves,
-                infection_dictionary,
-                reason_dictionary)
-
-
-    def extract_and_update_DOR_Reason_Infection(self, df_up):
-        #Modified on Nov 1, 2022
-        #Moved Out --> Moved
-        #On a first pass you might not want to modify
-        #the M file until you are convinced that the
-        #text was correctly parsed.
-        #This function updates:
-        #MPD
-        #LIS
-        #This function is able to identify date of removal, reason,
-        #and infection date.
-        #Examples
-        #01-8580579 Deceased 13/08/2022
-        #50-1910008 Deceased Sep 15 2022
-        #14-5077158  Positive Oct 2 2022
-        #>>>Removed 14-5077158  Positive Oct 2 (No year)
-
-
-        (flag_update_active,
-                flag_update_waves,
-                infection_dictionary,
-                reason_dictionary) =\
-                        self.generate_infection_and_reason_dict(df_up)
-
-        if flag_update_active:
-            DOR = self.MPD_obj.DOR
-            df_up = pd.DataFrame(reason_dictionary)
-            df_up[DOR] = pd.to_datetime(df_up['date'])
-            df_up.drop(columns='date', inplace=True)
-            print(df_up)
-            #self.MPD_obj.update_reason_dates_and_status(df_up)
-            #Merge instead of point modifications
-            self.df = self.merge_with_M_and_return_M(df_up, 'ID', kind='original+')
-            self.MPD_obj.update_active_status_column()
-        if flag_update_waves:
-            df_up = pd.DataFrame(infection_dictionary)
-            df_up['DOI'] = pd.to_datetime(df_up['date'])
-            print(df_up)
-            self.LIS_obj.update_the_dates_and_waves(df_up)
-            #Is this necessary?
-            self.MPD_obj.update_active_status_column()
-        print('Please write to Excel externally.')
 
 
     def check_id_format(self, df, col):
@@ -534,7 +417,13 @@ class Merger:
 
     def schlegel_village_update(self):
         #Use this function to update the Master file
-        #when using Retirement Home data.
+        #when using LTC/RH data.
+        #==================================================
+        #Warning: Be careful with the format of the dates.
+        #Use the MPD_obj.use_day_first_for_slash = True/False
+        #property to set the format for each section.
+        #self.MPD_obj.convert_str_to_date()
+        #==================================================
         store_reformatted_update = True
         #Rename Reasons
         #for old_reason, new_reason in zip(self.MPD_obj.removal_states,
@@ -842,43 +731,6 @@ class Merger:
         self.LIS_obj.order_infections_and_vaccines()
         self.MPD_obj.update_active_status_column()
 
-    def single_column_update(self):
-        #Use this function for updates using 
-        #the one-column format.
-        fname  = 'update_1.xlsx'
-        folder = 'Megan_dec_05_2022'
-        df_up = self.load_single_column_df_for_update(fname, folder)
-        print(df_up)
-        self.extract_and_update_DOR_Reason_Infection(df_up)
-
-    def two_column_update(self):
-        #Use this function for updates using 
-        #the one-column format.
-        fname  = 'update_2.xlsx'
-        folder = 'Megan_dec_05_2022'
-        df_up = self.load_single_column_df_for_update(fname, folder)
-        df_up[0] = df_up[0].str.replace('LTC1-','')
-        txt = 'Refused Extension - Withdrawn on'
-        df_up[1] = df_up[1].str.replace(txt,'Refused-Consent')
-        txt = 'No Reconsent - Withdraw'
-        df_up[1] = df_up[1].str.replace(txt,'Refused-Consent')
-        df_up[1] = df_up[1].str.replace(',','')
-        df_up[0] = df_up[0] + ' ' + df_up[1]
-        print(df_up)
-        self.extract_and_update_DOR_Reason_Infection(df_up)
-
-
-    #Nov 25 2022
-    def whole_blood_update(self):
-        folder = 'Megan_nov_25_2022'
-        fname = 'whole_blood.xlsx'
-        fname = os.path.join('..','requests',folder, fname)
-        df_up = pd.read_excel(fname)
-        print(df_up)
-        self.df = self.merge_X_with_Y_and_return_Z(self.df,
-                                         df_up,
-                                         self.merge_column,
-                                         kind='original+')
 
 
 
@@ -961,3 +813,4 @@ obj = Merger()
 #obj.write_the_M_file_to_excel()
 #obj.merge_M_with_LSM()
 obj.LIS_obj.produce_melted_files()
+obj.merge_M_with_LSM()

@@ -442,9 +442,176 @@ class MasterParticipantData:
                 sh_name = 'case_' + str(key)
                 df_slice.to_excel(writer, sheet_name = sh_name, index = False)
 
+    def map_old_ids_to_new(self, df):
+        #Dec 06 2022
+        #This function has to be tested.
+        fname = 'mapping_old_ids_to_new.xlsx'
+        fname = os.path.join(self.parent.MPD_path, fname)
+        mapping = pd.read_excel(fname)
+        for index_map, row_map in mapping.iterrows():
+            old_id = row_map['Old']
+            new_id = row_map['New']
+            df['ID'].replace(old_id, new_id, inplace=True)
 
 
 
+    def generate_infection_and_reason_dict(self, df_up):
+        #For infections from the Schlegel Village
+        #we use the format month/day/year
+        self.use_day_first_for_slash = False
+        flag_update_active = False
+        flag_update_waves  = False
+        infection_dictionary = {'ID':[], 'date':[]}
+        reason_dictionary = {'ID':[],
+                             self.reason:[],
+                             'date':[]}
+        #fname = 'up.xlsx'
+        #folder = 'Tara_oct_31_2022'
+        #fname = os.path.join(self.requests_path, folder, fname)
+        #df_up = pd.read_excel(fname, header=None)
+        #df_up.dropna(axis=0, inplace=True)
+
+        id_rx     = re.compile('[0-9]{2}[-][0-9]{7}')
+        #The following regexp is no longer in use.
+        #reason_rx = re.compile('[a-zA-Z]+([ ][a-zA-Z]+)*')
+        #Moved Out --> Moved
+        #Now we use the following.
+        reason_rx = re.compile('[-a-zA-Z]+')
+
+        #Intead of using a REGEXP for the date, we use
+        #the functions we created in the MPD Class.
+        #date_rx   = re.compile('[a-zA-Z]+[ ]+[0-9]{1,2}(?P<year>[ ]+[0-9]+)?')
+
+        #We assume the data frame has only one column.
+        for txt in df_up[0]:
+            print(txt)
+            #date_obj = date_rx.search(txt)
+            date, matched_str = self.convert_str_to_date(txt)
+            txt_m_date = txt.replace(matched_str, '')
+            id_obj = id_rx.search(txt_m_date)
+            if id_obj:
+                ID = id_obj.group(0)
+                txt_m_date_m_id = txt_m_date.replace(ID, '')
+                reason_obj = reason_rx.search(txt_m_date_m_id)
+                if reason_obj:
+                    reason = reason_obj.group(0)
+                    print(f'{reason=}')
+                else:
+                    raise ValueError('Unable to parse string.')
+            else:
+                raise ValueError('Unable to parse string.')
+
+            print(f'{ID=}')
+            print(f'{reason=}')
+            print(f'{date=}')
+            print('---------Extraction is complete.')
+            selector = self.parent.df['ID'] == ID
+            if reason.lower() in self.removal_states_l:
+                #This individual has been removed
+                flag_update_active = True
+                reason_dictionary['ID'].append(ID)
+                reason_dictionary[self.reason].append(reason)
+                reason_dictionary['date'].append(date)
+            elif reason.lower() == 'positive':
+                #This individual had an infection
+                flag_update_waves = True
+                infection_dictionary['ID'].append(ID)
+                infection_dictionary['date'].append(date)
+
+        return (flag_update_active,
+                flag_update_waves,
+                infection_dictionary,
+                reason_dictionary)
+
+
+
+    def extract_and_update_DOR_Reason_Infection(self, df_up):
+        #Modified on Nov 1, 2022
+        #Moved Out --> Moved
+        #On a first pass you might not want to modify
+        #the M file until you are convinced that the
+        #text was correctly parsed.
+        #This function updates:
+        #MPD
+        #LIS
+        #This function is able to identify date of removal, reason,
+        #and infection date.
+        #Examples
+        #01-8580579 Deceased 13/08/2022
+        #50-1910008 Deceased Sep 15 2022
+        #14-5077158  Positive Oct 2 2022
+        #>>>Removed 14-5077158  Positive Oct 2 (No year)
+
+
+        (flag_update_active,
+                flag_update_waves,
+                infection_dictionary,
+                reason_dictionary) =\
+                        self.generate_infection_and_reason_dict(df_up)
+
+        if flag_update_active:
+            DOR = self.DOR
+            df_up = pd.DataFrame(reason_dictionary)
+            df_up[DOR] = pd.to_datetime(df_up['date'])
+            df_up.drop(columns='date', inplace=True)
+            print(df_up)
+            #self.update_reason_dates_and_status(df_up)
+            #Merge instead of point modifications
+            self.parent.df = self.merge_with_M_and_return_M(df_up, 'ID', kind='original+')
+            self.update_active_status_column()
+        if flag_update_waves:
+            df_up = pd.DataFrame(infection_dictionary)
+            df_up['DOI'] = pd.to_datetime(df_up['date'])
+            print(df_up)
+            self.parent.LIS_obj.update_the_dates_and_waves(df_up)
+            #Is this necessary?
+            self.update_active_status_column()
+        print('Please write to Excel externally.')
+
+    def load_single_column_df_for_update(self, fname, folder, sheet=0):
+        #Dec 05 2022
+        fname = os.path.join(self.parent.requests_path, folder, fname)
+        df_up = pd.read_excel(fname, header=None, sheet_name=sheet)
+        #df_up.dropna(axis=0, inplace=True)
+        return df_up
+
+    def single_column_update(self):
+        #Use this function for updates using 
+        #the one-column format.
+        fname  = 'update_1.xlsx'
+        folder = 'Megan_dec_05_2022'
+        df_up = self.load_single_column_df_for_update(fname, folder)
+        print(df_up)
+        self.extract_and_update_DOR_Reason_Infection(df_up)
+
+    def two_column_update(self):
+        #Use this function for updates using 
+        #the one-column format.
+        fname  = 'update_2.xlsx'
+        folder = 'Megan_dec_05_2022'
+        df_up = self.load_single_column_df_for_update(fname, folder)
+        df_up[0] = df_up[0].str.replace('LTC1-','')
+        txt = 'Refused Extension - Withdrawn on'
+        df_up[1] = df_up[1].str.replace(txt,'Refused-Consent')
+        txt = 'No Reconsent - Withdraw'
+        df_up[1] = df_up[1].str.replace(txt,'Refused-Consent')
+        df_up[1] = df_up[1].str.replace(',','')
+        df_up[0] = df_up[0] + ' ' + df_up[1]
+        print(df_up)
+        self.extract_and_update_DOR_Reason_Infection(df_up)
+
+
+    #Nov 25 2022
+    def whole_blood_update(self):
+        folder = 'Megan_nov_25_2022'
+        fname = 'whole_blood.xlsx'
+        fname = os.path.join(self.parent.requests_path,folder, fname)
+        df_up = pd.read_excel(fname)
+        print(df_up)
+        self.parent.df = self.merge_X_with_Y_and_return_Z(self.parent.df,
+                                         df_up,
+                                         self.merge_column,
+                                         kind='original+')
 
 
 

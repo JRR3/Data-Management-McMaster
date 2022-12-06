@@ -375,7 +375,9 @@ class LTCInfectionSummary:
         print('Module: LTC_infection_summary.py FINISHED')
 
     def update_infection_date_in_df(self, df, index_m, row_m, d_up, method=None):
-        #Nov 04 2022
+        #This function inserts the (potantially) new infection
+        #dates into the DF.
+        #Dec 06 2022
         flag_found_slot = False
         is_a_new_date   = False
         type_col_found  = ''
@@ -431,7 +433,7 @@ class LTCInfectionSummary:
             txt = 'We need another column to include this new infection.'
             raise ValueError(txt)
         if is_a_new_date:
-            print('The data frame has been updated.')
+            print('The data frame has been updated with NEW information.')
 
     def update_the_dates_and_waves(self, df_up):
         #Update on Oct 10, 2022
@@ -820,103 +822,6 @@ class LTCInfectionSummary:
         fname = os.path.join(self.parent.requests_path, folder, fpure)
         df.to_excel(fname, index = False)
         print(f'The {fpure=} file has been written to Excel.')
-
-
-    def load_ahmad_file(self):
-        fname = 'ahmad_infection_file.xlsx'
-        fname = os.path.join(self.dpath, fname)
-        self.df_ah = pd.read_excel(fname)
-        print(self.df_ah)
-
-
-    def create_empty_ahmad_dict(self):
-        dc = {}
-        for col in self.df_ah.columns:
-            dc[col] = []
-        return dc
-
-    def add_1st_inf_to_ahmad_dict(self, dic, ID, doi):
-        pos_dat_1 = self.positive_date_cols[0]
-        pos_typ_1 = self.positive_type_cols[0]
-        dic['ID'].append(ID)
-        dic[pos_dat_1].append(doi)
-        dic[pos_typ_1].append('PCR')
-        for date_col, type_col in zip(self.positive_date_cols[1:],
-                                      self.positive_type_cols[1:]):
-            dic[date_col].append(np.nan)
-            dic[type_col].append(np.nan)
-
-
-
-
-    def update_ahmad_file(self):
-        self.load_ahmad_file()
-        dc_ah = self.create_empty_ahmad_dict()
-        fname = 'inf_and_removal_update.xlsx'
-        folder = 'Ahmad_nov_04_2022'
-        df_up = self.parent.load_single_column_df_for_update(fname,
-                                                             folder)
-
-        (flag_update_active,
-                flag_update_waves,
-                infection_dictionary,
-                reason_dictionary) =\
-                        self.parent.generate_infection_and_reason_dict(df_up)
-        if flag_update_waves:
-            df_up = pd.DataFrame(infection_dictionary)
-            df_up['DOI'] = pd.to_datetime(df_up['date'])
-            print(df_up)
-
-        method_in_update = 'MOD' in df_up.columns
-        for index, row_up in df_up.iterrows():
-            ID = row_up['ID']
-            print('=====================')
-            print(f'{ID=}')
-            print('=====================')
-            d_up = row_up['DOI']
-            selector = self.df_ah['ID'] == ID
-            if ~selector.any():
-                print('ID does not exist in Ahmad file.')
-                print('We will include it.')
-                self.add_1st_inf_to_ahmad_dict(dc_ah, ID, d_up)
-                #print('ah_dict length=',len(dc_ah['ID']))
-            else:
-                row_ah   = self.df_ah[selector].iloc[0]
-                index_ah = self.df_ah[selector].index[0]
-                #Infection date update
-                mod = None
-                if method_in_update:
-                    if pd.notnull(row['MOD']):
-                        mod = row['MOD']
-                self.update_infection_date_in_df(self.df_ah,
-                        index_ah, row_ah, d_up, method=mod)
-        if 0 < len(dc_ah['ID']):
-            print('Adding new rows to Ahmad file.')
-            new_rows = pd.DataFrame(dc_ah)
-            print(new_rows)
-            self.df_ah = pd.concat([self.df_ah, new_rows],
-                                   ignore_index = True)
-            print('Do not forget to write the file to Excel.')
-
-    def backup_ahmad_file(self):
-        fname = 'ahmad_infection_file.xlsx'
-        original = os.path.join(self.dpath, fname)
-        today = datetime.datetime.now()
-        date  = today.strftime('%d_%m_%Y_time_%H_%M_%S')
-        bname = 'ahmad_infection_file' + '_backup_' + date
-        bname += '.xlsx'
-        backup   = os.path.join(self.backups_path, bname)
-        shutil.copyfile(original, backup)
-        print('A backup for Ahmads file has been generated.')
-
-    def write_ahmad_df_to_excel(self):
-        self.backup_ahmad_file()
-        fname = 'ahmad_infection_file.xlsx'
-        fname = os.path.join(self.dpath, fname)
-        print('Writing Ahmads file to Excel.')
-        self.df_ah.to_excel(fname, index = False)
-        print('Ahmads file has been written to Excel.')
-
 
 
     def plot_dawns_infection_count(self):
