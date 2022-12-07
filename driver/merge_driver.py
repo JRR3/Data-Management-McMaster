@@ -316,6 +316,7 @@ class Merger:
             print(f'Updating using {sheet=}.')
             #print(df_up)
             self.LSM_obj.merge_serology_update(df_up)
+        self.check_LSM_dates()
 
         #Uncomment the following line if you want to verify
         #that the LSM dates are consistent with the SID file.
@@ -410,6 +411,9 @@ class Merger:
             X = X[column_order]
 
         if X[self.merge_source].value_counts().gt(1).any():
+            vc = X[self.merge_source].value_counts()
+            selection = vc.gt(1)
+            print(vc[selection])
             raise ValueError('No repetitions should be present.')
         print('The merge operation is complete. Returning merged DF.')
         return X
@@ -812,5 +816,7 @@ obj = Merger()
 #obj.two_column_update()
 #obj.write_the_M_file_to_excel()
 #obj.merge_M_with_LSM()
-obj.LIS_obj.produce_melted_files()
-obj.merge_M_with_LSM()
+#obj.LIS_obj.produce_melted_files()
+#obj.merge_M_with_LSM()
+obj.LSM_obj.direct_serology_update_with_headers()
+#obj.LSM_obj.write_LSM_to_excel()

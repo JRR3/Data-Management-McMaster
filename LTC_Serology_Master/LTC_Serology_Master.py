@@ -477,7 +477,95 @@ class LTCSerologyMaster:
             fname = os.path.join(self.parent.requests_path, folder, fname)
             ax.figure.savefig(fname)
 
+    def compute_data_density(self):
+        col_to_n_data = {'Column':[], 'n_data':[], '%_full':[]}
+        n_rows = len(self.df)
+        for column in self.df.columns:
+            n_data = self.df[column].count()
+            col_to_n_data['Column'].append(column)
+            col_to_n_data['n_data'].append(n_data)
+            p = n_data/n_rows*100
+            col_to_n_data['%_full'].append(p)
+        df = pd.DataFrame(col_to_n_data)
+        return df
 
+    def monotonic_increment_check(self, pre, post):
+        M = pd.merge(pre, post, on='Column', how='outer')
+        pre_total = pre['n_data'].sum()
+        post_total = post['n_data'].sum()
+        p_increment = (post_total - pre_total)/pre_total * 100
+        M['D data'] = M['n_data_y'] - M['n_data_x']
+        M['D %'] = M['%_full_y'] - M['%_full_x']
+        check = M['D data'] >= 0
+        if not check.all():
+            raise ValueError('There seems to be some data loss')
+        print(M)
+        print(f'Total pre--data:{pre_total}')
+        print(f'Total post-data:{post_total}')
+        print(f'% increment    :{p_increment}')
+
+    def direct_serology_update_with_headers(self):
+        fname  = 'LSM_Jessica_oct_04_2022.xlsx'
+        print(f'Working with {fname=}')
+        folder = 'Jessica_dec_07_2022'
+        fname = os.path.join(self.parent.requests_path,
+                folder, fname)
+        df_up = pd.read_excel(fname, sheet_name=0)
+        print(f'The update has {len(df_up)} rows.')
+        self.remap_E_type_individuals(df_up)
+        df_up.replace('.', np.nan, inplace=True)
+        df_up.replace('n/a', np.nan, inplace=True)
+        df_up.replace('N/A', np.nan, inplace=True)
+        df_up.replace('#N/A', np.nan, inplace=True)
+        df_up.replace('retest on next plate', np.nan, inplace=True)
+        df_up.replace('NT', np.nan, inplace=True)
+        df_up[self.merge_source] = df_up[self.merge_source].str.replace(' ','')
+        #===========ID verification===============
+        rexp_c = re.compile('[0-9]{2}[-][0-9]{7}[-][A-Z]{1,2}')
+        def is_a_valid_id(txt):
+            obj = rexp_c.search(txt)
+            if obj:
+                return obj.group(0)
+            else:
+                print(txt)
+                raise ValueError('Not an ID')
+        df_up[self.merge_source] = df_up[self.merge_source].map(is_a_valid_id)
+        #===========Temporal removal of participants===============
+        L = ['07-7693664-T','51-1910130-T','54-1910120-T']
+        selection = ~df_up[self.merge_source].isin(L)
+        df_up = df_up[selection]
+        #===========Temporal removal of participants===============
+        df_up[self.DOC] = pd.to_datetime(df_up[self.DOC])
+        vc = df_up[self.merge_source].value_counts()
+        selection =  df_up[self.merge_source].value_counts().gt(1)
+        if selection.any():
+            print(vc[selection])
+            print('Repetitions in the update are not allowed.')
+            print('Repetitions will be removed (keep the first).')
+            df_up.drop_duplicates(subset=self.merge_source,
+                    keep='first', inplace=True)
+
+        new_samples = ~df_up[self.merge_source].isin(self.df[self.merge_source])
+        if new_samples.any():
+            print('New samples:')
+            print(df_up[new_samples])
+            raise ValueError('Were you expecting new samples?')
+
+        #print(df_up)
+        print('Ready to merge')
+        #Merge process >>>
+        #The update has a higher priority than the original data.
+        kind = 'original+'
+        status_pre = self.compute_data_density()
+        self.df = self.parent.merge_X_with_Y_and_return_Z(self.df,
+                                                          df_up,
+                                                          self.merge_source,
+                                                          kind=kind)
+        self.parent.SID_obj.check_df_dates_using_SID(self.df)
+        self.update_id_column()
+        status_post = self.compute_data_density()
+        self.monotonic_increment_check(status_pre, status_post)
+        print('The LSM file has been updated.')
 
 
 
