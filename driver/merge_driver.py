@@ -333,7 +333,7 @@ class Merger:
         #dates in the SID file.
         self.SID_obj.check_df_dates_using_SID(self.LSM_obj.df)
 
-    def merge_X_with_Y_and_return_Z(self, X, Y, merge_column, kind='update+'):
+    def merge_X_with_Y_and_return_Z(self, X, Y, merge_column, kind='original+'):
         #Oct 31, 2022
         #This function is commonly used and now
         #has a separate definition to avoid code
@@ -356,7 +356,12 @@ class Merger:
             #Check if we have new data
             is_new_data = Z[left].isnull() & Z[right].notnull()
             if is_new_data.any():
+                print('==================')
                 print(f'{column=} has new information.')
+                whats_new = Z[is_new_data]
+                print(whats_new[merge_column])
+                print(whats_new[right])
+                print('==================')
             else:
                 print(f'{column=} was already complete.')
             if kind == 'update++':
