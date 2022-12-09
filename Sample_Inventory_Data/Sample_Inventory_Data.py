@@ -26,6 +26,7 @@ class SampleInventoryData:
         self.merge_column = 'ID'
         self.blood_draw   = 'blood draw'
         self.blood_draw_code_to_col_name = {}
+        self.i_blood_draw_code_to_col_name = {}
         self.original_to_current = {}
         self.code_regexp = re.compile('[-][ ]*(?P<code>[A-Z]+)')
 
@@ -171,6 +172,8 @@ class SampleInventoryData:
 
     def relate_original_column_names_to_current(self):
         #Oct 12, 2022
+        #This function related the headers in Megan's
+        #file with the labels in the master file.
         fname = 'label_dictionary.xlsx'
         fname = os.path.join(self.dpath, fname)
         df_up = pd.read_excel(fname)
@@ -202,6 +205,7 @@ class SampleInventoryData:
             if col_name.lower().startswith(self.blood_draw):
                 code = self.extract_letter_code(col_name)
                 self.blood_draw_code_to_col_name[code] = col_name
+                self.i_blood_draw_code_to_col_name[col_name] = code
         #print(self.blood_draw_code_to_col_name)
 
 
@@ -279,5 +283,41 @@ class SampleInventoryData:
         print(f'The number of cells is: {full_counter}.')
         print(f'The % of used cells is: {counter/full_counter*100}.')
 
+    #Dec 09 2022
+    def migrate_dates_from_SID_to_LSM(self):
+        blood_cols = self.i_blood_draw_code_to_col_name.keys()
+        sample_counter = 0
+        processed_counter = 0
+        unprocessed_counter = 0
+        dc = {'Full ID':[], 'Date Collected':[]}
+        for index_m, row_m in self.parent.df.iterrows():
+            print('=====================')
+            ID = row_m['ID']
+            for col, code in self.i_blood_draw_code_to_col_name.items():
+                data = row_m[col]
+                if pd.isnull(data):
+                    continue
+                dtype = str(type(data))
+                if 'time' in dtype:
+                    sample_counter += 1
+                    doc = data
+                    full_ID = ID + '-' + code
+                    print(full_ID)
+                    selection = self.parent.LSM_obj.df['Full ID'] == full_ID
+                    if selection.any():
+                        processed_counter += 1
+                        continue
+                    #At this point we know the sample is not in the LSM
+                    dc['Full ID'].append(full_ID)
+                    dc['Date Collected'].append(doc)
+                    unprocessed_counter += 1
+        df_up = pd.DataFrame(dc)
+        print(df_up)
+        self.parent.LSM_obj.direct_serology_update_with_headers(df_up)
+
+
+        print(f'{sample_counter=}')
+        print(f'{processed_counter=}')
+        print(f'{unprocessed_counter=}')
 
 

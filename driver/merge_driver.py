@@ -305,17 +305,19 @@ class Merger:
         if file_name:
             fname = file_name
         else:
-            fname = '.xlsx'
-        folder = 'Jessica_nov_29_2022'
+            fname = '2022_07_04_Jessica_MNT.xlsx'
+        folder = 'Jessica_dec_07_2022'
         fname = os.path.join('..','requests',folder, fname)
-        book = pd.read_excel(fname, sheet_name=None, header=None)
+        book = pd.read_excel(fname, sheet_name=None)
         print(f'LSM is looking into the {folder=}')
         print(f'LSM is opening the {fname=}')
         for k, (sheet, df_up) in enumerate(book.items()):
             print('>>>>>>>>',k)
             print(f'Updating using {sheet=}.')
+            self.LSM_obj.direct_serology_update_with_headers(df_up)
             #print(df_up)
-            self.LSM_obj.merge_serology_update(df_up)
+            #The following function is now obsolete.
+            #self.LSM_obj.merge_serology_update(df_up)
         self.check_LSM_dates()
 
         #Uncomment the following line if you want to verify
@@ -823,5 +825,16 @@ obj = Merger()
 #obj.merge_M_with_LSM()
 #obj.LIS_obj.produce_melted_files()
 #obj.merge_M_with_LSM()
-obj.LSM_obj.direct_serology_update_with_headers()
+#obj.LSM_obj.direct_serology_update_with_headers()
 #obj.LSM_obj.write_LSM_to_excel()
+#Dec 09 2022
+#obj.SID_obj.migrate_dates_from_SID_to_LSM()
+#obj.LSM_obj.write_LSM_to_excel()
+#obj.LSM_obj.direct_serology_update_with_headers()
+#obj.update_LSM()
+#obj.LSM_obj.write_LSM_to_excel()
+#obj.LSM_obj.plot_report()
+#obj.LIS_obj.produce_melted_files()
+#obj.merge_M_with_LSM()
+obj.update_LSM()
+obj.LSM_obj.write_LSM_to_excel()

@@ -523,13 +523,14 @@ class LTCSerologyMaster:
         print(f'% increment    :{p_increment}')
         self.delta_report = M
 
-    def direct_serology_update_with_headers(self):
-        fname  = 'NazyAbData_2022_11_14.xlsx'
-        print(f'Working with {fname=}')
-        folder = 'Jessica_dec_07_2022'
-        fname = os.path.join(self.parent.requests_path,
-                folder, fname)
-        df_up = pd.read_excel(fname, sheet_name='Sept 28 2022')
+    def direct_serology_update_with_headers(self, df_up=None):
+        if df_up is None:
+            fname  = 'NazyAbData_2022_11_14.xlsx'
+            print(f'Working with {fname=}')
+            folder = 'Jessica_dec_07_2022'
+            fname = os.path.join(self.parent.requests_path,
+                    folder, fname)
+            df_up = pd.read_excel(fname, sheet_name='Sept 28 2022')
         print(f'The update has {len(df_up)} rows.')
         self.remap_E_type_individuals(df_up)
         df_up.replace('.', np.nan, inplace=True)
@@ -542,7 +543,8 @@ class LTCSerologyMaster:
         df_up[self.merge_source] = df_up[self.merge_source].str.replace(' ','')
         #=========== Removal of cutoff===============
         selection = df_up[self.merge_source].str.lower().str.contains('cutoff')
-        df_up = df_up[~selection]
+        if selection.any():
+            df_up = df_up[~selection].copy()
         #===========ID verification===============
         rexp_c = re.compile('[0-9]{2}[-][0-9]{7}[-][A-Z]{1,2}')
         def is_a_valid_id(txt):
@@ -592,4 +594,35 @@ class LTCSerologyMaster:
         print('The LSM file has been updated.')
 
 
+    def plot_report(self):
+        fname = 'LSM.xlsx'
+        fname = os.path.join(self.dpath, fname)
+        df = pd.read_excel(fname, sheet_name='report')
+        df.rename(columns={'Count_current':'Count',
+            'Empty_current':'Empty'}, inplace=True)
+        df.dropna(subset=['Column'], axis=0, inplace=True)
+        columns_to_plot=['Count','Empty']
+        remove_rows = ['ID', 'Full ID', 'Date Collected']
+        selection = df['Column'].isin(remove_rows)
+        df = df[~selection].copy()
+        ax = df.plot(x='Column', y=columns_to_plot, kind='bar')
+        ax.set_xlabel('')
+        print(df)
+
+        ax2 = ax.twinx()
+        n_labels = len(df)
+        x = list(range(n_labels))
+        ax2.plot(x,df['%_full_current'], 'bo',
+                linestyle='-',
+                markersize=5,
+                alpha=0.6,
+                label='%')
+        plt.legend(loc='upper right')
+        ax2.set_ylabel('% Processed')
+        ax2.set_ylim([0, 100])
+
+        fname = 'report.png'
+        fname = os.path.join(self.dpath, fname)
+        plt.tight_layout()
+        plt.savefig(fname)
 
