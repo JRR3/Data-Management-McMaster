@@ -305,8 +305,8 @@ class Merger:
         if file_name:
             fname = file_name
         else:
-            fname = '2022_07_04_Jessica_MNT.xlsx'
-        folder = 'Jessica_dec_07_2022'
+            fname = 'update.xlsx'
+        folder = 'Megan_dec_12_2022'
         fname = os.path.join('..','requests',folder, fname)
         book = pd.read_excel(fname, sheet_name=None)
         print(f'LSM is looking into the {folder=}')
@@ -836,5 +836,9 @@ obj = Merger()
 #obj.LSM_obj.plot_report()
 #obj.LIS_obj.produce_melted_files()
 #obj.merge_M_with_LSM()
-obj.update_LSM()
-obj.LSM_obj.write_LSM_to_excel()
+#Dec 09 2022
+#obj.update_LSM()
+#obj.LSM_obj.write_LSM_to_excel()
+#obj.LIS_obj.plot_dawns_infection_count()
+#obj.LIS_obj.produce_infection_and_vaccine_melted_files()
+obj.LIS_obj.plot_dawns_infection_count()

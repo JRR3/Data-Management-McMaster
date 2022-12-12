@@ -827,10 +827,10 @@ class LTCInfectionSummary:
     def plot_dawns_infection_count(self):
         #This function generates a plot of infections for
         #each month.
+        use_only_PCR_confirmed       = True
         use_only_active_participants = True
-        plot_serology = False
+        plot_serology                = True
         folder = 'one_column_files'
-        #fname = 'infection_dates_slope.xlsx'
         fname = 'Infection_dates_as_one_column.xlsx'
         fname = os.path.join(self.parent.requests_path, folder, fname)
         df_i = pd.read_excel(fname)
@@ -838,9 +838,13 @@ class LTCInfectionSummary:
             selection = df_i['Active']
             print(selection.value_counts())
             df_i = df_i[selection]
+        if use_only_PCR_confirmed:
+            selection = df_i['Method/Type'] == 'PCR'
+            print(selection.value_counts())
+            df_i = df_i[selection]
         site_type = self.parent.MPD_obj.site_type
-        intervals = pd.date_range(start='2019-12-31', end='2022-10-31', freq='M')
-        periods   = pd.period_range(start='2020-01', end='2022-10', freq='M')
+        intervals = pd.date_range(start='2019-12-31', end='2022-11-30', freq='M')
+        periods   = pd.period_range(start='2020-01', end='2022-11', freq='M')
         periods   = periods.to_timestamp().strftime("%b-%y")
         #print(intervals)
         #print(periods)
@@ -858,18 +862,42 @@ class LTCInfectionSummary:
         #df_i = df_i.unstack(level=1)
         if plot_serology:
             #===================Serology
-            s_label = 'Spike-IgG-100'
             seroconversion ='Seroconversion'
-            threshold = 0.5487
-            selection = self.parent.LSM_obj.df[s_label].notnull()
             DOC = self.parent.LSM_obj.DOC
+
+            s_IgG_100 = 'Spike-IgG-100'
+            s_IgG_100_t = 0.5487
+            selection   = self.parent.LSM_obj.df[s_IgG_100].notnull()
+
+            s_IgA_100 = 'Spike-IgA-100'
+            s_IgA_100_t = 0.5437
+            selection  |= self.parent.LSM_obj.df[s_IgA_100].notnull()
+
+            s_IgA_1000 = 'Spike-IgA-1000'
+            s_IgA_1000_t = 0.1788
+            selection  |= self.parent.LSM_obj.df[s_IgA_1000].notnull()
+
+            s_IgG_5000 = 'Spike-IgG-5000'
+            s_IgG_5000_t = 0.0999
+            selection  |= self.parent.LSM_obj.df[s_IgG_5000].notnull()
+
+            s_IgM_100   = 'Spike-IgM-100'
+            s_IgM_100_t = 0.581776245
+            selection  |= self.parent.LSM_obj.df[s_IgM_100].notnull()
+
             #Nonempty
             df_s = self.parent.LSM_obj.df[selection].copy()
+
             #Above threshold
-            selection = df_s[s_label] > threshold
+            selection  = df_s[s_IgG_100]  > s_IgG_100_t
+            selection |= df_s[s_IgA_100]  > s_IgA_100_t
+            selection |= df_s[s_IgA_1000] > s_IgA_1000_t
+            selection |= df_s[s_IgG_5000] > s_IgG_5000_t
+            selection |= df_s[s_IgM_100]  > s_IgM_100_t
+
             sconv_table = selection.value_counts()
-            df_s[seroconversion] = 1
-            df_s[seroconversion] = df_s[seroconversion].where(threshold < df_s[s_label], 0)
+            df_s[seroconversion] = selection
+            df_s[seroconversion] = df_s[seroconversion].astype(int)
             bins = pd.cut(df_s[DOC], intervals, labels=periods)
             gb_serology = df_s.groupby(bins)
             all_samples = gb_serology[DOC].agg('count')
@@ -1034,7 +1062,7 @@ class LTCInfectionSummary:
         return df
 
 
-    def produce_melted_files(self):
+    def produce_infection_and_vaccine_melted_files(self):
         kinds = ['Infection', 'Vaccine']
         for kind in kinds:
             df = self.melt_infection_or_vaccination_dates(kind)
