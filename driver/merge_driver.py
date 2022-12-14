@@ -283,7 +283,7 @@ class Merger:
         for col, dtype in zip(df.columns, df.dtypes):
             print(f'{col:35}: {dtype}')
 
-    def merge_with_M_and_return_M(self, df_up, merge_column, kind='update+'):
+    def merge_with_M_and_return_M(self, df_up, merge_column, kind='original+'):
         #Oct 31, 2022
         #This function is commonly used and now
         #has a separate definition to avoid code
@@ -351,6 +351,8 @@ class Merger:
             if column not in X.columns:
                 print(f'Unexpected {column=}')
                 raise ValueError('All columns in the update should be common.')
+                #If this column is new then there is no need to compare.
+                #continue
             if column == merge_column:
                 continue
             left  = column + '_x'
@@ -743,75 +745,113 @@ class Merger:
         self.MPD_obj.update_active_status_column()
 
 
+    def jessicas_request_dec_13_2022(self):
+        generate_W_file        = False
+        generate_jessicas_file = False
+        if generate_W_file:
+            folder = 'Jessica_dec_13_2022'
+            fname = 'CFS.xlsx'
+            fname = os.path.join(self.requests_path, folder, fname)
+            df_z  = pd.read_excel(fname, dtype=str)
+            rexp_cfs = re.compile('[0-9]+')
+            def extract_cfs(txt):
+                if pd.isnull(txt):
+                    return np.nan
+                obj = rexp_cfs.search(txt)
+                if obj:
+                    s = obj.group(0)
+                    return int(s)
+                else:
+                    raise ValueError('Unable to extract CFS code.')
+            df_z[cfs] = df_z[cfs].apply(extract_cfs)
+            df_z['DOB'] = pd.to_datetime(df_z['DOB'])
+            df_z[fsd] = pd.to_datetime(df_z[fsd])
+            df_z.drop(columns=['DOB','Sex'], inplace=True)
+            print(df_z)
+            original_labels = list(self.df.columns)
+            new_labels = ['Ethnicity','CFS', fsd]
+            Z = pd.merge(self.df, df_z, on='ID', how='outer')
+            labels = original_labels[:3] + new_labels + original_labels[3:]
+            #print(f'# of labels Z: {len(Z.columns)}')
+            #print(f'# of labels in new: {len(labels)}')
+            Z = Z[labels]
+            #W = pd.merge(Z, self.LSM_obj.df, on='ID', how='outer')
+            df = pd.merge(self.LSM_obj.df, Z, on='ID', how='outer')
+            folder = 'Jessica_dec_13_2022'
+            fname = 'W.xlsx'
+            fname = os.path.join(self.requests_path, folder, fname)
+            df.to_excel(fname, index=False)
+            #print(Z)
+        else:
+            folder = 'Jessica_dec_13_2022'
+            fname = 'W.xlsx'
+            fname = os.path.join(self.requests_path, folder, fname)
+            df = pd.read_excel(fname)
+
+        prefs  = 'Pre-flushot-sample'
+        postfs = 'Post-flushot-sample'
+        cfs    = 'CFS'
+        fsd    = 'Flu shot date 2021'
+
+        if generate_jessicas_file:
+            folder = 'Jessica_dec_13_2022'
+            fname = 'influenza.xlsx'
+            fname = os.path.join(self.requests_path, folder, fname)
+            df_jb = pd.read_excel(fname, dtype=str)
+            rexp_letter_code = re.compile('[A-Z]+')
+            def extract_letter_code(txt):
+                flip_str = txt[::-1]
+                obj = rexp_letter_code.match(flip_str)
+                if obj:
+                    s = obj.group(0)
+                    if 1 < len(s):
+                        s = s[::-1]
+                    return s
+                else:
+                    raise ValueError('Unable to extract letter code.')
+            df_jb[prefs] = df_jb[prefs].apply(extract_letter_code)
+            df_jb[postfs] = df_jb[postfs].apply(extract_letter_code)
+            folder = 'Jessica_dec_13_2022'
+            fname = 'jessicas_file.xlsx'
+            fname = os.path.join(self.requests_path, folder, fname)
+            df_jb.to_excel(fname, index = False)
+        else:
+            folder = 'Jessica_dec_13_2022'
+            fname = 'jessicas_file.xlsx'
+            fname = os.path.join(self.requests_path, folder, fname)
+            df_jb = pd.read_excel(fname)
+        print(df_jb)
+        list_of_indices = []
+        for _, row_j in df_jb.iterrows():
+            ID   = row_j['ID']
+            L    = []
+            pre  = row_j[prefs]
+            L.append(pre)
+            post = row_j[postfs]
+            L.append(post)
+            for code in L:
+                full_ID = ID + '-' + code
+                print(full_ID)
+                selection = df['Full ID'] == full_ID
+                if not selection.any():
+                    raise ValueError(f'{full_ID=} DNE.')
+                index = selection[selection].index[0]
+                print(f'{index=}')
+                list_of_indices.append(index)
+
+        df_s = df.loc[list_of_indices,:].copy()
+        folder = 'Jessica_dec_13_2022'
+        fname = 'jb_req_dec_13_2022.xlsx'
+        fname = os.path.join(self.requests_path, folder, fname)
+        df_s.to_excel(fname, index = False)
+
+
+
+
 
 
 
 obj = Merger()
-#Nov 11 2022
-#obj.update_master_using_SID()
-#obj.write_the_M_file_to_excel()
-#obj.merge_M_with_LSM()
-#obj.LIS_obj.get_serology_dates_for_infection_dates()
-#obj.LIS_obj.compute_slopes_for_serology()
-#obj.LIS_obj.produce_melted_files()
-#obj.LSM_obj.what_is_missing()
-#obj.LIS_obj.produce_melted_files()
-#Nov 14 2022
-#obj.lindsay_nov_14_2022()
-#obj.write_the_M_file_to_excel()
-#obj.update_LSM()
-#obj.LSM_obj.write_LSM_to_excel()
-#Nov 15 2022
-#obj.tara_nov_11_2022()
-#obj.write_the_M_file_to_excel()
-#obj.LIS_obj.produce_melted_files()
-#obj.merge_M_with_LSM()
-#obj.tara_nov_15_2022()
-#obj.write_the_M_file_to_excel()
-#Nov 17 2022
-#obj.update_LSM()
-#obj.check_LSM_dates()
-#obj.LSM_obj.write_LSM_to_excel()
-#obj.tara_nov_16_2022()
-#obj.write_the_M_file_to_excel()
-#obj.tara_nov_17_2022()
-#obj.merge_M_with_LSM()
-#Nov 22 2022
-#obj.LSM_obj.update_LND_data()
-#obj.check_LSM_dates()
-#obj.LSM_obj.write_LSM_to_excel()
-#obj.merge_M_with_LSM()
-#obj.SID_obj.how_many_samples()
-#Nov 23 2022
-#obj.tara_nov_23_2022()
-#obj.write_the_M_file_to_excel()
-#Nov 24 2022
-#obj.tara_nov_24_2022()
-#Nov 25 2022
-#obj.update_master_using_SID()
-#obj.whole_blood_update()
-#obj.write_the_M_file_to_excel()
-#obj.merge_M_with_LSM()
-#Nov 28 2022
-#obj.update_LSM()
-#obj.check_LSM_dates()
-#obj.LSM_obj.write_LSM_to_excel()
-#obj.merge_M_with_LSM()
-#obj.single_column_update()
-#obj.write_the_M_file_to_excel()
-#obj.merge_M_with_LSM()
-#Nov 29 2022
-#obj.serology_decay_plots()
-#Nov 30 2022
-#obj.update_LSM('update_sep_lsm.xlsx')
-#obj.update_LSM('update_nov_lsm.xlsx')
-#obj.check_LSM_dates()
-#obj.LSM_obj.write_LSM_to_excel()
-#obj.merge_M_with_LSM()
-#obj.stratification_by_inf_and_vac()
-#obj.LIS_obj.plot_dawns_infection_count()
-#obj.LSM_obj.serology_decay_computation()
-#obj.LSM_obj.plot_decay_for_serology()
 #Dec 05 2022
 #obj.LIS_obj.get_serology_dates_for_infection_dates()
 #obj.LIS_obj.compute_slopes_for_serology()
@@ -841,4 +881,6 @@ obj = Merger()
 #obj.LSM_obj.write_LSM_to_excel()
 #obj.LIS_obj.plot_dawns_infection_count()
 #obj.LIS_obj.produce_infection_and_vaccine_melted_files()
-obj.LIS_obj.plot_dawns_infection_count()
+#obj.LIS_obj.plot_dawns_infection_count()
+#Dec 13 2022
+obj.jessicas_request_dec_13_2022()
