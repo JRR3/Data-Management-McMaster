@@ -2539,6 +2539,109 @@ class Comparator:
         print('Ahmads file has been written to Excel.')
 
 
+    def jessicas_request_dec_13_2022(self):
+        generate_W_file        = False
+        generate_jessicas_file = False
+        if generate_W_file:
+            folder = 'Jessica_dec_13_2022'
+            fname = 'CFS.xlsx'
+            fname = os.path.join(self.requests_path, folder, fname)
+            df_z  = pd.read_excel(fname, dtype=str)
+            rexp_cfs = re.compile('[0-9]+')
+            def extract_cfs(txt):
+                if pd.isnull(txt):
+                    return np.nan
+                obj = rexp_cfs.search(txt)
+                if obj:
+                    s = obj.group(0)
+                    return int(s)
+                else:
+                    raise ValueError('Unable to extract CFS code.')
+            df_z[cfs] = df_z[cfs].apply(extract_cfs)
+            df_z['DOB'] = pd.to_datetime(df_z['DOB'])
+            df_z[fsd] = pd.to_datetime(df_z[fsd])
+            df_z.drop(columns=['DOB','Sex'], inplace=True)
+            print(df_z)
+            original_labels = list(self.df.columns)
+            new_labels = ['Ethnicity','CFS', fsd]
+            Z = pd.merge(self.df, df_z, on='ID', how='outer')
+            labels = original_labels[:3] + new_labels + original_labels[3:]
+            #print(f'# of labels Z: {len(Z.columns)}')
+            #print(f'# of labels in new: {len(labels)}')
+            Z = Z[labels]
+            #W = pd.merge(Z, self.LSM_obj.df, on='ID', how='outer')
+            df = pd.merge(self.LSM_obj.df, Z, on='ID', how='outer')
+            folder = 'Jessica_dec_13_2022'
+            fname = 'W.xlsx'
+            fname = os.path.join(self.requests_path, folder, fname)
+            df.to_excel(fname, index=False)
+            #print(Z)
+        else:
+            folder = 'Jessica_dec_13_2022'
+            fname = 'W.xlsx'
+            fname = os.path.join(self.requests_path, folder, fname)
+            df = pd.read_excel(fname)
+
+        prefs  = 'Pre-flushot-sample'
+        postfs = 'Post-flushot-sample'
+        cfs    = 'CFS'
+        fsd    = 'Flu shot date 2021'
+
+        if generate_jessicas_file:
+            folder = 'Jessica_dec_13_2022'
+            fname = 'influenza.xlsx'
+            fname = os.path.join(self.requests_path, folder, fname)
+            df_jb = pd.read_excel(fname, dtype=str)
+            rexp_letter_code = re.compile('[A-Z]+')
+            def extract_letter_code(txt):
+                flip_str = txt[::-1]
+                obj = rexp_letter_code.match(flip_str)
+                if obj:
+                    s = obj.group(0)
+                    if 1 < len(s):
+                        s = s[::-1]
+                    return s
+                else:
+                    raise ValueError('Unable to extract letter code.')
+            df_jb[prefs] = df_jb[prefs].apply(extract_letter_code)
+            df_jb[postfs] = df_jb[postfs].apply(extract_letter_code)
+            folder = 'Jessica_dec_13_2022'
+            fname = 'jessicas_file.xlsx'
+            fname = os.path.join(self.requests_path, folder, fname)
+            df_jb.to_excel(fname, index = False)
+        else:
+            folder = 'Jessica_dec_13_2022'
+            fname = 'jessicas_file.xlsx'
+            fname = os.path.join(self.requests_path, folder, fname)
+            df_jb = pd.read_excel(fname)
+        print(df_jb)
+        list_of_indices = []
+        for _, row_j in df_jb.iterrows():
+            ID   = row_j['ID']
+            L    = []
+            pre  = row_j[prefs]
+            L.append(pre)
+            post = row_j[postfs]
+            L.append(post)
+            for code in L:
+                full_ID = ID + '-' + code
+                print(full_ID)
+                selection = df['Full ID'] == full_ID
+                if not selection.any():
+                    raise ValueError(f'{full_ID=} DNE.')
+                index = selection[selection].index[0]
+                print(f'{index=}')
+                list_of_indices.append(index)
+
+        df_s = df.loc[list_of_indices,:].copy()
+        folder = 'Jessica_dec_13_2022'
+        fname = 'jb_req_dec_13_2022.xlsx'
+        fname = os.path.join(self.requests_path, folder, fname)
+        df_s.to_excel(fname, index = False)
+
+
+
+
 
 
 
