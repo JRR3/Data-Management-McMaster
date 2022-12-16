@@ -781,6 +781,52 @@ class Merger:
         df_up.replace('M', 'Male', inplace=True)
         df_up.replace('\xa0', np.nan, inplace=True)
         print(df_up)
+        self.df = self.merge_with_M_and_return_M(df_up, 'ID', kind='original+')
+
+
+    def ahmads_request_dec_16_2022(self):
+        fname  = 'lucas_data.xlsx'
+        folder = 'Ahmad_dec_16_2022'
+        fname = os.path.join('..','requests',folder, fname)
+        df_up = pd.read_excel(fname)
+        print(df_up)
+        dsd = 'Days since dose'
+        dos = 'Dose of Sample'
+        istat = 'Infection Status'
+        max_days_since_dose = df_up[dsd].max()
+        n_months_per_period  = 2
+        days_per_month = 30
+        days_per_period = days_per_month * n_months_per_period
+        n_periods  = np.round(max_days_since_dose / days_per_period)
+        days_upper = n_periods * days_per_period
+        intervals = np.arange(0,days_upper+1, days_per_period, dtype=int)
+        print(intervals)
+        old = '0'
+        L = []
+        for x in intervals[1:]:
+            new = str(x // days_per_month)
+            txt = old + '-' + new
+            old = new
+            L.append(txt)
+        print(L)
+        bins = pd.cut(df_up[dsd], intervals, labels=L)
+        df_g = df_up.groupby([df_up[dos],
+            bins,
+            df_up[istat]])['Wuhan'].agg('median', numeric_only=True)
+        print(df_g)
+        df_g
+        return
+        df_u = df_g.unstack(level=1)
+        print(df_u.columns)
+        fig = df_u.plot.bar()
+        fig.set_xlabel('Months post-dose')
+        fig.set_ylabel('MNT50 (Median)')
+        fname  = 'plt.png'
+        folder = 'Ahmad_dec_16_2022'
+        fname = os.path.join('..','requests',folder, fname)
+        plt.tight_layout()
+        plt.savefig(fname)
+
 
 
 
@@ -820,3 +866,6 @@ obj = Merger()
 #Dec 13 2022
 #obj.jessicas_request_dec_13_2022()
 #obj.merge_M_with_LSM()
+#Dec 16 2022
+#obj.taras_request_dec_15_2022()
+obj.ahmads_request_dec_16_2022()
