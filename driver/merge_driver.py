@@ -10,6 +10,7 @@ import shutil
 import datetime
 import matplotlib as mpl
 mpl.rcParams['figure.dpi'] = 300
+mpl.rcParams['font.family'] = 'monospace'
 import matplotlib.pyplot as plt
 
 sys.path.insert(1,'../Master_Participant_Data/')
@@ -785,14 +786,58 @@ class Merger:
 
 
     def ahmads_request_dec_16_2022(self):
+
+        use_boxplot = True
+
         fname  = 'lucas_data.xlsx'
         folder = 'Ahmad_dec_16_2022'
         fname = os.path.join('..','requests',folder, fname)
         df_up = pd.read_excel(fname)
         print(df_up)
+
+        #Abbreviations
         dsd = 'Days since dose'
         dos = 'Dose of Sample'
         istat = 'Infection Status'
+
+        #Relevant columns
+        bio_columns = ['Wuhan',
+                       'Beta',
+                       'Omicron',
+                       'Spike-IgG-5000',
+                       'RBD-IgG-400',
+                       'Spike-IgA-1000',
+                       'RBD-IgA-100',
+                      ]
+
+        #Remove Dose #1
+        selection = df_up[dos] == 1
+        df_up.drop(selection[selection].index, inplace=True)
+        n_doses = len(df_up[dos].drop_duplicates())
+
+        #Map infection status
+        dc = {'Not infected':'No Inf',
+              'Infected in past 3 months':'Inf < 3mo',
+              'Infected >3 months':'Inf > 3mo'}
+
+        df_up[istat].replace('Not infected',
+                             dc['Not infected'],
+                              inplace=True)
+        df_up[istat].replace('Infected in past 3 months',
+                             dc['Infected in past 3 months'],
+                              inplace=True)
+        df_up[istat].replace('Infected >3 months',
+                             dc['Infected >3 months'],
+                              inplace=True)
+
+        plot_istat_order = [
+            dc['Infected in past 3 months'],
+            dc['Infected >3 months'],
+            dc['Not infected'],
+                             ]
+        #istat_to_row = {'No Inf':2, 'Inf > 3mo':1, 'Inf < 3mo':0}
+
+        #Compute time labels
         max_days_since_dose = df_up[dsd].max()
         n_months_per_period  = 2
         days_per_month = 30
@@ -802,30 +847,100 @@ class Merger:
         intervals = np.arange(0,days_upper+1, days_per_period, dtype=int)
         print(intervals)
         old = '0'
-        L = []
+        time_labels = []
         for x in intervals[1:]:
             new = str(x // days_per_month)
-            txt = old + '-' + new
+            clone_new = new
+            if len(clone_new) == 1:
+                clone_new = ' ' + clone_new
+            txt = old + '-' + clone_new
             old = new
-            L.append(txt)
-        print(L)
-        bins = pd.cut(df_up[dsd], intervals, labels=L)
+            time_labels.append(txt)
+        print(time_labels)
+        n_time_labels = len(time_labels)
+
+
+        #Create time classification
+        bins = pd.cut(df_up[dsd], intervals, labels=time_labels)
+
+        if use_boxplot:
+
+            #Include column with 
+            df_up['mpd'] = bins
+            color_vec = ['blue','orange','green']
+            #Group df
+            df_g = df_up.groupby(istat)
+            for bio_column in bio_columns:
+                fig, ax = plt.subplots(nrows=3, sharex=True)
+                for ci, i_status in enumerate(plot_istat_order):
+                    md_prop = dict(linestyle='-',
+                                   linewidth=3,
+                                   color=color_vec[ci])
+                    df_i = df_g.get_group(i_status)
+                    df_i.boxplot(ax = ax[ci],
+                                 column=[bio_column],
+                                 by=[dos, 'mpd'],
+                                 grid=False,
+                                 rot = 90,
+                                 medianprops = md_prop,
+                                 showfliers = False)
+                    xp = 1
+                    for k in range(n_doses-1):
+                        xp += n_time_labels
+                        ax[ci].axvline(xp-0.5,color='k')
+                    ax[ci].set_ylabel(i_status)
+                    ax[ci].set_xlabel('')
+                    ax[ci].set_title('')
+                ax[ci].set_xlabel('(Dose #, Months after dose)')
+                plt.xticks(rotation=90)
+                plt.suptitle('')
+                plt.title('')
+                fname  = 'box_' + bio_column + '.png'
+                folder = 'Ahmad_dec_16_2022'
+                fname = os.path.join('..','requests',folder, fname)
+                plt.tight_layout()
+                plt.savefig(fname)
+
+            return
+
+
         df_g = df_up.groupby([df_up[dos],
             bins,
-            df_up[istat]])['Wuhan'].agg('median', numeric_only=True)
-        print(df_g)
-        df_g
-        return
-        df_u = df_g.unstack(level=1)
-        print(df_u.columns)
-        fig = df_u.plot.bar()
-        fig.set_xlabel('Months post-dose')
-        fig.set_ylabel('MNT50 (Median)')
-        fname  = 'plt.png'
-        folder = 'Ahmad_dec_16_2022'
-        fname = os.path.join('..','requests',folder, fname)
-        plt.tight_layout()
-        plt.savefig(fname)
+            df_up[istat]]).agg('median', numeric_only=True)
+
+
+        for bio_column in bio_columns:
+            #Move the Infection Status as a header
+            df_u = df_g[bio_column].unstack(level=2)
+
+            #Remove all except the first time label for
+            #dose #5
+            selection = df_u.loc[(5,slice('2- 4','8-10')),:]
+            df_u.drop(selection.index, inplace=True)
+            print(df_u)
+
+            #Time to plot
+            fig, ax = plt.subplots(nrows=3, ncols=1, sharex=True)
+            ymax = 0
+            color_vec = ['blue','orange','green']
+            for ci, i_status in enumerate(plot_istat_order):
+                df_u[i_status].plot(ax=ax[ci],
+                                  kind='bar',
+                                  color=color_vec[ci])
+                xp = 0
+                for k in range(n_doses-1):
+                    xp += n_time_labels
+                    ax[ci].axvline(xp-0.5,color='k')
+                ax[ci].set_xlabel('(Dose #, Months after dose)')
+                ax[ci].set_ylabel(column)
+                ymax = np.maximum(ax[ci].get_ylim()[1], ymax)
+            for ci, column in enumerate(df_u.columns):
+                ax[ci].set_ylim([0,ymax])
+            fname  = bio_column + '.png'
+            folder = 'Ahmad_dec_16_2022'
+            fname = os.path.join('..','requests',folder, fname)
+            plt.tight_layout()
+            plt.savefig(fname)
 
 
 
