@@ -628,8 +628,8 @@ class Reporter:
     def ahmads_request_dec_16_2022(self):
 
         use_boxplot = False
-        use_seaborn = True
-        use_bars    = False
+        use_seaborn = False
+        use_bars    = True
 
         fname  = 'lucas_data.xlsx'
         folder = 'Ahmad_dec_16_2022'
@@ -831,6 +831,7 @@ class Reporter:
                     wh_props = dict(linestyle='-',
                                    linewidth=1,
                                    color='black')
+                    #Infection status
                     df_i = df_g.get_group(i_status)
                     bp = df_i.boxplot(ax = ax[ci],
                                  column=[bio_column],
@@ -844,6 +845,9 @@ class Reporter:
                                  showfliers = False,
                                  return_type = 'dict',
                                  )
+                    #print(df_i)
+                    #print(bp[bio_column].keys())
+                    #return
                     for patch in bp[bio_column]['boxes']:
                         patch.set_facecolor(color_vec[ci])
                     ymax = np.maximum(ax[ci].get_ylim()[1], ymax)
@@ -881,9 +885,17 @@ class Reporter:
         if use_bars:
 
             df_g = df_up.groupby([df_up[dos],
-                bins,
-                df_up[istat]]).agg('median', numeric_only=True)
+                bins, df_up[istat]])
 
+            generate_descriptive_stats = False
+            if generate_descriptive_stats:
+                descriptor = df_g.describe()[bio_columns]
+                fname  = 'Ahmad_request_20_12_2022.xlsx'
+                folder = 'Ahmad_dec_16_2022'
+                fname = os.path.join('..','requests',folder, fname)
+                descriptor.to_excel(fname)
+
+            df_g = df_g.agg('median', numeric_only=True)
 
             for bio_column in bio_columns:
                 #Move the Infection Status as a header

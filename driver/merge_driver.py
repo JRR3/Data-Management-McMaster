@@ -95,7 +95,7 @@ class Merger:
     def update_master_using_SID(self):
         #This function updates the merged file M with the
         #Sample Inventory Data file provided by Megan.
-        folder = 'Megan_nov_25_2022'
+        folder = 'Megan_dec_16_2022'
         fname = 'sid_update.xlsx'
         fname = os.path.join(self.requests_path, folder, fname)
         #We are only interested in the first column (ID=A) and the 
@@ -823,4 +823,9 @@ obj = Merger()
 #obj.merge_M_with_LSM()
 #Dec 16 2022
 #obj.taras_request_dec_15_2022()
-obj.REP_obj.ahmads_request_dec_16_2022()
+#Dec 20 2022
+#obj.REP_obj.ahmads_request_dec_16_2022()
+#obj.update_master_using_SID()
+#obj.write_the_M_file_to_excel()
+obj.SID_obj.migrate_dates_from_SID_to_LSM()
+obj.LSM_obj.write_LSM_to_excel()
