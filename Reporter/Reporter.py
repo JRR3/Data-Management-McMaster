@@ -661,10 +661,38 @@ class Reporter:
                 'Spike IgA 1:1000',
                 'RBD IgA 1:100',
                 ]
-        bio_column_to_label = {}
 
-        for x,y in zip(bio_columns, bio_labels):
-            bio_column_to_label[x] = y
+        bio_legend_xy = [
+                'lower left',
+                'lower left',
+                'lower left',
+                'upper right',
+                'upper right',
+                'upper right',
+                'upper right',
+                ]
+
+        bio_legend_dose = [
+            5,
+            5,
+            5,
+            2,
+            2,
+            2,
+            2,
+            ]
+
+        bio_column_to_label       = {}
+        bio_column_to_legend_xy   = {}
+        bio_column_to_legend_dose = {}
+
+        for x,y,z,w in zip(bio_columns,
+                       bio_labels,
+                       bio_legend_xy,
+                       bio_legend_dose):
+            bio_column_to_label[x]       = y
+            bio_column_to_legend_xy[x]   = z
+            bio_column_to_legend_dose[x] = w
 
         plots_that_use_ylog = ['Wuhan', 'Beta', 'Omicron']
 
@@ -723,34 +751,64 @@ class Reporter:
 
         if use_seaborn:
             #Include column with 
+            md_props = dict(linestyle='-',
+                           linewidth=2,
+                           color='black')
+            bx_props = dict(linestyle='-',
+                           linewidth=1,
+                           alpha=0.85,
+                           )
+            wh_props = dict(linestyle='-',
+                           linewidth=1,
+                           color='black')
             df_up['mpd'] = bins
             df_g = df_up.groupby(dos)
             groups = [2,3,4,5]
             n_groups = len(groups)
-            fig, ax = plt.subplots(ncols=n_groups,
-                    figsize=(10, 5),
-                    sharey=True)
-            for k, group in enumerate(groups):
-                df_d = df_g.get_group(group)
-                sns.boxplot(ax = ax[k],
-                        x='mpd',
-                        y='Wuhan',
-                        data=df_d,
-                        showfliers=False,
-                        width=0.5,
-                        hue_order=plot_istat_order,
-                        hue=istat)
-                if k < n_groups-1:
-                    ax[k].legend([],[], frameon=False)
-                ax[k].set_ylabel('')
-                ax[k].set_xlabel('')
-                ax[k].tick_params(axis='x', rotation=90)
-                ax[k].set_yscale('log', base=2)
-            fname  = 'sea' + '.png'
-            folder = 'Ahmad_dec_16_2022'
-            fname = os.path.join('..','requests',folder, fname)
-            plt.tight_layout()
-            plt.savefig(fname)
+            for bio_column in bio_columns:
+                fig, ax = plt.subplots(ncols=n_groups,
+                        figsize=(10, 5),
+                        sharey=True)
+                legend_dose = bio_column_to_legend_dose[bio_column]
+                for k, group in enumerate(groups):
+                    df_d = df_g.get_group(group)
+                    sns.boxplot(ax = ax[k],
+                            x='mpd',
+                            y=bio_column,
+                            data=df_d,
+                            showfliers=False,
+                            width=0.5,
+                            medianprops  = md_props,
+                            boxprops     = bx_props,
+                            whiskerprops = wh_props,
+                            hue_order=plot_istat_order,
+                            hue=istat)
+                    if group != legend_dose:
+                        ax[k].legend([],[], frameon=False)
+                    else:
+                        pos = bio_column_to_legend_xy[bio_column]
+                        ax[k].legend(loc=pos)
+                    if k == n_groups-1:
+                        ax[k].set_xlim(-0.5, 0.5)
+                    ax[k].set_ylabel('')
+                    xlabel = 'Months after dose ' + str(group)
+                    ax[k].set_xlabel(xlabel)
+                    ax[k].tick_params(axis='x', rotation=90)
+                    if bio_column in plots_that_use_ylog:
+                        ax[k].set_yscale('log', base=2)
+                        R = 2**np.arange(2,11,2,dtype=int)
+                        ax[k].set_yticks(R)
+                        y_labels = [str(x) for x in R]
+                        ax[k].set_yticklabels(y_labels)
+                    else:
+                        ax[k].set_yticks([0,1,2,3])
+                y_label = bio_column_to_label[bio_column]
+                fig.supylabel(y_label, weight='bold')
+                fname  = 'combo_' + bio_column + '.png'
+                folder = 'Ahmad_dec_16_2022'
+                fname = os.path.join('..','requests',folder, fname)
+                plt.tight_layout()
+                plt.savefig(fname)
 
         if use_boxplot:
 
@@ -818,8 +876,6 @@ class Reporter:
                 fname = os.path.join('..','requests',folder, fname)
                 plt.tight_layout()
                 plt.savefig(fname)
-
-            return
 
 
         if use_bars:
