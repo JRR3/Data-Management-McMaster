@@ -554,6 +554,8 @@ class MasterParticipantData:
             df_up = pd.DataFrame(reason_dictionary)
             df_up[DOR] = pd.to_datetime(df_up['date'])
             df_up.drop(columns='date', inplace=True)
+            #Replace old IDs with new
+            self.map_old_ids_to_new(df_up)
             print(df_up)
             #self.update_reason_dates_and_status(df_up)
             #Merge instead of point modifications
@@ -562,6 +564,8 @@ class MasterParticipantData:
         if flag_update_waves:
             df_up = pd.DataFrame(infection_dictionary)
             df_up['DOI'] = pd.to_datetime(df_up['date'])
+            #Replace old IDs with new
+            self.map_old_ids_to_new(df_up)
             print(df_up)
             self.parent.LIS_obj.update_the_dates_and_waves(df_up)
             #Is this necessary?

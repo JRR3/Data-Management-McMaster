@@ -2640,6 +2640,89 @@ class Comparator:
         df_s.to_excel(fname, index = False)
 
 
+    def merge_serology_update(self, df_up):
+        #Moved on Dec 21 2022
+        #Updated on Oct 31, 2022
+        #This function is no longer recommended for updates.
+        print('===================Work======')
+        df_up.replace('NT', np.nan, inplace=True)
+        relevant_proteins = ['Spike', 'RBD', 'Nuc']
+        relevant_Igs      = ['IgG', 'IgA', 'IgM' ]
+        rexp_n = re.compile('/[ ]*(?P<dilution>[0-9]+)')
+        rexp_c = re.compile('[0-9]{2}[-][0-9]{7}[-][a-zA-Z]{1,2}')
+        col_indices = {}
+        exit_iterrows_flag = False
+        row_start = -1
+        id_col_index = -1
+        list_of_proteins = []
+        list_of_Igs = []
+        list_of_dilutions = []
+        for index, row in df_up.iterrows():
+            if exit_iterrows_flag:
+                break
+            for col, item in row.items():
+                if isinstance(item, str):
+                    #Check if the item is an ID
+                    obj = rexp_c.search(item)
+                    if obj:
+                        #print('Data start at row:', index)
+                        id_col_index = col
+                        row_start = index
+                        exit_iterrows_flag = True
+                        break
+                    for protein in relevant_proteins:
+                        if protein.lower() in item.lower():
+                            col_indices[col] = None
+                            list_of_proteins.append(protein)
+                            break
+                    for Ig in relevant_Igs:
+                        if Ig.lower() in item.lower():
+                            col_indices[col] = None
+                            list_of_Igs.append(Ig)
+                            break
+                    #Check if the item is a dilution
+                    obj = rexp_n.search(item)
+                    if obj:
+                        dilution = obj.group('dilution')
+                        col_indices[col] = None
+                        list_of_dilutions.append(dilution)
+        #Form headers
+        for k, p, Ig, dil in zip(col_indices.keys(),
+                                 list_of_proteins,
+                                 list_of_Igs,
+                                 list_of_dilutions):
+            s = '-'.join([p,Ig,dil])
+            col_indices[k] = s
+
+        #Full ID
+        merge_at_column = self.merge_source
+        #Set in the dictionary the mapping:
+        #id_col_index -> merge_at_column
+        col_indices[id_col_index] = merge_at_column
+        print(col_indices)
+        df_up.rename(columns = col_indices, inplace = True)
+        def is_id(txt):
+            if txt is np.nan:
+                return txt
+            obj = rexp_c.search(txt)
+            if obj:
+                return obj.group(0)
+            else:
+                return np.nan
+        df_up[merge_at_column] = df_up[merge_at_column].apply(is_id)
+        df_up.dropna(subset=merge_at_column, axis=0, inplace=True)
+        #Remove individuals with "E" type label.
+        self.map_old_ids_to_new(df_up)
+        print('Ready to merge')
+        #Merge process >>>
+        #The update has a higher priority than the original data.
+        kind = 'update+'
+        self.df = self.parent.merge_X_with_Y_and_return_Z(self.df,
+                                                          df_up,
+                                                          merge_at_column,
+                                                          kind=kind)
+        self.update_id_column()
+        print('End of updating the LSM file.')
 
 
 

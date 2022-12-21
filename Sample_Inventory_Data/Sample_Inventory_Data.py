@@ -188,8 +188,13 @@ class SampleInventoryData:
         df_up.rename(columns=self.original_to_current, inplace=True)
         #Replace 0-dates
         df_up.replace(datetime.time(0,0), np.nan, inplace=True)
+        #Drop empty rows
+        df_up.dropna(subset=[self.merge_column], axis=0, inplace=True)
+        #Check ID format
+        self.parent.check_id_format(df_up, self.merge_column)
+        #Replace old IDs with new
+        self.parent.MPD_obj.map_old_ids_to_new(df_up)
         #Check for repeats
-        df_up.dropna(subset=[self.merge_column], inplace=True)
         value_count_gt_1 = df_up[self.merge_column].value_counts().gt(1)
         if value_count_gt_1.any():
             print('We have repetitions in Sample Inventory')

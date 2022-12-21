@@ -84,93 +84,14 @@ class LTCSerologyMaster:
 
         print('The LSM file has been written to Excel.')
 
-    def merge_serology_update(self, df_up):
-        #Updated on Oct 31, 2022
-        print('===================Work======')
-        df_up.replace('NT', np.nan, inplace=True)
-        relevant_proteins = ['Spike', 'RBD', 'Nuc']
-        relevant_Igs      = ['IgG', 'IgA', 'IgM' ]
-        rexp_n = re.compile('/[ ]*(?P<dilution>[0-9]+)')
-        rexp_c = re.compile('[0-9]{2}[-][0-9]{7}[-][a-zA-Z]{1,2}')
-        col_indices = {}
-        exit_iterrows_flag = False
-        row_start = -1
-        id_col_index = -1
-        list_of_proteins = []
-        list_of_Igs = []
-        list_of_dilutions = []
-        for index, row in df_up.iterrows():
-            if exit_iterrows_flag:
-                break
-            for col, item in row.items():
-                if isinstance(item, str):
-                    #Check if the item is an ID
-                    obj = rexp_c.search(item)
-                    if obj:
-                        #print('Data start at row:', index)
-                        id_col_index = col
-                        row_start = index
-                        exit_iterrows_flag = True
-                        break
-                    for protein in relevant_proteins:
-                        if protein.lower() in item.lower():
-                            col_indices[col] = None
-                            list_of_proteins.append(protein)
-                            break
-                    for Ig in relevant_Igs:
-                        if Ig.lower() in item.lower():
-                            col_indices[col] = None
-                            list_of_Igs.append(Ig)
-                            break
-                    #Check if the item is a dilution
-                    obj = rexp_n.search(item)
-                    if obj:
-                        dilution = obj.group('dilution')
-                        col_indices[col] = None
-                        list_of_dilutions.append(dilution)
-        #Form headers
-        for k, p, Ig, dil in zip(col_indices.keys(),
-                                 list_of_proteins,
-                                 list_of_Igs,
-                                 list_of_dilutions):
-            s = '-'.join([p,Ig,dil])
-            col_indices[k] = s
 
-        #Full ID
-        merge_at_column = self.merge_source
-        #Set in the dictionary the mapping:
-        #id_col_index -> merge_at_column
-        col_indices[id_col_index] = merge_at_column
-        print(col_indices)
-        df_up.rename(columns = col_indices, inplace = True)
-        def is_id(txt):
-            if txt is np.nan:
-                return txt
-            obj = rexp_c.search(txt)
-            if obj:
-                return obj.group(0)
-            else:
-                return np.nan
-        df_up[merge_at_column] = df_up[merge_at_column].apply(is_id)
-        df_up.dropna(subset=merge_at_column, axis=0, inplace=True)
-        #Remove individuals with "E" type label.
-        self.remap_E_type_individuals(df_up)
-        print('Ready to merge')
-        #Merge process >>>
-        #The update has a higher priority than the original data.
-        kind = 'update+'
-        self.df = self.parent.merge_X_with_Y_and_return_Z(self.df,
-                                                          df_up,
-                                                          merge_at_column,
-                                                          kind=kind)
-        self.update_id_column()
-        print('End of updating the LSM file.')
-
-    def remap_E_type_individuals(self, df_up):
+    def map_old_ids_to_new(self, df_up):
         #Careful with the "E" type individuals.
         fname  = 'remapping_list.xlsx'
         fname = os.path.join(self.dpath, fname)
         df_re = pd.read_excel(fname)
+        #This participant changed sites.
+        df_up[self.merge_source] = df_up[self.merge_source].str.replace('50-1910060', '12-1301348')
         for index_re, row_re in df_re.iterrows():
             old_id = row_re['Original']
             new_id = row_re['New']
@@ -185,7 +106,7 @@ class LTCSerologyMaster:
         #If no Full ID is provided, the row is removed.
         df_up.dropna(axis=0, subset=self.merge_source, inplace=True)
         #Remap faulty "Full IDs"
-        self.remap_E_type_individuals(df_up)
+        self.map_old_ids_to_new(df_up)
         kind = 'original+'
         merge_at_column = 'Full ID'
         self.df = self.parent.merge_X_with_Y_and_return_Z(self.df,
@@ -532,7 +453,8 @@ class LTCSerologyMaster:
                     folder, fname)
             df_up = pd.read_excel(fname, sheet_name='Sept 28 2022')
         print(f'The update has {len(df_up)} rows.')
-        self.remap_E_type_individuals(df_up)
+        #Replace old IDs with the new.
+        self.map_old_ids_to_new(df_up)
         df_up.replace('.', np.nan, inplace=True)
         df_up.replace('n/a', np.nan, inplace=True)
         df_up.replace('N/A', np.nan, inplace=True)
@@ -582,15 +504,13 @@ class LTCSerologyMaster:
         #Merge process >>>
         #The update has a higher priority than the original data.
         kind = 'original+'
-        status_pre = self.compute_data_density()
+        #status_pre = self.compute_data_density()
         self.df = self.parent.merge_X_with_Y_and_return_Z(self.df,
                                                           df_up,
                                                           self.merge_source,
                                                           kind=kind)
         self.update_id_column()
         self.parent.SID_obj.check_df_dates_using_SID(self.df)
-        status_post = self.compute_data_density()
-        self.monotonic_increment_check(status_pre, status_post)
         print('The LSM file has been updated.')
 
 

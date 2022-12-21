@@ -627,9 +627,10 @@ class Reporter:
 
     def ahmads_request_dec_16_2022(self):
 
+        use_manual_seaborn = True
         use_boxplot = False
         use_seaborn = False
-        use_bars    = True
+        use_bars    = False
 
         fname  = 'lucas_data.xlsx'
         folder = 'Ahmad_dec_16_2022'
@@ -641,6 +642,7 @@ class Reporter:
         dsd = 'Days since dose'
         dos = 'Dose of Sample'
         istat = 'Infection Status'
+        binf = 'Binary Infection'
 
         #Relevant columns
         bio_columns = ['Wuhan',
@@ -663,36 +665,36 @@ class Reporter:
                 ]
 
         bio_legend_xy = [
-                'lower left',
-                'lower left',
-                'lower left',
-                'upper right',
-                'upper right',
-                'upper right',
-                'upper right',
+                'upper left',
+                'upper left',
+                'upper left',
+                'upper left',
+                'upper left',
+                'upper left',
+                'upper left',
                 ]
 
-        bio_legend_dose = [
+        bio_legend_for_dose = [
             5,
             5,
             5,
-            2,
-            2,
-            2,
-            2,
+            5,
+            5,
+            5,
+            5,
             ]
 
         bio_column_to_label       = {}
         bio_column_to_legend_xy   = {}
-        bio_column_to_legend_dose = {}
+        bio_column_to_legend_for_dose = {}
 
         for x,y,z,w in zip(bio_columns,
                        bio_labels,
                        bio_legend_xy,
-                       bio_legend_dose):
+                       bio_legend_for_dose):
             bio_column_to_label[x]       = y
             bio_column_to_legend_xy[x]   = z
-            bio_column_to_legend_dose[x] = w
+            bio_column_to_legend_for_dose[x] = w
 
         plots_that_use_ylog = ['Wuhan', 'Beta', 'Omicron']
 
@@ -717,9 +719,9 @@ class Reporter:
                               inplace=True)
 
         plot_istat_order = [
-            dc['Infected in past 3 months'],
-            dc['Infected >3 months'],
             dc['Not infected'],
+            dc['Infected >3 months'],
+            dc['Infected in past 3 months'],
                              ]
         #istat_to_row = {'No Inf':2, 'Inf > 3mo':1, 'Inf < 3mo':0}
 
@@ -749,6 +751,81 @@ class Reporter:
         #Create time classification
         bins = pd.cut(df_up[dsd], intervals, labels=time_labels)
 
+        if use_manual_seaborn:
+            #Include column with 
+            md_props = dict(linestyle='-',
+                           linewidth=2,
+                           color='black')
+            bx_props = dict(linestyle='-',
+                           linewidth=1,
+                           alpha=0.95,
+                           )
+            wh_props = dict(linestyle='-',
+                           linewidth=1,
+                           color='black')
+            cp_props = dict(linestyle='-',
+                           linewidth=1,
+                           color='black')
+            my_pal = {'Inf -': 'blue', 'Inf +': 'red'}
+            bins = pd.cut(df_up[dsd], intervals, labels=time_labels)
+            df_up['mpd'] = bins
+
+            selection = df_up['mpd']!='0- 2'
+            df_up.drop(selection[selection].index, inplace=True)
+
+            df_g = df_up.groupby(dos)
+            #groups = [2,3,4,5]
+            groups = [4,5]
+            map_group_to_width = {4:0.8, 5:0.8}
+            n_groups = len(groups)
+            for bio_column in bio_columns:
+                fig, ax = plt.subplots(ncols=n_groups,
+                        figsize=(10, 5),
+                        #gridspec_kw={'width_ratios': [5, 1]},
+                        sharey=True)
+                legend_for_dose = bio_column_to_legend_for_dose[bio_column]
+                for k, group in enumerate(groups):
+                    df_d = df_g.get_group(group)
+                    sns.boxplot(ax = ax[k],
+                            x   = 'mpd',
+                            y   = bio_column,
+                            hue = binf,
+                            data=df_d,
+                            showfliers=False,
+                            #width=map_group_to_width[group],
+                            medianprops  = md_props,
+                            boxprops     = bx_props,
+                            whiskerprops = wh_props,
+                            capprops     = cp_props,
+                            hue_order    = ['Inf -', 'Inf +'],
+                            order        = ['0- 2'],
+                            palette      = my_pal,
+                            )
+                    if group == legend_for_dose:
+                        pos = bio_column_to_legend_xy[bio_column]
+                        ax[k].legend(loc=pos)
+                    else:
+                        ax[k].legend([],[], frameon=False)
+                    ax[k].set_ylabel('')
+                    xlabel = 'Months after dose ' + str(group)
+                    ax[k].set_xlabel(xlabel)
+                    ax[k].tick_params(axis='x', rotation=90)
+                    if bio_column in plots_that_use_ylog:
+                        ax[k].set_yscale('log', base=2)
+                        R = 2**np.arange(2,11,2,dtype=int)
+                        ax[k].set_yticks(R)
+                        y_labels = [str(x) for x in R]
+                        ax[k].set_yticklabels(y_labels)
+                    else:
+                        ax[k].set_yticks([0,1,2,3])
+                y_label = bio_column_to_label[bio_column]
+                fig.supylabel(y_label, weight='bold')
+                fname  = 'combo_' + bio_column + '.png'
+                folder = 'Ahmad_dec_16_2022'
+                fname = os.path.join('..','requests',folder, fname)
+                plt.tight_layout()
+                plt.savefig(fname)
+
         if use_seaborn:
             #Include column with 
             md_props = dict(linestyle='-',
@@ -756,20 +833,27 @@ class Reporter:
                            color='black')
             bx_props = dict(linestyle='-',
                            linewidth=1,
-                           alpha=0.85,
+                           alpha=0.95,
                            )
             wh_props = dict(linestyle='-',
                            linewidth=1,
                            color='black')
+            cp_props = dict(linestyle='-',
+                           linewidth=1,
+                           color='black')
+            my_pal = {'No Inf': 'blue', 'Inf > 3mo': 'orange', 'Inf < 3mo':'red'}
             df_up['mpd'] = bins
             df_g = df_up.groupby(dos)
-            groups = [2,3,4,5]
+            #groups = [2,3,4,5]
+            groups = [4,5]
+            map_group_to_width = {4:0.8, 5:0.8}
             n_groups = len(groups)
             for bio_column in bio_columns:
                 fig, ax = plt.subplots(ncols=n_groups,
                         figsize=(10, 5),
+                        gridspec_kw={'width_ratios': [5, 1]},
                         sharey=True)
-                legend_dose = bio_column_to_legend_dose[bio_column]
+                legend_for_dose = bio_column_to_legend_for_dose[bio_column]
                 for k, group in enumerate(groups):
                     df_d = df_g.get_group(group)
                     sns.boxplot(ax = ax[k],
@@ -777,19 +861,26 @@ class Reporter:
                             y=bio_column,
                             data=df_d,
                             showfliers=False,
-                            width=0.5,
+                            width=map_group_to_width[group],
                             medianprops  = md_props,
                             boxprops     = bx_props,
                             whiskerprops = wh_props,
-                            hue_order=plot_istat_order,
+                            capprops     = cp_props,
+                            hue_order    = plot_istat_order,
+                            palette      = my_pal,
                             hue=istat)
-                    if group != legend_dose:
-                        ax[k].legend([],[], frameon=False)
-                    else:
+                    if group == legend_for_dose:
                         pos = bio_column_to_legend_xy[bio_column]
                         ax[k].legend(loc=pos)
-                    if k == n_groups-1:
+                    else:
+                        ax[k].legend([],[], frameon=False)
+                    if group == 5:
                         ax[k].set_xlim(-0.5, 0.5)
+                    else:
+                        xp = 0.5
+                        for i in range(n_time_labels-1):
+                            ax[k].axvline(xp,color='gray')
+                            xp += 1.0
                     ax[k].set_ylabel('')
                     xlabel = 'Months after dose ' + str(group)
                     ax[k].set_xlabel(xlabel)
@@ -910,7 +1001,7 @@ class Reporter:
                 #Time to plot
                 fig, ax = plt.subplots(nrows=3, ncols=1, sharex=True)
                 ymax = 0
-                color_vec = ['blue','orange','green']
+                color_vec = ['blue','orange','red']
                 for ci, i_status in enumerate(plot_istat_order):
                     df_u[i_status].plot(ax=ax[ci],
                                       kind='bar',

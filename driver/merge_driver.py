@@ -298,7 +298,7 @@ class Merger:
 
 
     def update_LSM(self, file_name=None):
-        #This function was updated on 10-Nov-2022
+        #This function was updated on Dec 21 2022
         if file_name:
             fname = file_name
         else:
@@ -308,6 +308,12 @@ class Merger:
         book = pd.read_excel(fname, sheet_name=None)
         print(f'LSM is looking into the {folder=}')
         print(f'LSM is opening the {fname=}')
+
+        #Before going through the updates, we store the current
+        #data density state of the LSM file.
+        status_pre = self.LSM_obj.compute_data_density()
+
+        #Iterate over the updates.
         for k, (sheet, df_up) in enumerate(book.items()):
             print('>>>>>>>>',k)
             print(f'Updating using {sheet=}.')
@@ -316,6 +322,12 @@ class Merger:
             #The following function is now obsolete.
             #self.LSM_obj.merge_serology_update(df_up)
         self.check_LSM_dates()
+
+        #After going through the updates, we compute the new
+        #data density state of the LSM file.
+        status_post = self.LSM_obj.compute_data_density()
+        self.LSM_obj.monotonic_increment_check(status_pre,
+                status_post)
 
         #Uncomment the following line if you want to verify
         #that the LSM dates are consistent with the SID file.
@@ -479,6 +491,7 @@ class Merger:
         DOR=self.MPD_obj.DOR
         DOE=self.MPD_obj.DOE
 
+        #Potential irregular ID format
         id_regexp = re.compile('(?P<site>[0-9]{2})[-]?(?P<code>[0-9]{4}[ ]?[0-9]{3})')
         def extract_id(txt):
             obj = id_regexp.search(txt)
@@ -670,6 +683,9 @@ class Merger:
         self.print_column_and_datatype(df_up)
         print(df_up)
 
+        #Replace old IDs with the new.
+        self.MPD_obj.map_old_ids_to_new(df_up)
+
         #Date chronology
         if find_vaccines:
             #We use what is given.
@@ -827,5 +843,7 @@ obj = Merger()
 #obj.REP_obj.ahmads_request_dec_16_2022()
 #obj.update_master_using_SID()
 #obj.write_the_M_file_to_excel()
-obj.SID_obj.migrate_dates_from_SID_to_LSM()
-obj.LSM_obj.write_LSM_to_excel()
+#obj.SID_obj.migrate_dates_from_SID_to_LSM()
+#obj.LSM_obj.write_LSM_to_excel()
+#Dec 21 2022
+obj.REP_obj.ahmads_request_dec_16_2022()
