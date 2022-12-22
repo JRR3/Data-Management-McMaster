@@ -303,7 +303,7 @@ class Merger:
             fname = file_name
         else:
             fname = 'update.xlsx'
-        folder = 'Megan_dec_12_2022'
+        folder = 'Jessica_dec_22_2022'
         fname = os.path.join('..','requests',folder, fname)
         book = pd.read_excel(fname, sheet_name=None)
         print(f'LSM is looking into the {folder=}')
@@ -846,4 +846,9 @@ obj = Merger()
 #obj.SID_obj.migrate_dates_from_SID_to_LSM()
 #obj.LSM_obj.write_LSM_to_excel()
 #Dec 21 2022
-obj.REP_obj.ahmads_request_dec_16_2022()
+#obj.REP_obj.ahmads_request_dec_16_2022()
+#Dec 22 2022
+#obj.update_LSM()
+#obj.LSM_obj.write_LSM_to_excel()
+#obj.merge_M_with_LSM()
+obj.LSM_obj.generate_L_format()

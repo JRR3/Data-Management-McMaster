@@ -515,6 +515,7 @@ class LTCSerologyMaster:
 
 
     def plot_report(self):
+        #This is the matrix density report.
         fname = 'LSM.xlsx'
         fname = os.path.join(self.dpath, fname)
         df = pd.read_excel(fname, sheet_name='report')
@@ -545,4 +546,142 @@ class LTCSerologyMaster:
         fname = os.path.join(self.dpath, fname)
         plt.tight_layout()
         plt.savefig(fname)
+
+    def generate_L_format(self):
+        #Replicate the format in Lucas' table.
+        #A=No infection before the DOC
+        #B=Most recent infection before the DOC took place 
+        #more than 3months 
+        #C=Most recent infection before the DOC took place 
+        #less than 3months 
+        #self.parent.MPD_obj.add_site_column()
+
+        v_date_cols = self.parent.LIS_obj.vaccine_date_cols
+        inf_date_cols = self.parent.LIS_obj.positive_date_cols
+        index_to_i_status = {}
+        print('Warning: Make sure the W file is updated.')
+        fname  = 'W.xlsx'
+        fname = os.path.join(self.parent.outputs_path, fname)
+        df_w = pd.read_excel(fname)
+
+        NPD  = 'Nearest pre-collection dose'
+        df_w[NPD] = 0
+
+        DSD  = 'Days since dose'
+        df_w[DSD] = 0
+
+        MSD = 'Months since dose'
+        df_w[MSD] = ''
+
+        NPI = 'Nearest pre-collection infection'
+        df_w[NPI] = np.nan
+
+        DSI = 'Days since infection'
+        df_w[DSI] = np.nan
+
+        TIS = 'Ternary infection status'
+        df_w[TIS] = ''
+
+        BIS = 'Binary infection status'
+        df_w[BIS] = ''
+
+        DOC = self.DOC
+
+        g_labels  = ['Full ID', 'Site',
+                DOC, NPD, DSD, MSD, NPI, DSI, TIS, BIS]
+        g_labels += self.numeric_columns
+
+        rx_int = re.compile('[0-9]+')
+        for index, row in df_w.iterrows():
+            full_ID = row['Full ID']
+            if pd.isnull(full_ID):
+                continue
+            #Vaccine calculation
+            v_dates = row[v_date_cols]
+            if v_dates.isnull().all():
+                continue
+            selection = v_dates.notnull()
+            v_dates = v_dates[selection]
+            doc = row[DOC]
+            deltas = (doc - v_dates) / np.timedelta64(1,'D')
+            selection = deltas < 0
+            deltas = deltas[~selection]
+            if len(deltas) == 0:
+                continue
+            deltas = deltas.sort_values()
+            v_dsd = deltas.iloc[0]
+            df_w.loc[index, DSD] = v_dsd
+
+            v_index = deltas.index[0]
+            vaccine_n = rx_int.search(v_index).group(0)
+            vaccine_n = int(vaccine_n)
+            df_w.loc[index, NPD] = vaccine_n
+            #Infection calculation
+            i_dates = row[inf_date_cols]
+            if i_dates.isnull().all():
+                df_w.loc[index, TIS] = 'No Inf'
+                df_w.loc[index, BIS] = 'Inf Neg'
+                continue
+            selection = i_dates.notnull()
+            i_dates = i_dates[selection]
+            deltas = (doc - i_dates) / np.timedelta64(1,'D')
+            selection = deltas < 0
+            deltas = deltas[~selection]
+            if len(deltas) == 0:
+                df_w.loc[index, TIS] = 'No Inf'
+                df_w.loc[index, BIS] = 'Inf Neg'
+                continue
+            deltas = deltas.sort_values()
+            i_index = deltas.index[0]
+            infection_n = rx_int.search(i_index).group(0)
+            infection_n = int(infection_n)
+            df_w.loc[index, NPI] = infection_n
+
+            nearest_infection_in_days = deltas.iloc[0]
+            df_w.loc[index, DSI] = nearest_infection_in_days
+            df_w.loc[index, BIS] = 'Inf Pos'
+            if nearest_infection_in_days < 90:
+                df_w.loc[index, TIS] = 'Inf < 3mo'
+            else:
+                df_w.loc[index, TIS] = 'Inf > 3mo'
+
+        #Add site
+        self.parent.MPD_obj.add_site_column(df_w)
+
+        #Compute time labels
+        max_days_since_dose = df_w[DSD].max()
+        n_months_per_period  = 2
+        days_per_month = 30
+        days_per_period = days_per_month * n_months_per_period
+        n_periods  = np.round(max_days_since_dose / days_per_period)
+        days_upper = n_periods * days_per_period
+        intervals = np.arange(0,days_upper+1, days_per_period, dtype=int)
+        print(intervals)
+        old = '0'
+        time_labels = []
+        for x in intervals[1:]:
+            new = str(x // days_per_month)
+            clone_new = new
+            if len(clone_new) == 1:
+                clone_new = ' ' + clone_new
+            txt = old + '-' + clone_new
+            old = new
+            time_labels.append(txt)
+        print(time_labels)
+        n_time_labels = len(time_labels)
+
+        #Create time classification
+        bins = pd.cut(df_w[DSD], intervals, labels=time_labels)
+
+        MSD = 'Months since dose'
+        df_w[MSD] = bins
+
+        df_w = df_w[g_labels]
+        df_w.dropna(subset=['Full ID'], axis=0, inplace=True)
+
+        fname  = 'L.xlsx'
+        folder = 'Tara_dec_22_2022'
+        fname = os.path.join('..','requests',folder, fname)
+        df_w.to_excel(fname, index=False)
+
 

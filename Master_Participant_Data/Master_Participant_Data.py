@@ -129,8 +129,8 @@ class MasterParticipantData:
         print('Do not forget to write the df to Excel.')
 
 
-    ##########Oct 17 2022##################
-    def add_site_column(self):
+    def add_site_column(self, df):
+        #Dec 22 2022
         rexp = re.compile('(?P<site>[0-9]+)[-](?P<user>[0-9]+)')
         def get_site(txt):
             obj = rexp.search(txt)
@@ -140,14 +140,13 @@ class MasterParticipantData:
                 raise ValueError('Unable to extract site')
 
         site = 'Site'
-        if site in self.parent.df.columns:
+        if site in df.columns:
             return
-        self.parent.df[site] = self.parent.df['ID']
-        self.parent.df[site] = self.parent.df[site].apply(get_site)
-        self.parent.df[self.site_type] = 'LTC'
-        self.parent.df[self.site_type] =\
-                self.parent.df[self.site_type].where(
-                        self.parent.df[site] < 50, 'RH')
+        df[site] = df['ID']
+        df[site] = df[site].apply(get_site)
+        return
+        df[self.site_type] = 'LTC'
+        df[self.site_type] = df[self.site_type].where(df[site] < 50, 'RH')
 
     ##########Oct 19 2022##################
     def update_M_from_comments_and_dates(self):
