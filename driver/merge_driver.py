@@ -134,10 +134,19 @@ class Merger:
         print('A backup for the M file has been generated.')
 
     def write_the_M_file_to_excel(self):
+        #Dec 23 2022
+        #This version also includes the generation
+        #of the delta report.
         self.backup_the_M_file()
         fname = self.M_fname
         fname = os.path.join(self.outputs_path, fname)
-        self.df.to_excel(fname, index = False)
+        with pd.ExcelWriter(fname) as writer:
+            self.df.to_excel(writer,
+                    sheet_name = 'data', index = False)
+            print('Writing the Delta report to Excel')
+            self.MPD_obj.delta_report.to_excel(writer,
+                    sheet_name = 'report', index = False)
+
         print('The M file has been written to Excel')
 
     def merge_MPD_LIS_SID_components(self):
@@ -302,8 +311,8 @@ class Merger:
         if file_name:
             fname = file_name
         else:
-            fname = 'update.xlsx'
-        folder = 'Jessica_dec_22_2022'
+            fname = 'nc_update.xlsx'
+        folder = 'Jessica_dec_23_2022'
         fname = os.path.join('..','requests',folder, fname)
         book = pd.read_excel(fname, sheet_name=None)
         print(f'LSM is looking into the {folder=}')
@@ -311,7 +320,7 @@ class Merger:
 
         #Before going through the updates, we store the current
         #data density state of the LSM file.
-        status_pre = self.LSM_obj.compute_data_density()
+        status_pre = self.MPD_obj.compute_data_density(self.LSM_obj.df)
 
         #Iterate over the updates.
         for k, (sheet, df_up) in enumerate(book.items()):
@@ -325,8 +334,8 @@ class Merger:
 
         #After going through the updates, we compute the new
         #data density state of the LSM file.
-        status_post = self.LSM_obj.compute_data_density()
-        self.LSM_obj.monotonic_increment_check(status_pre,
+        status_post = self.MPD_obj.compute_data_density(self.LSM_obj.df)
+        self.MPD_obj.monotonic_increment_check(status_pre,
                 status_post)
 
         #Uncomment the following line if you want to verify
@@ -706,10 +715,7 @@ class Merger:
 
         #Merging step.
         #Be careful with the kind of update you want to execute.
-        #If necessary, you can first run it with "update+"
-        #and see if there are significant differences.
         self.df = self.merge_with_M_and_return_M(df_up, 'ID', kind='original+')
-
 
         if find_vaccines:
             print('Checking vaccination chronology of the merged file.')
@@ -758,43 +764,6 @@ class Merger:
         self.MPD_obj.update_active_status_column()
 
 
-    def taras_request_dec_15_2022(self):
-        fname  = 'site_13.xlsx'
-        folder = 'Tara_dec_15_2022'
-        fname = os.path.join('..','requests',folder, fname)
-        linf = 'Infections'
-        #Read as columns of strings
-        df_up = pd.read_excel(fname, dtype=str)
-        df_up.replace('n/a', np.nan, inplace=True)
-        df_up.replace('N/A', np.nan, inplace=True)
-        #df_up.replace('refused', np.nan, inplace=True)
-        #df_up.replace('Refused', np.nan, inplace=True)
-        #df_up.replace('REFUSED', np.nan, inplace=True)
-        #df_up.replace('DECLINED', np.nan, inplace=True)
-        df_up['Reason'].replace('Refused', 'Refused-Consent', inplace=True)
-        df_up['Reason'].replace('No Reconsent', 'Refused-Consent', inplace=True)
-        df_up['Reason'].replace('no reconsent signed', 'Refused-Consent', inplace=True)
-        df_up['Reason'].replace('Refused Consent', 'Refused-Consent', inplace=True)
-        df_up['Reason'].replace('Withdrew Consent', 'Refused-Consent', inplace=True)
-        txt = ('Personal history of COVID-19 – '
-                'unaware of specific date as it was before he came to FV.')
-        df_up.replace(txt, np.nan, inplace=True)
-        df_up.replace('Refused', np.nan, inplace=True)
-        df_up.replace('refused', np.nan, inplace=True)
-        df_up.replace('REFUSED', np.nan, inplace=True)
-        df_up.replace('None', np.nan, inplace=True)
-        df_up.replace('Unknown', np.nan, inplace=True)
-        df_up.replace('Yes - date unknown', np.nan, inplace=True)
-        df_up.replace('COVISHEILD', 'COVISHIELD', inplace=True)
-        df_up.replace(' ', np.nan, inplace=True)
-        df_up.replace('n', np.nan, inplace=True)
-        df_up.replace('BmodernaO', 'BModernaO', inplace=True)
-        df_up.replace('Spikevax bivalent', 'BModernaO', inplace=True)
-        df_up.replace('F', 'Female', inplace=True)
-        df_up.replace('M', 'Male', inplace=True)
-        df_up.replace('\xa0', np.nan, inplace=True)
-        print(df_up)
-        self.df = self.merge_with_M_and_return_M(df_up, 'ID', kind='original+')
 
 
 
@@ -851,4 +820,12 @@ obj = Merger()
 #obj.update_LSM()
 #obj.LSM_obj.write_LSM_to_excel()
 #obj.merge_M_with_LSM()
-obj.LSM_obj.generate_L_format()
+#obj.LSM_obj.generate_L_format()
+#Dec 23 2022
+#obj.MPD_obj.single_column_update()
+#obj.write_the_M_file_to_excel()
+#obj.lindsay_dec_23_2022()
+#obj.write_the_M_file_to_excel()
+#obj.LSM_obj.generate_letter_to_AN_code_table()
+obj.update_LSM()
+obj.LSM_obj.write_LSM_to_excel()

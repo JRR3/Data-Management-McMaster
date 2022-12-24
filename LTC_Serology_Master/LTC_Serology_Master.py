@@ -17,7 +17,6 @@ class LTCSerologyMaster:
     def __init__(self, dpath, parent=None):
         self.parent       = None
         self.df           = None
-        self.delta_report = None
         self.dpath        = dpath
         self.backups_path = os.path.join('..', 'backups')
         self.merge_source = 'Full ID'
@@ -27,6 +26,7 @@ class LTCSerologyMaster:
         self.DOC          = 'Date Collected'
         self.non_numeric_columns = []
         self.numeric_columns     = []
+        self.ancode_to_lcode     = {}
 
         self.load_LSM_file()
 
@@ -49,7 +49,9 @@ class LTCSerologyMaster:
             if column not in self.non_numeric_columns:
                 self.numeric_columns.append(column)
 
-        print('LSM class has been initialized with LSM file.')
+        print('LSM class has been initialized with the LSM file.')
+
+        self.generate_letter_to_AN_code_dict()
 
 
     def update_id_column(self):
@@ -70,6 +72,9 @@ class LTCSerologyMaster:
         print('A backup for the LSM file has been generated.')
 
     def write_LSM_to_excel(self):
+        #Dec 23 2022
+        #Note that we are using the delta report
+        #stored in the MPD class.
         self.backup_the_LSM_file()
 
         print('Writing the LSM file to Excel.')
@@ -79,7 +84,8 @@ class LTCSerologyMaster:
         with pd.ExcelWriter(fname) as writer:
             self.df.to_excel(writer,
                     sheet_name = 'data', index = False)
-            self.delta_report.to_excel(writer,
+            print('Writing the Delta report to Excel')
+            self.parent.MPD_obj.delta_report.to_excel(writer,
                     sheet_name = 'report', index = False)
 
         print('The LSM file has been written to Excel.')
@@ -91,7 +97,8 @@ class LTCSerologyMaster:
         fname = os.path.join(self.dpath, fname)
         df_re = pd.read_excel(fname)
         #This participant changed sites.
-        df_up[self.merge_source] = df_up[self.merge_source].str.replace('50-1910060', '12-1301348')
+        df_up[self.merge_source] = df_up[self.merge_source].str.replace('50-1910060',
+                '12-1301348')
         for index_re, row_re in df_re.iterrows():
             old_id = row_re['Original']
             new_id = row_re['New']
@@ -139,8 +146,9 @@ class LTCSerologyMaster:
         self.parent.write_df_to_excel(df_m, label)
 
     def extract_ending_from_full_id(self, full_id):
-        #Nov 24 2022
-        regexp = re.compile('[0-9]{2}[-][0-9]{7}[-](?P<collection>[a-zA-Z]{1,2})')
+        #Dec 23 2022
+        txt = '[0-9]{2}[-][0-9]{7}[-](?P<collection>[0-9a-zA-Z]+)'
+        regexp = re.compile(txt)
         obj = regexp.match(full_id)
         if obj:
             return obj.group('collection')
@@ -406,45 +414,14 @@ class LTCSerologyMaster:
             fname = os.path.join(self.parent.requests_path, folder, fname)
             ax.figure.savefig(fname)
 
-    def compute_data_density(self):
-        col_to_n_data = {'Column':[], 'Count':[], 'Empty':[], '%_full':[]}
-        n_rows = len(self.df)
-        for column in self.df.columns:
-            n_data = self.df[column].count()
-            col_to_n_data['Column'].append(column)
-            col_to_n_data['Count'].append(n_data)
-            col_to_n_data['Empty'].append(n_rows-n_data)
-            p = n_data/n_rows*100
-            col_to_n_data['%_full'].append(p)
-        df = pd.DataFrame(col_to_n_data)
-        return (df, n_rows)
 
-    def monotonic_increment_check(self, pre, post):
-        df_pre  = pre[0]
-        df_post = post[0]
-        n_rows_pre  = pre[1]
-        n_rows_post = post[1]
-        M = pd.merge(df_pre, df_post,
-                on='Column',
-                how='outer',
-                suffixes=('_old', '_current'))
-        pre_total = df_pre['Count'].sum()
-        post_total = df_post['Count'].sum()
-        p_increment = (post_total - pre_total)/pre_total * 100
-        M['Delta Count']  = M['Count_current'] - M['Count_old']
-        M['Delta %_full'] = M['%_full_current'] - M['%_full_old']
-        check = M['Delta Count'] >= 0
-        if not check.all():
-            raise ValueError('There seems to be some data loss')
-        L = ['Count_old','Count_current']
-        M.loc['Total'] = M[L].sum(axis=0)
-        print(M)
-        print(f'Total pre--data:{pre_total}')
-        print(f'Total post-data:{post_total}')
-        print(f'% increment    :{p_increment}')
-        self.delta_report = M
 
     def direct_serology_update_with_headers(self, df_up=None):
+        #Dec 22 2022
+        #This is now the official method to update the
+        #serology master file.
+        #Note that this function is called from the
+        #update_LSM method within the parent object.
         if df_up is None:
             fname  = 'NazyAbData_2022_11_14.xlsx'
             print(f'Working with {fname=}')
@@ -454,29 +431,31 @@ class LTCSerologyMaster:
             df_up = pd.read_excel(fname, sheet_name='Sept 28 2022')
         print(f'The update has {len(df_up)} rows.')
         #Replace old IDs with the new.
-        self.map_old_ids_to_new(df_up)
+        df_up.dropna(axis=0, how='all', inplace=True)
         df_up.replace('.', np.nan, inplace=True)
         df_up.replace('n/a', np.nan, inplace=True)
         df_up.replace('N/A', np.nan, inplace=True)
         df_up.replace('#N/A', np.nan, inplace=True)
         df_up.replace('retest on next plate', np.nan, inplace=True)
         df_up.replace('NT', np.nan, inplace=True)
-        df_up.dropna(axis=0, how='all', inplace=True)
-        df_up[self.merge_source] = df_up[self.merge_source].str.replace(' ','')
+        df_up['p Full ID'] = df_up['p Full ID'].str.replace(' ','')
         #=========== Removal of cutoff===============
-        selection = df_up[self.merge_source].str.lower().str.contains('cutoff')
+        selection = df_up['p Full ID'].str.lower().str.contains('cutoff')
         if selection.any():
             df_up = df_up[~selection].copy()
         #===========ID verification===============
-        rexp_c = re.compile('[0-9]{2}[-][0-9]{7}[-][A-Z]{1,2}')
-        def is_a_valid_id(txt):
-            obj = rexp_c.search(txt)
-            if obj:
-                return obj.group(0)
-            else:
-                print(txt)
-                raise ValueError('Not an ID')
-        df_up[self.merge_source] = df_up[self.merge_source].map(is_a_valid_id)
+        #rexp_c = re.compile('[0-9]{2}[-][0-9]{7}[-][A-Z]{1,2}')
+        #def is_a_valid_id(txt):
+            #obj = rexp_c.search(txt)
+            #if obj:
+                #return obj.group(0)
+            #else:
+                #print(txt)
+                #raise ValueError('Not an ID')
+        #df_up[self.merge_source] = df_up[self.merge_source].map(is_a_valid_id)
+        self.check_full_id_format(df_up, 'p Full ID')
+        df_up.drop(columns=['p Full ID'], inplace=True)
+        self.map_old_ids_to_new(df_up)
         #===========Temporal removal of participants===============
         #L = []
         #selection = ~df_up[self.merge_source].isin(L)
@@ -502,8 +481,9 @@ class LTCSerologyMaster:
         #print(df_up)
         print('Ready to merge')
         #Merge process >>>
-        #The update has a higher priority than the original data.
         kind = 'original+'
+        #This function call has now been moved outside
+        #of this function in the parent object.
         #status_pre = self.compute_data_density()
         self.df = self.parent.merge_X_with_Y_and_return_Z(self.df,
                                                           df_up,
@@ -515,6 +495,7 @@ class LTCSerologyMaster:
 
 
     def plot_report(self):
+        #How much data do we have?
         #This is the matrix density report.
         fname = 'LSM.xlsx'
         fname = os.path.join(self.dpath, fname)
@@ -548,6 +529,7 @@ class LTCSerologyMaster:
         plt.savefig(fname)
 
     def generate_L_format(self):
+        #Dec 22 2022
         #Replicate the format in Lucas' table.
         #A=No infection before the DOC
         #B=Most recent infection before the DOC took place 
@@ -684,4 +666,62 @@ class LTCSerologyMaster:
         fname = os.path.join('..','requests',folder, fname)
         df_w.to_excel(fname, index=False)
 
+    def generate_letter_to_AN_code_table(self):
+        #Dec 23 2022
+        fname  = 'lookup_table_S_codes.xlsx'
+        fname  = os.path.join(self.dpath, fname)
+        df_t   = pd.read_excel(fname)
+        print(df_t)
+        txt = '[a-zA-Z ]+:(?P<ancode>[a-zA-Z0-9]+) - (?P<lcode>[A-Z]+)'
+        rexp = re.compile(txt)
+        for index, row in df_t.iterrows():
+            h = row['Header']
+            print(f'{h=}')
+            obj = rexp.match(h)
+            ancode = obj.group('ancode')
+            lcode = obj.group('lcode')
+            df_t.loc[index, 'Letter code'] = lcode
+            df_t.loc[index, 'Alphanumeric code'] = ancode
+        df_t.to_excel(fname, index=False)
 
+    def generate_letter_to_AN_code_dict(self):
+        #Dec 23 2022
+        fname  = 'lookup_table_S_codes.xlsx'
+        fname  = os.path.join(self.dpath, fname)
+        df_t   = pd.read_excel(fname)
+        for index, row in df_t.iterrows():
+            ancode = row['Alphanumeric code']
+            lcode  = row['Letter code']
+            self.ancode_to_lcode[ancode] = lcode
+
+    def check_full_id_format(self, df, col):
+        #Modified to be applicable to any df and given column.
+        #user_length_set = set()
+        #site_length_set = set()
+        txt = '(?P<site>[0-9]{2})[-](?P<user>[0-9]{7})-(?P<time>[a-zA-Z0-9]+)'
+        rexp = re.compile(txt)
+        def process_id(txt):
+            if isinstance(txt, str):
+                obj = rexp.match(txt)
+                if obj:
+                    code = [obj.group('site'),
+                            obj.group('user'),
+                            obj.group('time')]
+                    return code
+                else:
+                    print(txt)
+                    raise ValueError(f'Unexpected format for {col=}')
+            else:
+                raise ValueError(f'Unexpected type for {txt=}')
+
+        for index, row in df.iterrows():
+            p_full_ID = row[col]
+            code = process_id(p_full_ID)
+            doc_code = code[-1]
+            if 2 < len(doc_code):
+                lcode = self.ancode_to_lcode[doc_code]
+                code[-1] = lcode
+                full_ID  = '-'.join(code)
+                df.loc[index, 'Full ID'] = full_ID
+            else:
+                df.loc[index, 'Full ID'] = p_full_ID

@@ -241,6 +241,7 @@ class SampleInventoryData:
             doc_LSM = row_lsm[doc]
             selector = self.parent.df['ID'] == ID
             if not selector.any():
+                print(f'{ID=}')
                 raise ValueError('This ID DNE.')
             doc_M = self.parent.df.loc[selector, col_name_for_code]
             if doc_M.isnull().any():

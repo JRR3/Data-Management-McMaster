@@ -15,7 +15,8 @@ import datetime
 class MasterParticipantData:
     def __init__(self, path, parent=None):
 
-        self.parent = None
+        self.parent       = None
+        self.delta_report = None
 
         self.merge_column = 'ID'
         self.DOR      = 'Date Removed from Study'
@@ -31,8 +32,9 @@ class MasterParticipantData:
         #self.old_removal_states = ['Deceased', 'Discharged', 'Moved',
                                #'Decline', 'Withdraw from Study',
                                #'Withdrew Consent']
+        self.RC = 'Refused-Consent'
         self.removal_states = ['Deceased', 'Discharged', 'Moved',
-                               'Declined', 'Withdrew', 'Refused-Consent']
+                               'Declined', 'Withdrew', self.RC]
         self.removal_states_l = [x.lower() for x in self.removal_states]
 
         self.yearfirst_regexp = re.compile('[0-9]{4}[-][0-9]{2}[-][0-9]{2}')
@@ -320,7 +322,7 @@ class MasterParticipantData:
                 continue
             letter_ID = self.LSM_obj.extract_ending_from_full_id(full_ID)
             if letter_ID != 'G':
-                #We need at a 'G' collection identifier.
+                #We need a 'G' collection identifier.
                 continue
             ID = row['ID']
             vaccine_dates = row[v_date_cols].count()
@@ -451,6 +453,9 @@ class MasterParticipantData:
             old_id = row_map['Old']
             new_id = row_map['New']
             df['ID'].replace(old_id, new_id, inplace=True)
+        selection = df['ID'] == 'X'
+        if selection.any():
+            df.drop(selection[selection].index, inplace=True)
 
 
 
@@ -558,7 +563,8 @@ class MasterParticipantData:
             print(df_up)
             #self.update_reason_dates_and_status(df_up)
             #Merge instead of point modifications
-            self.parent.df = self.merge_with_M_and_return_M(df_up, 'ID', kind='original+')
+            self.parent.df = self.parent.merge_with_M_and_return_M(df_up,
+                    'ID', kind='original+')
             self.update_active_status_column()
         if flag_update_waves:
             df_up = pd.DataFrame(infection_dictionary)
@@ -575,17 +581,47 @@ class MasterParticipantData:
         #Dec 05 2022
         fname = os.path.join(self.parent.requests_path, folder, fname)
         df_up = pd.read_excel(fname, header=None, sheet_name=sheet)
-        #df_up.dropna(axis=0, inplace=True)
+        df_up.dropna(axis=0, inplace=True)
         return df_up
 
     def single_column_update(self):
         #Use this function for updates using 
         #the one-column format.
-        fname  = 'update_1.xlsx'
-        folder = 'Megan_dec_05_2022'
+        fname  = 'updates.xlsx'
+        folder = 'Tara_dec_23_2022'
         df_up = self.load_single_column_df_for_update(fname, folder)
         print(df_up)
+        #Pre-update
+        status_pre = self.compute_data_density(self.parent.df)
+        #Intermediate step
+        #=======================================================
+        #This is reserved for special requests
+        #for index, row in self.parent.df.iterrows():
+            #ID = row['ID']
+            #site = ID[:2]
+            #sep_30 = datetime.datetime(2022,9,30)
+            #sep_17 = datetime.datetime(2022,9,17)
+            #if site == '03':
+                #if pd.notnull(row[self.reason]):
+                    ##Do not modify if the reason is available
+                    #print(f'{row[self.reason]=}')
+                    #continue
+                #self.parent.df.loc[index, self.DOR] = sep_30
+                #self.parent.df.loc[index, self.reason] = self.RC
+            #if site == '20' or site == '61':
+                #if pd.notnull(row[self.reason]):
+                    ##Do not modify if the reason is available
+                    #print(f'{row[self.reason]=}')
+                    #continue
+                #self.parent.df.loc[index, self.DOR] = sep_17
+                #self.parent.df.loc[index, self.reason] = self.RC
+
+        #Update step
         self.extract_and_update_DOR_Reason_Infection(df_up)
+        #Post-update
+        status_post = self.compute_data_density(self.parent.df)
+        self.monotonic_increment_check(status_pre,
+                status_post)
 
     def two_column_update(self):
         #Use this function for updates using 
@@ -616,5 +652,48 @@ class MasterParticipantData:
                                          self.merge_column,
                                          kind='original+')
 
+    def compute_data_density(self, df):
+        #Dec 23 2022
+        #Compute how many cells are occupied.
+        #This function is also called within the LSM class.
+        col_to_n_data = {'Column':[], 'Count':[], 'Empty':[], '%_full':[]}
+        n_rows = len(df)
+        for column in df.columns:
+            n_data = df[column].count()
+            col_to_n_data['Column'].append(column)
+            col_to_n_data['Count'].append(n_data)
+            col_to_n_data['Empty'].append(n_rows-n_data)
+            p = n_data/n_rows*100
+            col_to_n_data['%_full'].append(p)
+        df_from_dict = pd.DataFrame(col_to_n_data)
+        return (df_from_dict, n_rows)
 
 
+    def monotonic_increment_check(self, pre, post):
+        #Dec 23 2022
+        #Create a delta report between the pre- and
+        #post-merging events.
+        #The delta_report is stored in this class.
+        df_pre  = pre[0]
+        df_post = post[0]
+        n_rows_pre  = pre[1]
+        n_rows_post = post[1]
+        M = pd.merge(df_pre, df_post,
+                on='Column',
+                how='outer',
+                suffixes=('_old', '_current'))
+        pre_total = df_pre['Count'].sum()
+        post_total = df_post['Count'].sum()
+        p_increment = (post_total - pre_total)/pre_total * 100
+        M['Delta Count']  = M['Count_current'] - M['Count_old']
+        M['Delta %_full'] = M['%_full_current'] - M['%_full_old']
+        check = M['Delta Count'] >= 0
+        if not check.all():
+            raise ValueError('There seems to be some data loss')
+        L = ['Count_old','Count_current']
+        M.loc['Total'] = M[L].sum(axis=0)
+        print(M)
+        print(f'Total pre--data:{pre_total}')
+        print(f'Total post-data:{post_total}')
+        print(f'% increment    :{p_increment}')
+        self.delta_report = M

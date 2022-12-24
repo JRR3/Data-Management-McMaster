@@ -2178,41 +2178,6 @@ class Comparator:
         self.MPD_obj.update_active_status_column()
 
 
-    def lindsay_nov_14_2022(self):
-        folder = 'Lindsay_nov_10_2022'
-        fname = 'update.xlsx'
-        fname = os.path.join(self.requests_path, folder, fname)
-        df_up = pd.read_excel(fname, usecols='A:C')
-        df_up.replace('?', np.nan, inplace=True)
-        df_up['Reason'] = df_up['Reason'].str.replace('WITHDRAW', 'WITHDREW')
-        df_up.dropna(axis=0, subset='ID', inplace=True)
-        self.check_id_format(df_up, 'ID')
-        DOR = self.MPD_obj.DOR
-        for index_up, row_up in df_up.iterrows():
-            reason = row_up['Reason']
-            if pd.notnull(reason):
-                reason = reason.lower()
-                found_flag = False
-                for k,r_state in enumerate(self.MPD_obj.removal_states_l):
-                    if r_state in reason:
-                        reason = self.MPD_obj.removal_states[k]
-                        df_up.loc[index_up, 'Reason'] = reason
-                        found_flag = True
-                        break
-                if not found_flag:
-                    print(f'{reason=} is unknown.')
-                    df_up.loc[index_up, 'Reason'] = np.nan
-        dor = row_up[DOR]
-        if pd.notnull(dor):
-            dor = pd.to_datetime(dor)
-            df_up.loc[index_up, DOR] = dor
-
-        print(df_up)
-        self.print_column_and_datatype(df_up)
-        self.df = self.merge_with_M_and_return_M(df_up, 'ID', kind='original+')
-        self.MPD_obj.update_active_status_column()
-
-
     def tara_nov_17_2022(self):
         fname  = 'updates_one_column.xlsx'
         folder = 'Tara_nov_17_2022'
@@ -2724,7 +2689,108 @@ class Comparator:
         self.update_id_column()
         print('End of updating the LSM file.')
 
+    def taras_request_dec_15_2022(self):
+        fname  = 'site_13.xlsx'
+        folder = 'Tara_dec_15_2022'
+        fname = os.path.join('..','requests',folder, fname)
+        linf = 'Infections'
+        #Read as columns of strings
+        df_up = pd.read_excel(fname, dtype=str)
+        df_up.replace('n/a', np.nan, inplace=True)
+        df_up.replace('N/A', np.nan, inplace=True)
+        #df_up.replace('refused', np.nan, inplace=True)
+        #df_up.replace('Refused', np.nan, inplace=True)
+        #df_up.replace('REFUSED', np.nan, inplace=True)
+        #df_up.replace('DECLINED', np.nan, inplace=True)
+        df_up['Reason'].replace('Refused', 'Refused-Consent', inplace=True)
+        df_up['Reason'].replace('No Reconsent', 'Refused-Consent', inplace=True)
+        df_up['Reason'].replace('no reconsent signed', 'Refused-Consent', inplace=True)
+        df_up['Reason'].replace('Refused Consent', 'Refused-Consent', inplace=True)
+        df_up['Reason'].replace('Withdrew Consent', 'Refused-Consent', inplace=True)
+        txt = ('Personal history of COVID-19 – '
+                'unaware of specific date as it was before he came to FV.')
+        df_up.replace(txt, np.nan, inplace=True)
+        df_up.replace('Refused', np.nan, inplace=True)
+        df_up.replace('refused', np.nan, inplace=True)
+        df_up.replace('REFUSED', np.nan, inplace=True)
+        df_up.replace('None', np.nan, inplace=True)
+        df_up.replace('Unknown', np.nan, inplace=True)
+        df_up.replace('Yes - date unknown', np.nan, inplace=True)
+        df_up.replace('COVISHEILD', 'COVISHIELD', inplace=True)
+        df_up.replace(' ', np.nan, inplace=True)
+        df_up.replace('n', np.nan, inplace=True)
+        df_up.replace('BmodernaO', 'BModernaO', inplace=True)
+        df_up.replace('Spikevax bivalent', 'BModernaO', inplace=True)
+        df_up.replace('F', 'Female', inplace=True)
+        df_up.replace('M', 'Male', inplace=True)
+        df_up.replace('\xa0', np.nan, inplace=True)
+        print(df_up)
+        self.df = self.merge_with_M_and_return_M(df_up, 'ID', kind='original+')
 
+
+    def lindsay_dec_23_2022(self):
+        folder = 'Lindsay_dec_23_2022'
+        fname = 'update.xlsx'
+        fname = os.path.join(self.requests_path, folder, fname)
+        df_up = pd.read_excel(fname)
+        df_up.replace('?', np.nan, inplace=True)
+        df_up['Reason'] = df_up['Reason'].str.replace('WITHDRAW',
+                'WITHDREW')
+        df_up['Refusals'] = np.nan
+        df_up['Health Info Only?'] = np.nan
+        df_up.dropna(axis=0, subset='ID', inplace=True)
+        self.check_id_format(df_up, 'ID')
+        DOR = self.MPD_obj.DOR
+        NB  = 'no blood'
+        NMB  = 'no more blood'
+        DAB  = 'declines all blood'
+        labels = ['ID', 'Reason', DOR, 'Refusals', 'Health Info Only?']
+        for index_up, row_up in df_up.iterrows():
+            #print('PRE :', df_up.loc[index_up, 'Reason'])
+            reason = row_up['Reason']
+            if pd.notnull(reason):
+                reason = reason.lower()
+                found_flag = False
+                for k,r_state in enumerate(self.MPD_obj.removal_states_l):
+                    if r_state in reason:
+                        sys_reason = self.MPD_obj.removal_states[k]
+                        df_up.loc[index_up, 'Reason'] = sys_reason
+                        found_flag = True
+                        break
+                if not found_flag:
+                    df_up.loc[index_up, 'Reason'] = np.nan
+                if NB in reason or NMB in reason or DAB in reason:
+                    df_up.loc[index_up, 'Refusals'] = 'Blood'
+            I1 = row_up['4th dose consent']
+            I2 = row_up['5th dose consent']
+            info_list = [I1, I2]
+            yes_counter = 0
+            for k, info in enumerate(info_list):
+                if pd.notnull(info):
+                    info_lower = info.lower()
+                    if 'nb' in info_lower:
+                        df_up.loc[index_up, 'Refusals'] = 'Blood'
+                    if 'ho' in info_lower:
+                        df_up.loc[index_up, 'Health Info Only?'] = 'Y'
+                    if 'y' in info_lower:
+                        yes_counter += 1
+            if pd.notnull(I2) and 'y' in I2.lower():
+                pass
+            elif pd.isnull(df_up.loc[index_up, 'Reason']):
+                df_up.loc[index_up, 'Reason'] = self.MPD_obj.RC
+            #print('POST:', df_up.loc[index_up, 'Reason'])
+
+        df_up[DOR] = pd.to_datetime(df_up[DOR])
+
+        df_up = df_up[labels]
+        self.MPD_obj.map_old_ids_to_new(df_up)
+        print(df_up)
+        self.print_column_and_datatype(df_up)
+        status_pre = self.MPD_obj.compute_data_density(self.df)
+        self.df = self.merge_with_M_and_return_M(df_up, 'ID', kind='original+')
+        self.MPD_obj.update_active_status_column()
+        status_post = self.MPD_obj.compute_data_density(self.df)
+        self.MPD_obj.monotonic_increment_check(status_pre, status_post)
 
 
 
