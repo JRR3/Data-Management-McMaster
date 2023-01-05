@@ -2793,6 +2793,89 @@ class Comparator:
         self.MPD_obj.monotonic_increment_check(status_pre, status_post)
 
 
+    def get_serology_dates_for_infection_dates(self):
+        #This function was cut from the LIS class since
+        #it is no longer active.
+        #This function creates a column with all the infection dates.
+        #It also includes the corresponding method of detection.
+        self.parent.MPD_obj.add_site_column()
+        self.add_n_infections_column()
+        DOC = self.parent.LSM_obj.DOC
+        type_cols     = self.positive_type_cols
+        cols_to_melt  = self.positive_date_cols
+        cols_to_melt += type_cols
+        doe = self.parent.MPD_obj.DOE
+        dor = self.parent.MPD_obj.DOR
+        site_type = self.parent.MPD_obj.site_type
+        cols_to_keep  = ['ID',
+                'Active',
+                doe,
+                dor,
+                'Site',
+                site_type,
+                '# infections']
+        #A type of melting process.
+        df = self.parent.df.pivot_longer(index = cols_to_keep,
+                column_names = cols_to_melt,
+                names_to = ['Infection event', 'Infection type'],
+                values_to = ['Infection date', 'Method'],
+                names_pattern = ['Infection Date [0-9]+',
+                    'Infection Type [0-9]+'],
+                )
+        df.dropna(subset=['Infection date'], axis=0, inplace=True)
+        df.drop(columns=['Infection type'], inplace=True)
+        df.sort_values(by=['ID','Infection event'], axis=0, inplace=True)
+        print(df)
+        #Add the new columns to the df
+        states = ['before', 'after']
+        Ig_cols = ['Nuc-IgG-100', 'Nuc-IgA-100']
+        add_cols = ['Date', 'Days'] + Ig_cols
+        new_col_names = []
+        slicer = {'before':None, 'after':None}
+        for state in states:
+            #Specify that we are using the serology data
+            L = ['S: ' + x + ' ' + state for x in add_cols]
+            slicer[state] = slice(L[0], L[-1])
+            new_col_names.extend(L)
+
+        #Add new columns to the data frame.
+        df = df.reindex(columns = df.columns.to_list() + new_col_names)
+        #print(new_col_names)
+        #print(slicer)
+        #print(df)
+        #Up to this point the code has been tested.
+        #Time to call Serology.
+        #Iterate over the rows of the infection data frame.
+        for index, row in df.iterrows():
+            ID = row['ID']
+            i_date = row['Infection date']
+            selector_lsm = self.parent.LSM_obj.df['ID'] == ID
+            if not selector_lsm.any():
+                print(f'{ID=} has no serology information.')
+                continue
+            print(f'Working with serology for {ID=}')
+            dates_lsm = self.parent.LSM_obj.df.loc[selector_lsm,DOC]
+            dc_lsm = {'before':[], 'after':[]}
+            for state in states:
+                (index_lsm,
+                date_lsm,
+                days_lsm) = self.find_closest_date_to_from(i_date,
+                        dates_lsm, when=state)
+                print(f'{date_lsm=}')
+                if pd.isnull(date_lsm):
+                    print(f'{state}: Date was not found')
+                    continue
+                Igs = self.parent.LSM_obj.df.loc[index_lsm, Ig_cols]
+                dc_lsm[state].extend((date_lsm, days_lsm))
+                dc_lsm[state].extend((Igs.values))
+                df.loc[index, slicer[state]] = dc_lsm[state]
+
+
+        fpure = 'infection_dates_delta.xlsx'
+        folder= 'one_column_files'
+        fname = os.path.join(self.parent.requests_path, folder, fpure)
+        df.to_excel(fname, index = False)
+        print(f'The {fpure=} file has been written to Excel.')
 
 
 
@@ -3003,3 +3086,38 @@ class Comparator:
 #obj.LIS_obj.plot_dawns_infection_count()
 #obj.LSM_obj.serology_decay_computation()
 #obj.LSM_obj.plot_decay_for_serology()
+#Dec 05 2022
+#obj.LIS_obj.get_serology_dates_for_infection_dates()
+#obj.LIS_obj.compute_slopes_for_serology()
+#obj.LIS_obj.produce_melted_files()
+#obj.LIS_obj.plot_dawns_infection_count()
+#obj.schlegel_village_update()
+#obj.write_the_M_file_to_excel()
+#obj.single_column_update()
+#obj.two_column_update()
+#obj.write_the_M_file_to_excel()
+#obj.merge_M_with_LSM()
+#obj.LIS_obj.produce_melted_files()
+#obj.merge_M_with_LSM()
+#obj.LSM_obj.direct_serology_update_with_headers()
+#obj.LSM_obj.write_LSM_to_excel()
+#Dec 09 2022
+#obj.SID_obj.migrate_dates_from_SID_to_LSM()
+#obj.LSM_obj.write_LSM_to_excel()
+#obj.LSM_obj.direct_serology_update_with_headers()
+#obj.update_LSM()
+#obj.LSM_obj.write_LSM_to_excel()
+#obj.LSM_obj.plot_report()
+#obj.LIS_obj.produce_melted_files()
+#obj.merge_M_with_LSM()
+#Dec 09 2022
+#obj.update_LSM()
+#obj.LSM_obj.write_LSM_to_excel()
+#obj.LIS_obj.plot_dawns_infection_count()
+#obj.LIS_obj.produce_infection_and_vaccine_melted_files()
+#obj.LIS_obj.plot_dawns_infection_count()
+#Dec 13 2022
+#obj.jessicas_request_dec_13_2022()
+#obj.merge_M_with_LSM()
+#Dec 16 2022
+#obj.taras_request_dec_15_2022()

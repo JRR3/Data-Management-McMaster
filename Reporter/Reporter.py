@@ -9,7 +9,7 @@ import re
 import networkx as nx
 import matplotlib as mpl
 mpl.rcParams['figure.dpi'] = 300
-mpl.rcParams['font.family'] = 'monospace'
+#mpl.rcParams['font.family'] = 'monospace'
 import matplotlib.pyplot as plt
 import datetime
 import seaborn as sns
@@ -766,10 +766,11 @@ class Reporter:
             cp_props = dict(linestyle='-',
                            linewidth=1,
                            color='black')
-            my_pal = {'Inf -': 'blue', 'Inf +': 'red'}
+            my_pal = {'Inf Neg': 'blue', 'Inf Pos': 'red'}
             bins = pd.cut(df_up[dsd], intervals, labels=time_labels)
             df_up['mpd'] = bins
 
+            selection = df_up['mpd']!='0- 2'
             selection = df_up['mpd']!='0- 2'
             df_up.drop(selection[selection].index, inplace=True)
 
@@ -1021,3 +1022,177 @@ class Reporter:
                 plt.tight_layout()
                 plt.savefig(fname)
 
+    def boxplots_using_L_file(self):
+
+        fname  = 'L.xlsx'
+        folder = 'Lucas_jan_04_2023'
+        fname = os.path.join('..','requests',folder, fname)
+        df_up = pd.read_excel(fname)
+        print(df_up)
+
+        use_swarm = True
+        Z2T = '0-2'
+        T2F = '2-4'
+
+
+        #Abbreviations
+        i_negative = 'Not Infected'
+        i_positive = 'Infected'
+
+        MSD = 'Months since dose'
+        #dsd = 'Days since dose'
+
+        NPCD= 'Nearest pre-collection dose'
+        #dos = 'Dose of Sample'
+
+        BIS = 'Binary infection status'
+        #binf = 'Binary Infection'
+
+        #Relevant columns
+        bio_columns = ['Wuhan (SB3)',
+                       'Beta (B.1.351)',
+                       'Omicron (BA.1)',
+                       'Spike-IgG-5000',
+                       'RBD-IgG-400',
+                       'Spike-IgA-1000',
+                       'RBD-IgA-100',
+                      ]
+
+        bio_labels = [
+                'MNT50 Wuhan (SB.3)',
+                'MNT50 Beta (B.1.351)',
+                'MNT50 Omicron (BA.1)',
+                'Spike IgG (AU)',
+                'RBD IgG (AU)',
+                'Spike IgA (AU)',
+                'RBD IgA (AU)',
+                ]
+
+        bio_legend_xy = [
+                'upper left',
+                'upper left',
+                'upper left',
+                'upper left',
+                'upper left',
+                'upper left',
+                'upper left',
+                ]
+
+        bio_legend_for_dose = [
+            5,
+            5,
+            5,
+            5,
+            5,
+            5,
+            5,
+            ]
+
+
+        bio_column_to_label       = {}
+        bio_column_to_legend_xy   = {}
+        bio_column_to_legend_for_dose = {}
+
+        for x,y,z,w in zip(bio_columns,
+                       bio_labels,
+                       bio_legend_xy,
+                       bio_legend_for_dose):
+            bio_column_to_label[x]       = y
+            bio_column_to_legend_xy[x]   = z
+            bio_column_to_legend_for_dose[x] = w
+
+        plots_that_use_ylog = ['Wuhan (SB3)',
+                               'Beta (B.1.351)',
+                               'Omicron (BA.1)',
+                              ]
+
+        #Remove Dose #1
+        #selection = df_up[dos] == 1
+        #df_up.drop(selection[selection].index, inplace=True)
+        #n_doses = len(df_up[dos].drop_duplicates())
+
+        md_props = dict(linestyle='-',
+                       linewidth=2,
+                       color='black')
+        bx_props = dict(linestyle='-',
+                       linewidth=1,
+                       alpha=0.95,
+                       )
+        wh_props = dict(linestyle='-',
+                       linewidth=1,
+                       color='black')
+        cp_props = dict(linestyle='-',
+                       linewidth=1,
+                       color='black')
+        #Color palette
+        my_palette = {i_negative: 'blue', i_positive: 'red'}
+
+        #Specific format due to the elimination of labels after 2-4
+        df_up[MSD] = df_up[MSD].str.replace('0- 2', Z2T)
+        df_up[MSD] = df_up[MSD].str.replace('2- 4', T2F)
+
+        selection  = df_up[MSD]== Z2T
+        selection |= df_up[MSD]== T2F
+        selection  = ~selection
+        df_up.drop(selection[selection].index, inplace=True)
+
+        df_g = df_up.groupby(NPCD)
+        groups = [4,5]
+        map_group_to_width = {4:0.8, 5:0.8}
+        n_groups = len(groups)
+
+        for bio_column in bio_columns:
+            fig, ax = plt.subplots(ncols=n_groups, sharey=True)
+            legend_for_dose = bio_column_to_legend_for_dose[bio_column]
+            for k, group in enumerate(groups):
+                df_d = df_g.get_group(group)
+                if use_swarm:
+                    sns.stripplot(x         = MSD,
+                                  y         = bio_column,
+                                  hue       = BIS,
+                                  data      = df_d,
+                                  hue_order = [i_negative, i_positive],
+                                  order     = [Z2T, T2F],
+                                  palette   = my_palette,
+                                  size      = 2,
+                                  ax = ax[k])
+                else:
+                    sns.boxplot(ax = ax[k],
+                            x   = MSD,
+                            y   = bio_column,
+                            hue = BIS,
+                            data=df_d,
+                            showfliers=False,
+                            #width=map_group_to_width[group],
+                            medianprops  = md_props,
+                            boxprops     = bx_props,
+                            whiskerprops = wh_props,
+                            capprops     = cp_props,
+                            hue_order    = [i_negative, i_positive],
+                            order        = [Z2T, T2F],
+                            palette      = my_palette,
+                            )
+                ax[k].legend([],[], frameon=False)
+                ax[k].set_ylabel('')
+                xlabel = 'Months after dose ' + str(group)
+                ax[k].set_xlabel(xlabel)
+                ax[k].tick_params(axis='x', rotation=90)
+                if bio_column in plots_that_use_ylog:
+                    ax[k].set_yscale('log', base=2)
+                    R = 2**np.arange(2,11,2,dtype=int)
+                    ax[k].set_yticks(R)
+                    y_labels = [str(x) for x in R]
+                    ax[k].set_yticklabels(y_labels)
+                else:
+                    ax[k].set_yticks([0,1,2,3])
+            y_label = bio_column_to_label[bio_column]
+            fig.supylabel(y_label, weight='bold')
+            if use_swarm:
+                fname  = 'swarm_' + bio_column + '.png'
+            else:
+                fname  = 'bplot_' + bio_column + '.png'
+            folder = 'Lucas_jan_04_2023'
+            fname = os.path.join('..','requests',folder, fname)
+            plt.legend(bbox_to_anchor=(1.4, 0.45), loc='center', borderaxespad=0)
+            plt.tight_layout()
+            plt.savefig(fname)

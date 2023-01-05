@@ -311,7 +311,7 @@ class Merger:
         if file_name:
             fname = file_name
         else:
-            fname = 'nc_update.xlsx'
+            fname = 'anomalies.xlsx'
         folder = 'Jessica_dec_23_2022'
         fname = os.path.join('..','requests',folder, fname)
         book = pd.read_excel(fname, sheet_name=None)
@@ -764,6 +764,25 @@ class Merger:
         self.MPD_obj.update_active_status_column()
 
 
+    def taras_req_jan_04_2023(self):
+        #Use Nuc data to identify infections.
+        pass
+
+
+    def taras_inf_and_death_jan_04_2023(self):
+        #Time between death and infections
+        self.LIS_obj.add_n_infections_column()
+        for index, row in self.df.iterrows():
+            reason = row['Reason']
+            if reason != 'Deceased':
+                continue
+            n_inf = row['# infections']
+            if n_inf == 0:
+                continue
+            dor = row[self.MPD_obj.DOR]
+            inf_dates = row[self.LIS_obj.positive_date_cols]
+
+
 
 
 
@@ -773,41 +792,6 @@ class Merger:
 
 
 obj = Merger()
-#Dec 05 2022
-#obj.LIS_obj.get_serology_dates_for_infection_dates()
-#obj.LIS_obj.compute_slopes_for_serology()
-#obj.LIS_obj.produce_melted_files()
-#obj.LIS_obj.plot_dawns_infection_count()
-#obj.schlegel_village_update()
-#obj.write_the_M_file_to_excel()
-#obj.single_column_update()
-#obj.two_column_update()
-#obj.write_the_M_file_to_excel()
-#obj.merge_M_with_LSM()
-#obj.LIS_obj.produce_melted_files()
-#obj.merge_M_with_LSM()
-#obj.LSM_obj.direct_serology_update_with_headers()
-#obj.LSM_obj.write_LSM_to_excel()
-#Dec 09 2022
-#obj.SID_obj.migrate_dates_from_SID_to_LSM()
-#obj.LSM_obj.write_LSM_to_excel()
-#obj.LSM_obj.direct_serology_update_with_headers()
-#obj.update_LSM()
-#obj.LSM_obj.write_LSM_to_excel()
-#obj.LSM_obj.plot_report()
-#obj.LIS_obj.produce_melted_files()
-#obj.merge_M_with_LSM()
-#Dec 09 2022
-#obj.update_LSM()
-#obj.LSM_obj.write_LSM_to_excel()
-#obj.LIS_obj.plot_dawns_infection_count()
-#obj.LIS_obj.produce_infection_and_vaccine_melted_files()
-#obj.LIS_obj.plot_dawns_infection_count()
-#Dec 13 2022
-#obj.jessicas_request_dec_13_2022()
-#obj.merge_M_with_LSM()
-#Dec 16 2022
-#obj.taras_request_dec_15_2022()
 #Dec 20 2022
 #obj.REP_obj.ahmads_request_dec_16_2022()
 #obj.update_master_using_SID()
@@ -827,5 +811,19 @@ obj = Merger()
 #obj.lindsay_dec_23_2022()
 #obj.write_the_M_file_to_excel()
 #obj.LSM_obj.generate_letter_to_AN_code_table()
-obj.update_LSM()
-obj.LSM_obj.write_LSM_to_excel()
+#obj.update_LSM()
+#obj.LSM_obj.write_LSM_to_excel()
+#Jan 04 2023
+#obj.MPD_obj.single_column_update()
+#obj.write_the_M_file_to_excel()
+#obj.taras_req_jan_04_2023()
+#obj.LIS_obj.produce_infection_and_vaccine_melted_files()
+#obj.update_LSM()
+#obj.LSM_obj.write_LSM_to_excel()
+#obj.MPD_obj.single_column_update()
+#obj.write_the_M_file_to_excel()
+#obj.LIS_obj.produce_infection_and_vaccine_melted_files()
+#obj.taras_inf_and_death_jan_04_2023()
+#obj.merge_M_with_LSM()
+#obj.LSM_obj.generate_L_format()
+obj.REP_obj.boxplots_using_L_file()

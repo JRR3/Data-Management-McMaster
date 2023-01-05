@@ -549,6 +549,9 @@ class LTCSerologyMaster:
         NPD  = 'Nearest pre-collection dose'
         df_w[NPD] = 0
 
+        VD  = 'Vaccination date'
+        df_w[VD] = np.nan
+
         DSD  = 'Days since dose'
         df_w[DSD] = 0
 
@@ -570,7 +573,7 @@ class LTCSerologyMaster:
         DOC = self.DOC
 
         g_labels  = ['Full ID', 'Site',
-                DOC, NPD, DSD, MSD, NPI, DSI, TIS, BIS]
+                DOC, NPD, VD, DSD, MSD, NPI, DSI, TIS, BIS]
         g_labels += self.numeric_columns
 
         rx_int = re.compile('[0-9]+')
@@ -595,14 +598,16 @@ class LTCSerologyMaster:
             df_w.loc[index, DSD] = v_dsd
 
             v_index = deltas.index[0]
+            vaccine_date = row[v_index]
             vaccine_n = rx_int.search(v_index).group(0)
             vaccine_n = int(vaccine_n)
             df_w.loc[index, NPD] = vaccine_n
+            df_w.loc[index, VD] = vaccine_date
             #Infection calculation
             i_dates = row[inf_date_cols]
             if i_dates.isnull().all():
-                df_w.loc[index, TIS] = 'No Inf'
-                df_w.loc[index, BIS] = 'Inf Neg'
+                df_w.loc[index, TIS] = 'Not Inf'
+                df_w.loc[index, BIS] = 'Not Infected'
                 continue
             selection = i_dates.notnull()
             i_dates = i_dates[selection]
@@ -610,8 +615,8 @@ class LTCSerologyMaster:
             selection = deltas < 0
             deltas = deltas[~selection]
             if len(deltas) == 0:
-                df_w.loc[index, TIS] = 'No Inf'
-                df_w.loc[index, BIS] = 'Inf Neg'
+                df_w.loc[index, TIS] = 'Not Inf'
+                df_w.loc[index, BIS] = 'Not Infected'
                 continue
             deltas = deltas.sort_values()
             i_index = deltas.index[0]
@@ -621,10 +626,11 @@ class LTCSerologyMaster:
 
             nearest_infection_in_days = deltas.iloc[0]
             df_w.loc[index, DSI] = nearest_infection_in_days
-            df_w.loc[index, BIS] = 'Inf Pos'
+            df_w.loc[index, BIS] = 'Infected'
             if nearest_infection_in_days < 90:
                 df_w.loc[index, TIS] = 'Inf < 3mo'
             else:
+                #Note that it is bigger than or equal to 90 days.
                 df_w.loc[index, TIS] = 'Inf > 3mo'
 
         #Add site
@@ -662,12 +668,13 @@ class LTCSerologyMaster:
         df_w.dropna(subset=['Full ID'], axis=0, inplace=True)
 
         fname  = 'L.xlsx'
-        folder = 'Tara_dec_22_2022'
+        folder = 'Lucas_jan_04_2023'
         fname = os.path.join('..','requests',folder, fname)
         df_w.to_excel(fname, index=False)
 
     def generate_letter_to_AN_code_table(self):
         #Dec 23 2022
+        #Alphanumeric code
         fname  = 'lookup_table_S_codes.xlsx'
         fname  = os.path.join(self.dpath, fname)
         df_t   = pd.read_excel(fname)
@@ -695,9 +702,10 @@ class LTCSerologyMaster:
             self.ancode_to_lcode[ancode] = lcode
 
     def check_full_id_format(self, df, col):
-        #Modified to be applicable to any df and given column.
+        #Modified to be applicable to any df and any given column.
         #user_length_set = set()
         #site_length_set = set()
+        #Note that the time identifier is alphanumeric.
         txt = '(?P<site>[0-9]{2})[-](?P<user>[0-9]{7})-(?P<time>[a-zA-Z0-9]+)'
         rexp = re.compile(txt)
         def process_id(txt):
@@ -717,8 +725,10 @@ class LTCSerologyMaster:
         for index, row in df.iterrows():
             p_full_ID = row[col]
             code = process_id(p_full_ID)
+            #The last element of the list 'code' has the time.
             doc_code = code[-1]
             if 2 < len(doc_code):
+                #The doc_code is alphanumeric and has to be converted.
                 lcode = self.ancode_to_lcode[doc_code]
                 code[-1] = lcode
                 full_ID  = '-'.join(code)

@@ -673,88 +673,6 @@ class LTCInfectionSummary:
 
 
 
-    def get_serology_dates_for_infection_dates(self):
-        #This function creates a column with all the infection dates.
-        #It also includes the corresponding method of detection.
-        self.parent.MPD_obj.add_site_column()
-        self.add_n_infections_column()
-        DOC = self.parent.LSM_obj.DOC
-        type_cols     = self.positive_type_cols
-        cols_to_melt  = self.positive_date_cols
-        cols_to_melt += type_cols
-        doe = self.parent.MPD_obj.DOE
-        dor = self.parent.MPD_obj.DOR
-        site_type = self.parent.MPD_obj.site_type
-        cols_to_keep  = ['ID',
-                'Active',
-                doe,
-                dor,
-                'Site',
-                site_type,
-                '# infections']
-        #A type of melting process.
-        df = self.parent.df.pivot_longer(index = cols_to_keep,
-                column_names = cols_to_melt,
-                names_to = ['Infection event', 'Infection type'],
-                values_to = ['Infection date', 'Method'],
-                names_pattern = ['Infection Date [0-9]+',
-                    'Infection Type [0-9]+'],
-                )
-        df.dropna(subset=['Infection date'], axis=0, inplace=True)
-        df.drop(columns=['Infection type'], inplace=True)
-        df.sort_values(by=['ID','Infection event'], axis=0, inplace=True)
-        print(df)
-        #Add the new columns to the df
-        states = ['before', 'after']
-        Ig_cols = ['Nuc-IgG-100', 'Nuc-IgA-100']
-        add_cols = ['Date', 'Days'] + Ig_cols
-        new_col_names = []
-        slicer = {'before':None, 'after':None}
-        for state in states:
-            #Specify that we are using the serology data
-            L = ['S: ' + x + ' ' + state for x in add_cols]
-            slicer[state] = slice(L[0], L[-1])
-            new_col_names.extend(L)
-
-        #Add new columns to the data frame.
-        df = df.reindex(columns = df.columns.to_list() + new_col_names)
-        #print(new_col_names)
-        #print(slicer)
-        #print(df)
-        #Up to this point the code has been tested.
-        #Time to call Serology.
-        #Iterate over the rows of the infection data frame.
-        for index, row in df.iterrows():
-            ID = row['ID']
-            i_date = row['Infection date']
-            selector_lsm = self.parent.LSM_obj.df['ID'] == ID
-            if not selector_lsm.any():
-                print(f'{ID=} has no serology information.')
-                continue
-            print(f'Working with serology for {ID=}')
-            dates_lsm = self.parent.LSM_obj.df.loc[selector_lsm,DOC]
-            dc_lsm = {'before':[], 'after':[]}
-            for state in states:
-                (index_lsm,
-                date_lsm,
-                days_lsm) = self.find_closest_date_to_from(i_date,
-                        dates_lsm, when=state)
-                print(f'{date_lsm=}')
-                if pd.isnull(date_lsm):
-                    print(f'{state}: Date was not found')
-                    continue
-                Igs = self.parent.LSM_obj.df.loc[index_lsm, Ig_cols]
-                dc_lsm[state].extend((date_lsm, days_lsm))
-                dc_lsm[state].extend((Igs.values))
-                df.loc[index, slicer[state]] = dc_lsm[state]
-
-
-        fpure = 'infection_dates_delta.xlsx'
-        folder= 'one_column_files'
-        fname = os.path.join(self.parent.requests_path, folder, fpure)
-        df.to_excel(fname, index = False)
-        print(f'The {fpure=} file has been written to Excel.')
-
     def compute_slopes_for_serology(self):
         fpure = 'infection_dates_delta.xlsx'
         folder= 'one_column_files'
@@ -971,7 +889,7 @@ class LTCInfectionSummary:
         #It also includes the corresponding method of detection.
         if kind != 'Infection' and kind != 'Vaccine':
             raise ValueError('Unexpected kind of column.')
-        self.parent.MPD_obj.add_site_column()
+        self.parent.MPD_obj.add_site_column(self.parent.df)
         self.add_n_infections_column()
         DOC = self.parent.LSM_obj.DOC
         if kind == 'Infection':
@@ -986,7 +904,7 @@ class LTCInfectionSummary:
         site_type = self.parent.MPD_obj.site_type
         cols_to_keep  = ['ID',
                 'Active',
-                doe,
+                'Reason',
                 dor,
                 'Site',
                 site_type,
@@ -1063,6 +981,8 @@ class LTCInfectionSummary:
 
 
     def produce_infection_and_vaccine_melted_files(self):
+        #Generate a file with all infections in one column
+        #Generate a file with all vaccines in one column
         kinds = ['Infection', 'Vaccine']
         for kind in kinds:
             df = self.melt_infection_or_vaccination_dates(kind)
