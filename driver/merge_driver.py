@@ -1,5 +1,5 @@
 #JRR @ McMaster University
-#Update: 10-Oct-2022
+#Update: 05-Jan-2023
 import sys
 import os
 import re
@@ -769,18 +769,6 @@ class Merger:
         pass
 
 
-    def taras_inf_and_death_jan_04_2023(self):
-        #Time between death and infections
-        self.LIS_obj.add_n_infections_column()
-        for index, row in self.df.iterrows():
-            reason = row['Reason']
-            if reason != 'Deceased':
-                continue
-            n_inf = row['# infections']
-            if n_inf == 0:
-                continue
-            dor = row[self.MPD_obj.DOR]
-            inf_dates = row[self.LIS_obj.positive_date_cols]
 
 
 
@@ -826,4 +814,6 @@ obj = Merger()
 #obj.taras_inf_and_death_jan_04_2023()
 #obj.merge_M_with_LSM()
 #obj.LSM_obj.generate_L_format()
-obj.REP_obj.boxplots_using_L_file()
+#obj.REP_obj.boxplots_using_L_file()
+#obj.REP_obj.generate_report_for_time_between_infection_and_death()
+obj.REP_obj.generate_plot_for_time_between_infection_and_death()

@@ -1058,6 +1058,8 @@ class Reporter:
                        'RBD-IgA-100',
                       ]
 
+        bio_thresholds = [10, 10, 10, 0.0999, 0.4389, 0.1788, 0.5637]
+
         bio_labels = [
                 'MNT50 Wuhan (SB.3)',
                 'MNT50 Beta (B.1.351)',
@@ -1068,38 +1070,12 @@ class Reporter:
                 'RBD IgA (AU)',
                 ]
 
-        bio_legend_xy = [
-                'upper left',
-                'upper left',
-                'upper left',
-                'upper left',
-                'upper left',
-                'upper left',
-                'upper left',
-                ]
-
-        bio_legend_for_dose = [
-            5,
-            5,
-            5,
-            5,
-            5,
-            5,
-            5,
-            ]
-
-
         bio_column_to_label       = {}
-        bio_column_to_legend_xy   = {}
-        bio_column_to_legend_for_dose = {}
+        bio_column_to_threshold   = {}
 
-        for x,y,z,w in zip(bio_columns,
-                       bio_labels,
-                       bio_legend_xy,
-                       bio_legend_for_dose):
+        for x,y,z in zip(bio_columns, bio_labels, bio_thresholds):
             bio_column_to_label[x]       = y
-            bio_column_to_legend_xy[x]   = z
-            bio_column_to_legend_for_dose[x] = w
+            bio_column_to_threshold[x]   = z
 
         plots_that_use_ylog = ['Wuhan (SB3)',
                                'Beta (B.1.351)',
@@ -1124,8 +1100,6 @@ class Reporter:
         cp_props = dict(linestyle='-',
                        linewidth=1,
                        color='black')
-        #Color palette
-        my_palette = {i_negative: 'blue', i_positive: 'red'}
 
         #Specific format due to the elimination of labels after 2-4
         df_up[MSD] = df_up[MSD].str.replace('0- 2', Z2T)
@@ -1141,37 +1115,64 @@ class Reporter:
         map_group_to_width = {4:0.8, 5:0.8}
         n_groups = len(groups)
 
+
+        generate_descriptive_stats = False
+        if generate_descriptive_stats:
+
+            selection  = df_up[NPCD] == 4
+            selection |= df_up[NPCD] == 5
+            selection  = ~selection
+            df_up.drop(selection[selection].index, inplace=True)
+
+            df_g = df_up.groupby([df_up[NPCD], df_up[MSD], df_up[BIS]])
+            descriptor = df_g.describe()[bio_columns]
+            fname  = 'stats_L_x.xlsx'
+            folder = 'Lucas_jan_04_2023'
+            fname = os.path.join('..','requests',folder, fname)
+            descriptor.to_excel(fname)
+            return
+
+        #Color palette for boxplots
+        my_bp_palette = {i_negative: 'blue', i_positive: 'red'}
+
+        #Color palette for swarm plots
+        my_sw_palette = {i_negative: 'black', i_positive: 'black'}
+
         for bio_column in bio_columns:
+            print(f'{bio_column=}')
+            if bio_column == 'Beta (B.1.351)':
+                #This plot causes a key error due to empty data.
+                continue
+            y_val = bio_column_to_threshold[bio_column]
             fig, ax = plt.subplots(ncols=n_groups, sharey=True)
-            legend_for_dose = bio_column_to_legend_for_dose[bio_column]
             for k, group in enumerate(groups):
                 df_d = df_g.get_group(group)
-                if use_swarm:
-                    sns.stripplot(x         = MSD,
-                                  y         = bio_column,
-                                  hue       = BIS,
-                                  data      = df_d,
-                                  hue_order = [i_negative, i_positive],
-                                  order     = [Z2T, T2F],
-                                  palette   = my_palette,
-                                  size      = 2,
-                                  ax = ax[k])
-                else:
-                    sns.boxplot(ax = ax[k],
-                            x   = MSD,
+                sns.boxplot(ax = ax[k],
+                            x  = MSD,
                             y   = bio_column,
                             hue = BIS,
                             data=df_d,
                             showfliers=False,
-                            #width=map_group_to_width[group],
                             medianprops  = md_props,
                             boxprops     = bx_props,
                             whiskerprops = wh_props,
                             capprops     = cp_props,
                             hue_order    = [i_negative, i_positive],
                             order        = [Z2T, T2F],
-                            palette      = my_palette,
-                            )
+                            palette      = my_bp_palette,
+                           )
+                sns.stripplot(x         = MSD,
+                              y         = bio_column,
+                              hue       = BIS,
+                              data      = df_d,
+                              dodge     = True,
+                              hue_order = [i_negative, i_positive],
+                              order     = [Z2T, T2F],
+                              palette   = my_sw_palette,
+                              size      = 2,
+                              legend    = False,
+                              ax = ax[k])
+                ax[k].axhline(y_val,color='gray', label='Threshold')
                 ax[k].legend([],[], frameon=False)
                 ax[k].set_ylabel('')
                 xlabel = 'Months after dose ' + str(group)
@@ -1193,6 +1194,93 @@ class Reporter:
                 fname  = 'bplot_' + bio_column + '.png'
             folder = 'Lucas_jan_04_2023'
             fname = os.path.join('..','requests',folder, fname)
+            print(f'{fname=}')
             plt.legend(bbox_to_anchor=(1.4, 0.45), loc='center', borderaxespad=0)
             plt.tight_layout()
             plt.savefig(fname)
+            plt.close('all')
+
+    def generate_plot_for_time_between_infection_and_death(self):
+        #Time between infection and death.
+        folder = 'Tara_jan_05_2023'
+        fname = 'Time_between_infection_and_death.xlsx'
+        fname = os.path.join(self.requests_path, folder, fname)
+        df = pd.read_excel(fname)
+        print(df)
+        WBIAD = 'Weeks between infection and death'
+        sns.histplot(data=df, x = WBIAD, discrete=False, binwidth=4)
+        #sns.histplot(data=df, x = WBIAD, discrete=True)
+
+        folder = 'Tara_jan_05_2023'
+        fname = 'plot_time_between_infection_and_death.png'
+        fname = os.path.join(self.requests_path, folder, fname)
+        plt.savefig(fname)
+        plt.close('all')
+
+    def generate_report_for_time_between_infection_and_death(self):
+        #Time between infection and death.
+        self.parent.LIS_obj.add_n_infections_column()
+        WBIAD = 'Weeks between infection and death'
+        DBIAD = 'Days between infection and death'
+        NIBD  = 'Nearest infection before death'
+        DOI   = 'Date of infection'
+        DOR   = self.parent.MPD_obj.DOR
+        list_of_columns = ['ID',
+                           DOR,
+                           'Reason',
+                           '# infections',
+                           NIBD,
+                           DOI,
+                           DBIAD,
+                           WBIAD]
+
+        list_of_columns += self.parent.LIS_obj.positive_date_cols
+        list_of_columns += self.parent.LIS_obj.positive_type_cols
+        list_of_columns += self.parent.LIS_obj.wave_of_inf_cols
+        list_of_columns += self.parent.LIS_obj.vaccine_type_cols
+        list_of_columns += self.parent.LIS_obj.vaccine_date_cols
+
+        self.parent.df[DBIAD] = np.nan
+        self.parent.df[NIBD]  = np.nan
+        self.parent.df[DOI]   = np.nan
+        L = []
+        for index, row in self.parent.df.iterrows():
+
+            reason = row['Reason']
+            if reason != 'Deceased':
+                continue
+
+            dor = row[self.parent.MPD_obj.DOR]
+            if pd.isnull(dor):
+                continue
+
+            n_inf = row['# infections']
+            if n_inf == 0:
+                continue
+
+            inf_dates = pd.to_datetime(row[self.parent.LIS_obj.positive_date_cols])
+            deltas = (dor - inf_dates) / np.timedelta64(1,'D')
+            selection = deltas < 0
+            deltas = deltas[~selection]
+            if len(deltas) == 0:
+                continue
+            L.append(index)
+            deltas = deltas.sort_values()
+            days_between_inf_and_death = deltas.iloc[0]
+            weeks_between_inf_and_death = days_between_inf_and_death / 7.
+            weeks_between_inf_and_death = np.ceil(weeks_between_inf_and_death)
+            if weeks_between_inf_and_death < 1:
+                #weeks_between_inf_and_death  += 1
+                pass
+            nearest_infection = deltas.index[0]
+            doi = row[nearest_infection]
+            self.parent.df.loc[index, DBIAD] = days_between_inf_and_death
+            self.parent.df.loc[index, WBIAD] = weeks_between_inf_and_death
+            self.parent.df.loc[index, NIBD]  = nearest_infection
+            self.parent.df.loc[index, DOI]   = doi
+        df_w = self.parent.df.loc[L,:].copy()
+        df_w = df_w[list_of_columns]
+        folder = 'Tara_jan_05_2023'
+        fname = 'Time_between_infection_and_death.xlsx'
+        fname = os.path.join(self.requests_path, folder, fname)
+        df_w.to_excel(fname, index=False)
