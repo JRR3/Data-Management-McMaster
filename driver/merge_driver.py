@@ -1,5 +1,5 @@
 #JRR @ McMaster University
-#Update: 05-Jan-2023
+#Update: 06-Jan-2023
 import sys
 import os
 import re
@@ -764,9 +764,108 @@ class Merger:
         self.MPD_obj.update_active_status_column()
 
 
-    def taras_req_jan_04_2023(self):
+    def taras_req_jan_06_2023(self):
         #Use Nuc data to identify infections.
-        pass
+        fname = 'W.xlsx'
+        #fname = os.path.join(self.outputs_path, fname)
+        #df = pd.read_excel(fname)
+        #print(df)
+        nuc_G = 'Nuc-IgG-100'
+        nuc_A = 'Nuc-IgA-100'
+        DOC   = self.LSM_obj.DOC
+        NUC   = [nuc_G, nuc_A]
+        nuc_G_t = 0.547779865867836
+        nuc_A_t = 0.577982139779995
+        nuc_t   = [nuc_G_t, nuc_A_t]
+
+        n_of_RAT_PCR_infections        = 0
+        inf_and_has_serology           = 0
+        inf_and_has_no_sample_post_inf = 0
+        inf_and_has_sample_post_inf    = 0
+        inf_and_has_no_nuc      = 0
+        inf_and_has_nuc         = 0
+        inf_and_below_threshold = 0
+        inf_and_above_threshold = 0
+        inf_and_above_threshold_3mo = 0
+        inf_and_above_threshold_6mo = 0
+        inf_and_above_threshold_6pl = 0
+
+        i_n_of_RAT_PCR_infections        = {}
+        i_inf_and_has_serology           = {}
+        i_inf_and_has_no_sample_post_inf = {}
+        i_inf_and_has_sample_post_inf    = {}
+        i_inf_and_has_no_nuc      = {}
+        i_inf_and_has_nuc         = {}
+        i_inf_and_below_threshold = {}
+        i_inf_and_above_threshold = {}
+        i_inf_and_above_threshold_3mo = {}
+        i_inf_and_above_threshold_6mo = {}
+        i_inf_and_above_threshold_6pl = {}
+
+
+        for index_m, row_m in self.df.iterrows():
+            ID = row_m['ID']
+            i_types = row_m[self.LIS_obj.positive_type_cols]
+            selection = i_types.isin(['RAT','PCR'])
+            selection = selection[selection]
+            n_inf     = len(selection)
+            if n_inf == 0:
+                continue
+            n_of_RAT_PCR_infections += n_inf
+            i_n_of_RAT_PCR_infections.get(ID,0)
+            for i_type in selection.index:
+                #Iterate over the infection dates
+                i_date_h = i_type.replace('Type','Date')
+                i_date   = row_m[i_date_h]
+                print(i_date)
+                selection = self.LSM_obj.df['ID'] == ID
+                if ~selection.any():
+                    continue
+                df_s = self.LSM_obj.df.loc[selection,:]
+                for index_s, row_s in df_s.iterrows():
+                    print(DOC)
+                    doc = row_s[DOC]
+                    delta = (doc - i_date) / np.timedelta64(1,'D')
+                    inf_and_has_serology += 1
+                    if delta < 0:
+                        #No sample collected after the infection
+                        inf_and_has_no_sample_post_inf += 1
+                        continue
+                    inf_and_has_sample_post_inf += 1
+                    nuc_data = row_s[NUC]
+                    if nuc_data.count() == 0:
+                        #No nucleocapsid data
+                        inf_and_has_no_nuc += 1
+                        continue
+                    inf_and_has_nuc += 1
+                    nuc_status = nuc_t < nuc_data
+                    if ~nuc_status.any():
+                        #All available Nuc data is below threshold.
+                        inf_and_below_threshold += 1
+                        continue
+                    inf_and_above_threshold += 1
+                    if   delta < 3*30:
+                        inf_and_above_threshold_3mo += 1
+                    elif delta < 6*30:
+                        inf_and_above_threshold_6mo += 1
+                    else:
+                        inf_and_above_threshold_6pl += 1
+
+
+
+            print('=====================')
+        print(f'{n_of_RAT_PCR_infections=}')
+        print(f'{inf_and_has_serology=}')
+        print(f'{inf_and_has_no_sample_post_inf=}')
+        print(f'{inf_and_has_sample_post_inf=}')
+        print(f'{inf_and_has_no_nuc=}')
+        print(f'{inf_and_has_nuc=}')
+        print(f'{inf_and_below_threshold=}')
+        print(f'{inf_and_above_threshold=}')
+        print(f'{inf_and_above_threshold_3mo=}')
+        print(f'{inf_and_above_threshold_6mo=}')
+        print(f'{inf_and_above_threshold_6pl=}')
+
 
 
 
@@ -810,10 +909,13 @@ obj = Merger()
 #obj.LSM_obj.write_LSM_to_excel()
 #obj.MPD_obj.single_column_update()
 #obj.write_the_M_file_to_excel()
+#Jan 05 2023
 #obj.LIS_obj.produce_infection_and_vaccine_melted_files()
 #obj.taras_inf_and_death_jan_04_2023()
 #obj.merge_M_with_LSM()
 #obj.LSM_obj.generate_L_format()
 #obj.REP_obj.boxplots_using_L_file()
 #obj.REP_obj.generate_report_for_time_between_infection_and_death()
-obj.REP_obj.generate_plot_for_time_between_infection_and_death()
+#obj.REP_obj.generate_plot_for_time_between_infection_and_death()
+#Jan 06 2023
+obj.taras_req_jan_06_2023()

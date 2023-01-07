@@ -36,7 +36,7 @@ class LTCInfectionSummary:
         self.wave_fname = os.path.join(self.dpath, wave_fname)
 
         self.df_waves   = None
-        self.DOI = 'Infection date'
+        self.DOI        = 'Infection date'
         self.positive_date_cols  = []
         self.positive_type_cols  = []
         self.wave_of_inf_cols    = []
