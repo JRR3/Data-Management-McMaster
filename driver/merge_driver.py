@@ -766,41 +766,85 @@ class Merger:
 
     def taras_req_jan_06_2023(self):
         #Use Nuc data to identify infections.
-        fname = 'W.xlsx'
+        #fname = 'W.xlsx'
         #fname = os.path.join(self.outputs_path, fname)
         #df = pd.read_excel(fname)
         #print(df)
+        HPORI = 'Has a PCR or RAT Inf'
+        self.df[HPORI] = False
+
+        DOI   = 'Date of Infection'
+        LDOI   = 'Last PCR or RAT Inf'
+        DOC   = self.LSM_obj.DOC
+
         nuc_G = 'Nuc-IgG-100'
         nuc_A = 'Nuc-IgA-100'
-        DOC   = self.LSM_obj.DOC
         NUC   = [nuc_G, nuc_A]
+
+        DOC_0 = DOC + '_No_Inf'
+        nuc_G_0 = 'Nuc-IgG-100_No_Inf'
+        nuc_A_0 = 'Nuc-IgA-100_No_Inf'
+        NUC_0   = [nuc_G_0, nuc_A_0]
+        nuc_G_0_s = 'Nuc-IgG-100_No_Inf_s'
+        nuc_A_0_s = 'Nuc-IgA-100_No_Inf_s'
+        NUC_0S   = [nuc_G_0_s, nuc_A_0_s]
+        nuc_0s   = 'Nuc_No_Inf_positive'
+        L0 = [DOC_0] + NUC_0 + NUC_0S + [nuc_0s]
+        for x in L0:
+            self.df[x] = np.nan
+
+        DOI_3 = 'Date of Infection 3mo'
+        DOC_3 = DOC + '_3mo'
+        nuc_G_3 = 'Nuc-IgG-100_3mo'
+        nuc_A_3 = 'Nuc-IgA-100_3mo'
+        NUC_3   = [nuc_G_3, nuc_A_3]
+        nuc_G_3_s = 'Nuc-IgG-100_3mo_s'
+        nuc_A_3_s = 'Nuc-IgA-100_3mo_s'
+        NUC_3S   = [nuc_G_3_s, nuc_A_3_s]
+        nuc_3s   = 'Nuc_3mo_positive'
+        L3 = [DOI_3, DOC_3] + NUC_3 + NUC_3S + [nuc_3s]
+        for x in L3:
+            self.df[x] = np.nan
+
+        DOI_6 = 'Date of Infection 6mo'
+        DOC_6 = DOC + '_6mo'
+        nuc_G_6 = 'Nuc-IgG-100_6mo'
+        nuc_A_6 = 'Nuc-IgA-100_6mo'
+        NUC_6   = [nuc_G_6, nuc_A_6]
+        nuc_G_6_s = 'Nuc-IgG-100_6mo_s'
+        nuc_A_6_s = 'Nuc-IgA-100_6mo_s'
+        NUC_6S   = [nuc_G_6_s, nuc_A_6_s]
+        nuc_6s   = 'Nuc_6mo_positive'
+        L6 = [DOI_6, DOC_6] + NUC_6 + NUC_6S + [nuc_6s]
+        for x in L6:
+            self.df[x] = np.nan
+
+
+        DOI_6p = 'Date of Infection 6+mo'
+        DOC_6p = DOC + '_6+mo'
+        nuc_G_6p = 'Nuc-IgG-100_6+mo'
+        nuc_A_6p = 'Nuc-IgA-100_6+mo'
+        NUC_6p   = [nuc_G_6p, nuc_A_6p]
+        nuc_G_6p_s = 'Nuc-IgG-100_6+mo_s'
+        nuc_A_6p_s = 'Nuc-IgA-100_6+mo_s'
+        NUC_6pS   = [nuc_G_6p_s, nuc_A_6p_s]
+        nuc_6ps   = 'Nuc_6+mo_positive'
+        L6p = [DOI_6p, DOC_6p] + NUC_6p + NUC_6pS + [nuc_6ps]
+        for x in L6p:
+            self.df[x] = np.nan
+
+        nuc_p   = 'Has NUC+'
+        self.df[nuc_p] = np.nan
+
         nuc_G_t = 0.547779865867836
         nuc_A_t = 0.577982139779995
         nuc_t   = [nuc_G_t, nuc_A_t]
 
-        n_of_RAT_PCR_infections        = 0
-        inf_and_has_serology           = 0
-        inf_and_has_no_sample_post_inf = 0
-        inf_and_has_sample_post_inf    = 0
-        inf_and_has_no_nuc      = 0
-        inf_and_has_nuc         = 0
-        inf_and_below_threshold = 0
-        inf_and_above_threshold = 0
-        inf_and_above_threshold_3mo = 0
-        inf_and_above_threshold_6mo = 0
-        inf_and_above_threshold_6pl = 0
-
-        i_n_of_RAT_PCR_infections        = {}
-        i_inf_and_has_serology           = {}
-        i_inf_and_has_no_sample_post_inf = {}
-        i_inf_and_has_sample_post_inf    = {}
-        i_inf_and_has_no_nuc      = {}
-        i_inf_and_has_nuc         = {}
-        i_inf_and_below_threshold = {}
-        i_inf_and_above_threshold = {}
-        i_inf_and_above_threshold_3mo = {}
-        i_inf_and_above_threshold_6mo = {}
-        i_inf_and_above_threshold_6pl = {}
+        old_date = datetime.datetime(1980,1,1)
+        id_to_no_inf = {}
+        id_to_3mo = {}
+        id_to_6mo = {}
+        id_to_6mop = {}
 
 
         for index_m, row_m in self.df.iterrows():
@@ -810,61 +854,151 @@ class Merger:
             selection = selection[selection]
             n_inf     = len(selection)
             if n_inf == 0:
-                continue
-            n_of_RAT_PCR_infections += n_inf
-            i_n_of_RAT_PCR_infections.get(ID,0)
-            for i_type in selection.index:
-                #Iterate over the infection dates
-                i_date_h = i_type.replace('Type','Date')
-                i_date   = row_m[i_date_h]
-                print(i_date)
+                self.df.loc[index_m, HPORI] = False
                 selection = self.LSM_obj.df['ID'] == ID
                 if ~selection.any():
                     continue
                 df_s = self.LSM_obj.df.loc[selection,:]
                 for index_s, row_s in df_s.iterrows():
-                    print(DOC)
+                    #Iterate over the collected samples
                     doc = row_s[DOC]
-                    delta = (doc - i_date) / np.timedelta64(1,'D')
-                    inf_and_has_serology += 1
-                    if delta < 0:
-                        #No sample collected after the infection
-                        inf_and_has_no_sample_post_inf += 1
-                        continue
-                    inf_and_has_sample_post_inf += 1
                     nuc_data = row_s[NUC]
                     if nuc_data.count() == 0:
                         #No nucleocapsid data
-                        inf_and_has_no_nuc += 1
                         continue
-                    inf_and_has_nuc += 1
                     nuc_status = nuc_t < nuc_data
-                    if ~nuc_status.any():
-                        #All available Nuc data is below threshold.
-                        inf_and_below_threshold += 1
-                        continue
-                    inf_and_above_threshold += 1
-                    if   delta < 3*30:
-                        inf_and_above_threshold_3mo += 1
-                    elif delta < 6*30:
-                        inf_and_above_threshold_6mo += 1
+                    old_sample = id_to_no_inf.get(ID, old_date)
+                    if old_sample  == old_date:
+                        #No True cases have been reported
+                        #You may continue
+                        pass
                     else:
-                        inf_and_above_threshold_6pl += 1
+                        #We already have a True case
+                        #We only proceed if this case
+                        #is also more recent and True
+                        if old_sample < doc and nuc_status.any():
+                            pass
+                        else:
+                            continue
+                    self.df.loc[index_m, DOC_0] = doc
+                    self.df.loc[index_m, NUC_0] = nuc_data
+                    self.df.loc[index_m, NUC_0S] = nuc_status
+                    if nuc_status.any():
+                        id_to_no_inf[ID] = doc
+                        self.df.loc[index_m, nuc_0s] = True
+                        self.df.loc[index_m, nuc_p] = True
+                    else:
+                        self.df.loc[index_m, nuc_0s] = False
+                        self.df.loc[index_m, nuc_p] = False
+                #End of for loop (samples)
+                continue
+            #n_of_RAT_PCR_infections += n_inf
+            self.df.loc[index_m, HPORI] = True
+            for i_type in selection.index:
+                #Iterate over the infection dates
+                doi_h = i_type.replace('Type','Date')
+                doi   = row_m[doi_h]
+                print(doi)
+                self.df.loc[index_m, LDOI] = doi
+                selection = self.LSM_obj.df['ID'] == ID
+                if ~selection.any():
+                    continue
+                df_s = self.LSM_obj.df.loc[selection,:]
+                for index_s, row_s in df_s.iterrows():
+                    #Iterate over the collected samples
+                    doc = row_s[DOC]
+                    delta = (doc - doi) / np.timedelta64(1,'D')
+                    if delta < 0:
+                        #No sample collected after the infection
+                        continue
+                    nuc_data = row_s[NUC]
+                    if nuc_data.count() == 0:
+                        #No nucleocapsid data
+                        continue
+                    nuc_status = nuc_t < nuc_data
+                    if  delta < 3*30:
+                        old_doi = id_to_3mo.get(ID, old_date)
+                        if old_doi  == old_date:
+                            #No True cases have been reported
+                            #You may continue
+                            pass
+                        else:
+                            #We already have a True case
+                            #We only proceed if this case
+                            #is also more recent and True
+                            if old_doi < doi and nuc_status.any():
+                                pass
+                            else:
+                                continue
+                        self.df.loc[index_m, DOI_3] = doi
+                        self.df.loc[index_m, DOC_3] = doc
+                        self.df.loc[index_m, NUC_3] = nuc_data
+                        self.df.loc[index_m, NUC_3S] = nuc_status
+                        if nuc_status.any():
+                            id_to_3mo[ID] = doi
+                            self.df.loc[index_m, nuc_3s] = True
+                            self.df.loc[index_m, nuc_p] = True
+                        else:
+                            self.df.loc[index_m, nuc_3s] = False
+                            self.df.loc[index_m, nuc_p] = False
+                    elif delta < 6*30:
+                        old_doi = id_to_6mo.get(ID, old_date)
+                        if old_doi  == old_date:
+                            #No True cases have been reported
+                            #You may continue
+                            pass
+                        else:
+                            #We already have a True case
+                            #We only proceed if this case
+                            #is also more recent and True
+                            if old_doi < doi and nuc_status.any():
+                                pass
+                            else:
+                                continue
+                        if old_doi < doi:
+                            continue
+
+                        self.df.loc[index_m, DOI_6] = doi
+                        self.df.loc[index_m, DOC_6] = doc
+                        self.df.loc[index_m, NUC_6] = nuc_data
+                        self.df.loc[index_m, NUC_6S] = nuc_status
+                        if nuc_status.any():
+                            id_to_6mo[ID] = doi
+                            self.df.loc[index_m, nuc_6s] = True
+                            self.df.loc[index_m, nuc_p] = True
+                        else:
+                            self.df.loc[index_m, nuc_6s] = False
+                            self.df.loc[index_m, nuc_p] = False
+                    else:
+                        old_doi = id_to_6mop.get(ID, old_date)
+                        if old_doi  == old_date:
+                            #No True cases have been reported
+                            #You may continue
+                            pass
+                        else:
+                            #We already have a True case
+                            #We only proceed if this case
+                            #is also more recent and True
+                            if old_doi < doi and nuc_status.any():
+                                pass
+                            else:
+                                continue
+
+                        self.df.loc[index_m, DOI_6p] = doi
+                        self.df.loc[index_m, DOC_6p] = doc
+                        self.df.loc[index_m, NUC_6p] = nuc_data
+                        self.df.loc[index_m, NUC_6pS] = nuc_status
+                        if nuc_status.any():
+                            id_to_6mop[ID] = doi
+                            self.df.loc[index_m, nuc_6ps] = True
+                            self.df.loc[index_m, nuc_p] = True
+                        else:
+                            self.df.loc[index_m, nuc_6ps] = False
+                            self.df.loc[index_m, nuc_p] = False
 
 
 
             print('=====================')
-        print(f'{n_of_RAT_PCR_infections=}')
-        print(f'{inf_and_has_serology=}')
-        print(f'{inf_and_has_no_sample_post_inf=}')
-        print(f'{inf_and_has_sample_post_inf=}')
-        print(f'{inf_and_has_no_nuc=}')
-        print(f'{inf_and_has_nuc=}')
-        print(f'{inf_and_below_threshold=}')
-        print(f'{inf_and_above_threshold=}')
-        print(f'{inf_and_above_threshold_3mo=}')
-        print(f'{inf_and_above_threshold_6mo=}')
-        print(f'{inf_and_above_threshold_6pl=}')
 
 
 
