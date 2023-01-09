@@ -764,18 +764,21 @@ class Merger:
         self.MPD_obj.update_active_status_column()
 
 
-    def taras_req_jan_06_2023(self):
+    def taras_req_jan_09_2023(self):
         #Use Nuc data to identify infections.
-        #fname = 'W.xlsx'
-        #fname = os.path.join(self.outputs_path, fname)
-        #df = pd.read_excel(fname)
-        #print(df)
+
         HPORI = 'Has a PCR or RAT Inf'
         self.df[HPORI] = False
+
 
         DOI   = 'Date of Infection'
         LDOI   = 'Last PCR or RAT Inf'
         DOC   = self.LSM_obj.DOC
+
+        nuc_p   = 'Has NUC+'
+        self.df[nuc_p] = np.nan
+
+        list_of_labels = ['ID', HPORI, LDOI, nuc_p]
 
         nuc_G = 'Nuc-IgG-100'
         nuc_A = 'Nuc-IgA-100'
@@ -793,6 +796,8 @@ class Merger:
         for x in L0:
             self.df[x] = np.nan
 
+        list_of_labels += L0
+
         DOI_3 = 'Date of Infection 3mo'
         DOC_3 = DOC + '_3mo'
         nuc_G_3 = 'Nuc-IgG-100_3mo'
@@ -805,6 +810,8 @@ class Merger:
         L3 = [DOI_3, DOC_3] + NUC_3 + NUC_3S + [nuc_3s]
         for x in L3:
             self.df[x] = np.nan
+
+        list_of_labels += L3
 
         DOI_6 = 'Date of Infection 6mo'
         DOC_6 = DOC + '_6mo'
@@ -819,6 +826,7 @@ class Merger:
         for x in L6:
             self.df[x] = np.nan
 
+        list_of_labels += L6
 
         DOI_6p = 'Date of Infection 6+mo'
         DOC_6p = DOC + '_6+mo'
@@ -833,8 +841,8 @@ class Merger:
         for x in L6p:
             self.df[x] = np.nan
 
-        nuc_p   = 'Has NUC+'
-        self.df[nuc_p] = np.nan
+        list_of_labels += L6p
+
 
         nuc_G_t = 0.547779865867836
         nuc_A_t = 0.577982139779995
@@ -881,8 +889,8 @@ class Merger:
                         else:
                             continue
                     self.df.loc[index_m, DOC_0] = doc
-                    self.df.loc[index_m, NUC_0] = nuc_data
-                    self.df.loc[index_m, NUC_0S] = nuc_status
+                    self.df.loc[index_m, NUC_0] = nuc_data.values
+                    self.df.loc[index_m, NUC_0S] = nuc_status.values
                     if nuc_status.any():
                         id_to_no_inf[ID] = doc
                         self.df.loc[index_m, nuc_0s] = True
@@ -891,6 +899,7 @@ class Merger:
                         self.df.loc[index_m, nuc_0s] = False
                         self.df.loc[index_m, nuc_p] = False
                 #End of for loop (samples)
+                print('=====================')
                 continue
             #n_of_RAT_PCR_infections += n_inf
             self.df.loc[index_m, HPORI] = True
@@ -898,7 +907,6 @@ class Merger:
                 #Iterate over the infection dates
                 doi_h = i_type.replace('Type','Date')
                 doi   = row_m[doi_h]
-                print(doi)
                 self.df.loc[index_m, LDOI] = doi
                 selection = self.LSM_obj.df['ID'] == ID
                 if ~selection.any():
@@ -932,8 +940,8 @@ class Merger:
                                 continue
                         self.df.loc[index_m, DOI_3] = doi
                         self.df.loc[index_m, DOC_3] = doc
-                        self.df.loc[index_m, NUC_3] = nuc_data
-                        self.df.loc[index_m, NUC_3S] = nuc_status
+                        self.df.loc[index_m, NUC_3] = nuc_data.values
+                        self.df.loc[index_m, NUC_3S] = nuc_status.values
                         if nuc_status.any():
                             id_to_3mo[ID] = doi
                             self.df.loc[index_m, nuc_3s] = True
@@ -960,8 +968,8 @@ class Merger:
 
                         self.df.loc[index_m, DOI_6] = doi
                         self.df.loc[index_m, DOC_6] = doc
-                        self.df.loc[index_m, NUC_6] = nuc_data
-                        self.df.loc[index_m, NUC_6S] = nuc_status
+                        self.df.loc[index_m, NUC_6] = nuc_data.values
+                        self.df.loc[index_m, NUC_6S] = nuc_status.values
                         if nuc_status.any():
                             id_to_6mo[ID] = doi
                             self.df.loc[index_m, nuc_6s] = True
@@ -986,8 +994,8 @@ class Merger:
 
                         self.df.loc[index_m, DOI_6p] = doi
                         self.df.loc[index_m, DOC_6p] = doc
-                        self.df.loc[index_m, NUC_6p] = nuc_data
-                        self.df.loc[index_m, NUC_6pS] = nuc_status
+                        self.df.loc[index_m, NUC_6p] = nuc_data.values
+                        self.df.loc[index_m, NUC_6pS] = nuc_status.values
                         if nuc_status.any():
                             id_to_6mop[ID] = doi
                             self.df.loc[index_m, nuc_6ps] = True
@@ -996,9 +1004,37 @@ class Merger:
                             self.df.loc[index_m, nuc_6ps] = False
                             self.df.loc[index_m, nuc_p] = False
 
-
-
             print('=====================')
+        fname = 'Nuc_inf_classification.xlsx'
+        folder= 'Tara_jan_09_2023'
+        fname = os.path.join(self.requests_path, folder, fname)
+        df = self.df[list_of_labels]
+        df.to_excel(fname, index=False)
+
+
+    def braeden_req_jan_09_2023(self):
+        #Use Nuc data to identify infections.
+        fname = '20230106-CoronavirusRBDTiter-SummaryData.xlsx'
+        folder= 'Braeden_jan_09_2023'
+        fname = os.path.join(self.requests_path, folder, fname)
+        df = pd.read_excel(fname, sheet_name='Metadata')
+        print(df)
+        fname  = 'W.xlsx'
+        fname = os.path.join(self.outputs_path, fname)
+        df_w = pd.read_excel(fname)
+        self.MPD_obj.compute_age_from_dob(df_w)
+        selection = df_w['Full ID'].isin(df['ID Visit'])
+        df_s = df_w.loc[selection,:].copy()
+        print(df_s)
+        for col, dtype in zip(df_s.columns, df_s.dtypes):
+            print(f'{col:35}: {dtype}')
+            if 'datetime64' in str(dtype):
+                df_s[col] = df_s[col].dt.strftime('%d-%b-%Y')
+                print(df_s[col])
+        fname = 'data_request_braeden_09_jan_2023.xlsx'
+        folder= 'Braeden_jan_09_2023'
+        fname = os.path.join(self.requests_path, folder, fname)
+        df_s.to_excel(fname, index=False)
 
 
 
@@ -1052,4 +1088,7 @@ obj = Merger()
 #obj.REP_obj.generate_report_for_time_between_infection_and_death()
 #obj.REP_obj.generate_plot_for_time_between_infection_and_death()
 #Jan 06 2023
-obj.taras_req_jan_06_2023()
+#Jan 09 2023
+#obj.taras_req_jan_09_2023()
+#obj.merge_M_with_LSM()
+obj.braeden_req_jan_09_2023()

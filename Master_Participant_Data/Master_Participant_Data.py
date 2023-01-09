@@ -199,16 +199,16 @@ class MasterParticipantData:
         self.parent.write_the_M_file_to_excel()
 
 
-    ##########Oct 25 2022##################
-    def compute_age_from_dob(self):
-        for index, row in self.parent.df.iterrows():
+    ##########Jan 09 2023##################
+    def compute_age_from_dob(self, df):
+        for index, row in df.iterrows():
             dob = row['DOB']
             if pd.isnull(dob):
                 continue
             today = datetime.datetime.now()
             delta = (today - dob).days
             years = delta // 365
-            self.parent.df.loc[index,'Age'] = years
+            df.loc[index,'Age'] = years
 
     ##########Oct 25 2022##################
     def missing_DOR(self):
