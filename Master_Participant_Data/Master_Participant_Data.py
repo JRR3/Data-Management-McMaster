@@ -590,8 +590,8 @@ class MasterParticipantData:
     def single_column_update(self):
         #Use this function for updates using 
         #the one-column format.
-        fname  = 'anomalies.xlsx'
-        folder = 'Tara_jan_04_2023'
+        fname  = 'updates.xlsx'
+        folder = 'Tara_jan_13_2023'
         df_up = self.load_single_column_df_for_update(fname, folder)
         print(df_up)
         #Pre-update

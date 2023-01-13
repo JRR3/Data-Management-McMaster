@@ -1,0 +1,92 @@
+/*
+ * JRR
+ * January 13 2023
+ * Survey implementation using JS.
+ */
+/* Styling the Body element i.e. Color,
+Font, Alignment */
+body {
+	background-color: #7A003C;
+	font-family: 'Lucida Console';
+	font-size: 26px;
+	text-align: center;
+}
+
+/* Styling the Form (Color, Padding, Shadow) */
+form {
+	background-color: #fff;
+	max-width: 800px;
+	margin: 50px auto;
+	padding: 30px 20px;
+	box-shadow: 2px 5px 10px rgba(0, 0, 0, 0.5);
+}
+
+/* Styling form_control Class */
+.form_control {
+	text-align: left;
+	margin-bottom: 25px;
+}
+
+/* Styling form_control Label */
+.form_control label {
+	display: block;
+	margin-bottom: 10px;
+}
+
+/* Styling form_control input,
+select, textarea */
+.form_control input,
+.form_control select,
+.form_control textarea {
+	border: 1px solid #777;
+	border-radius: 2px;
+	font-family: inherit;
+	font-size: 20px;
+	padding: 10px;
+	display: block;
+	width: 95%;
+}
+
+/* Styling form_control Radio button and Checkbox */
+.form_control input[type='radio'],
+.form_control input[type='checkbox'] {
+	display: inline-block;
+	width: 40px;
+	height: 40px;
+}
+
+/* Styling Button */
+button {
+	background-color: #FDBF57;
+	border: 3px solid #777;
+	border-radius: 5px;
+	font-family: inherit;
+	font-size: 22px;
+	display: block;
+	width: 100%;
+	margin-top: 50px;
+	margin-bottom: 20px;
+}
+
+#main_title {
+	background-color: #FDBF57;
+	font-size: 36px;
+}
+
+ol {
+    counter-reset: item;
+}
+
+ol > li {
+    counter-increment: item;
+}
+
+ol ol > li {
+    display: block;
+}
+
+ol ol > li:before {
+    /*content: counters(item, ".") ". ";*/
+    content: counters(item, ".");
+    margin-left: -50px;
+}

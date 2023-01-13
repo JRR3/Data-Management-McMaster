@@ -198,6 +198,7 @@ class SampleInventoryData:
         value_count_gt_1 = df_up[self.merge_column].value_counts().gt(1)
         if value_count_gt_1.any():
             print('We have repetitions in Sample Inventory')
+            print(df_up[self.merge_column].value_counts())
             raise ValueError('No repetitions were expected.')
         else:
             print('No repeats were found in Sample Inventory')

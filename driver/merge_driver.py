@@ -95,8 +95,8 @@ class Merger:
     def update_master_using_SID(self):
         #This function updates the merged file M with the
         #Sample Inventory Data file provided by Megan.
-        folder = 'Megan_dec_16_2022'
-        fname = 'sid_update.xlsx'
+        folder = 'Megan_jan_13_2023'
+        fname = 'sid.xlsx'
         fname = os.path.join(self.requests_path, folder, fname)
         #We are only interested in the first column (ID=A) and the 
         #Blood draw columns (W to BF).
@@ -117,10 +117,13 @@ class Merger:
         #In case we only have to fill empty cells,
         #choose 'original+'.
         #Rewrite the self.df object with the M data frame.
+        status_pre = self.MPD_obj.compute_data_density(self.df)
         self.df = self.merge_with_M_and_return_M(df_up, 'ID', kind='original+')
         print('Merging SID update with M file is complete.')
-        #Note==>
-        #The writing to Excel should be executed externally.
+        #Compute information delta
+        status_post = self.MPD_obj.compute_data_density(self.df)
+        self.MPD_obj.monotonic_increment_check(status_pre,
+                status_post)
 
     def backup_the_M_file(self):
         fname = self.M_fname
@@ -800,6 +803,7 @@ class Merger:
 
         DOI_3 = 'Date of Infection 3mo'
         DOC_3 = DOC + '_3mo'
+        days_3= 'Delta days (3mo)'
         nuc_G_3 = 'Nuc-IgG-100_3mo'
         nuc_A_3 = 'Nuc-IgA-100_3mo'
         NUC_3   = [nuc_G_3, nuc_A_3]
@@ -807,7 +811,7 @@ class Merger:
         nuc_A_3_s = 'Nuc-IgA-100_3mo_s'
         NUC_3S   = [nuc_G_3_s, nuc_A_3_s]
         nuc_3s   = 'Nuc_3mo_positive'
-        L3 = [DOI_3, DOC_3] + NUC_3 + NUC_3S + [nuc_3s]
+        L3 = [DOI_3, DOC_3, days_3] + NUC_3 + NUC_3S + [nuc_3s]
         for x in L3:
             self.df[x] = np.nan
 
@@ -815,6 +819,7 @@ class Merger:
 
         DOI_6 = 'Date of Infection 6mo'
         DOC_6 = DOC + '_6mo'
+        days_6= 'Delta days (6mo)'
         nuc_G_6 = 'Nuc-IgG-100_6mo'
         nuc_A_6 = 'Nuc-IgA-100_6mo'
         NUC_6   = [nuc_G_6, nuc_A_6]
@@ -822,7 +827,7 @@ class Merger:
         nuc_A_6_s = 'Nuc-IgA-100_6mo_s'
         NUC_6S   = [nuc_G_6_s, nuc_A_6_s]
         nuc_6s   = 'Nuc_6mo_positive'
-        L6 = [DOI_6, DOC_6] + NUC_6 + NUC_6S + [nuc_6s]
+        L6 = [DOI_6, DOC_6, days_6] + NUC_6 + NUC_6S + [nuc_6s]
         for x in L6:
             self.df[x] = np.nan
 
@@ -830,6 +835,7 @@ class Merger:
 
         DOI_6p = 'Date of Infection 6+mo'
         DOC_6p = DOC + '_6+mo'
+        days_6p= 'Delta days (6+mo)'
         nuc_G_6p = 'Nuc-IgG-100_6+mo'
         nuc_A_6p = 'Nuc-IgA-100_6+mo'
         NUC_6p   = [nuc_G_6p, nuc_A_6p]
@@ -837,7 +843,7 @@ class Merger:
         nuc_A_6p_s = 'Nuc-IgA-100_6+mo_s'
         NUC_6pS   = [nuc_G_6p_s, nuc_A_6p_s]
         nuc_6ps   = 'Nuc_6+mo_positive'
-        L6p = [DOI_6p, DOC_6p] + NUC_6p + NUC_6pS + [nuc_6ps]
+        L6p = [DOI_6p, DOC_6p, days_6p] + NUC_6p + NUC_6pS + [nuc_6ps]
         for x in L6p:
             self.df[x] = np.nan
 
@@ -917,7 +923,7 @@ class Merger:
                     doc = row_s[DOC]
                     delta = (doc - doi) / np.timedelta64(1,'D')
                     if delta < 0:
-                        #No sample collected after the infection
+                        #The sample was not collected after the infection
                         continue
                     nuc_data = row_s[NUC]
                     if nuc_data.count() == 0:
@@ -940,6 +946,7 @@ class Merger:
                                 continue
                         self.df.loc[index_m, DOI_3] = doi
                         self.df.loc[index_m, DOC_3] = doc
+                        self.df.loc[index_m, days_3] = delta
                         self.df.loc[index_m, NUC_3] = nuc_data.values
                         self.df.loc[index_m, NUC_3S] = nuc_status.values
                         if nuc_status.any():
@@ -968,6 +975,7 @@ class Merger:
 
                         self.df.loc[index_m, DOI_6] = doi
                         self.df.loc[index_m, DOC_6] = doc
+                        self.df.loc[index_m, days_6] = delta
                         self.df.loc[index_m, NUC_6] = nuc_data.values
                         self.df.loc[index_m, NUC_6S] = nuc_status.values
                         if nuc_status.any():
@@ -994,6 +1002,7 @@ class Merger:
 
                         self.df.loc[index_m, DOI_6p] = doi
                         self.df.loc[index_m, DOC_6p] = doc
+                        self.df.loc[index_m, days_6p] = delta
                         self.df.loc[index_m, NUC_6p] = nuc_data.values
                         self.df.loc[index_m, NUC_6pS] = nuc_status.values
                         if nuc_status.any():
@@ -1091,4 +1100,8 @@ obj = Merger()
 #Jan 09 2023
 #obj.taras_req_jan_09_2023()
 #obj.merge_M_with_LSM()
-obj.braeden_req_jan_09_2023()
+#obj.braeden_req_jan_09_2023()
+#Jan 13 2023
+#obj.update_master_using_SID()
+#obj.MPD_obj.single_column_update()
+#obj.write_the_M_file_to_excel()

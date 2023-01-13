@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<!-- JRR -->
+<!-- January 13 2023 -->
+<!-- Functional programming -->
+<!-- Most of the heavy lifting is done using JS. -->
+<html lang='en'>
+
+<head>
+	<meta charset='UTF-8'>
+	<meta name='author' content='Javier Ruiz Ramirez'>
+	<meta name='genesis' content='2023-01-09'>
+
+	<script type='text/javascript'
+		src='https://ajax.googleapis.com/ajax/libs/jquery/3.3.1/jquery.min.js'>
+	</script>
+
+	<title>
+		Resident Questionnaire
+	</title>
+
+	<link href='design.css' rel='stylesheet' type='text/css'>
+	</link>
+
+</head>
+
+<body>
+	<h1 id='main_title'>McMaster University: Resident Questionnaire </h1>
+
+	<!-- Create Form -->
+	<form id='main_form'>
+
+		<ol>
+		<!-- Details -->
+		<div class='form_control'>
+			<label for='ID' id='label_ID'>
+				Participant ID
+			</label>
+
+			<!-- Input Type Text -->
+			<input type='text'
+				id='ID'
+				placeholder='XX-XXXXXXX' />
+		</div>
+
+		<div id='today_div' class='form_control'>
+		</div>
+
+		<li>
+		<div id='dob_div' class='form_control'>
+		</div>
+
+		<li>
+		<div id='sex_div' class='form_control'>
+		</div>
+
+		<li>
+		<div id='ethnicity_div' class='form_control'>
+		</div>
+
+		<li>
+		<div id='indigenous_div' class='form_control'>
+		</div>
+
+		<li>
+		<div id='n_bedrooms_div' class='form_control'>
+		</div>
+
+		<li>
+		<div id='living_with_someone_div' class='form_control'>
+		</div>
+
+		<li>
+		<div id='n_outdoor_hours_div' class='form_control'>
+		</div>
+
+		<li>
+		<div id='n_indoor_per_week_div' class='form_control'>
+		</div>
+
+		<li>
+		<div id='avoided_doing_div' class='form_control'>
+		</div>
+
+		<li>
+		<div id='had_covid_contact_div' class='form_control'>
+		</div>
+
+		<li>
+		<div id='had_covid_diagnosis_div' class='form_control'>
+		</div>
+
+		<li>
+		<div id='vaccinated_against_covid_div' class='form_control'>
+		</div>
+
+		</ol>
+
+		<button type='submit' value='submit'>
+			Submit
+		</button>
+	</form>
+	<script type='text/javascript' src='code.js'> </script>
+</body>
+
+</html>
