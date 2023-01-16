@@ -706,6 +706,9 @@ class LTCSerologyMaster:
         #user_length_set = set()
         #site_length_set = set()
         #Note that the time identifier is alphanumeric.
+        #This function uses the "p Full ID" column to check the validity
+        #of the format, and then creates the "standard" format in the
+        #"Full ID" column.
         txt = '(?P<site>[0-9]{2})[-](?P<user>[0-9]{7})-(?P<time>[a-zA-Z0-9]+)'
         rexp = re.compile(txt)
         def process_id(txt):

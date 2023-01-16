@@ -1105,3 +1105,5 @@ obj = Merger()
 #obj.update_master_using_SID()
 #obj.MPD_obj.single_column_update()
 #obj.write_the_M_file_to_excel()
+#Jan 16 2023
+obj.LIS_obj.produce_infection_and_vaccine_melted_files()
