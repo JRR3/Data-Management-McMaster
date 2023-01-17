@@ -381,12 +381,12 @@ class Merger:
             #Check if we have new data
             is_new_data = Z[left].isnull() & Z[right].notnull()
             if is_new_data.any():
-                print('==================')
+                print('==================START')
                 print(f'{column=} has new information.')
                 whats_new = Z[is_new_data]
                 print(whats_new[merge_column])
                 print(whats_new[right])
-                print('==================')
+                print('==================END')
             else:
                 print(f'{column=} was already complete.')
             if kind == 'update++':
@@ -1047,6 +1047,21 @@ class Merger:
 
 
 
+    def lindsay_req_jan_17_2023(self):
+        #Use Nuc data to identify infections.
+        #fname = 'update.xlsx'
+        fname = 'all_participants.xlsx'
+        folder= 'Lindsay_jan_17_2023'
+        fname = os.path.join(self.requests_path, folder, fname)
+        df_up = pd.read_excel(fname)
+        selection = df_up.ID.isin(self.df.ID)
+        print('New individuals')
+        print(df_up[~selection])
+        return
+        status_pre = self.MPD_obj.compute_data_density(self.df)
+        self.df = self.merge_with_M_and_return_M(df_up, 'ID', kind='original+')
+        status_post = self.MPD_obj.compute_data_density(self.df)
+        self.MPD_obj.monotonic_increment_check(status_pre, status_post)
 
 
 
@@ -1106,4 +1121,7 @@ obj = Merger()
 #obj.MPD_obj.single_column_update()
 #obj.write_the_M_file_to_excel()
 #Jan 16 2023
-obj.LIS_obj.produce_infection_and_vaccine_melted_files()
+#obj.LIS_obj.produce_infection_and_vaccine_melted_files()
+#Jan 17 2023
+obj.lindsay_req_jan_17_2023()
+#obj.write_the_M_file_to_excel()
