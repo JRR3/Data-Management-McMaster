@@ -1063,6 +1063,43 @@ class Merger:
         status_post = self.MPD_obj.compute_data_density(self.df)
         self.MPD_obj.monotonic_increment_check(status_pre, status_post)
 
+    def tara_req_jan_20_2023(self):
+        #Use Nuc data to identify infections.
+        #fname = 'update.xlsx'
+        fname = 'Infection_dates_as_one_column.xlsx'
+        folder= 'one_column_files'
+        fname = os.path.join(self.requests_path, folder, fname)
+        df_i = pd.read_excel(fname)
+        L = []
+        d_headers = []
+        v_dates_h = self.LIS_obj.vaccine_date_cols
+        for name in df_i.columns:
+            if 'S:' not in name and 'R:' not in name:
+                L.append(name)
+        df_i = df_i[L]
+        for k in range(len(v_dates_h)):
+            index = str(k+1)
+            h = 'Vac #' + index + ' - Inf'
+            d_headers.append(h)
+            df_i[h] = np.nan
+        print(df_i)
+        for index_i, row_i in df_i.iterrows():
+            ID = row_i['ID']
+            i_date = row_i['Infection date']
+            #print(i_date)
+            selection = self.df.ID == ID
+            v_dates = self.df.loc[selection, v_dates_h]
+            #print(v_dates)
+            deltas = (v_dates - i_date) / np.timedelta64(1,'D')
+            #print(deltas)
+            df_i.loc[index_i, d_headers] = deltas.values[0]
+        print(df_i)
+        fname = 'tara_request_jan_20_2023.xlsx'
+        folder= 'Tara_jan_20_2023'
+        fname = os.path.join(self.requests_path, folder, fname)
+        df_i.to_excel(fname, index=False)
+
+
 
 
 
@@ -1123,5 +1160,10 @@ obj = Merger()
 #Jan 16 2023
 #obj.LIS_obj.produce_infection_and_vaccine_melted_files()
 #Jan 17 2023
-obj.lindsay_req_jan_17_2023()
+#obj.lindsay_req_jan_17_2023()
 #obj.write_the_M_file_to_excel()
+#Jan 20 2023
+#obj.MPD_obj.single_column_update()
+#obj.write_the_M_file_to_excel()
+#obj.LIS_obj.produce_infection_and_vaccine_melted_files()
+obj.tara_req_jan_20_2023()

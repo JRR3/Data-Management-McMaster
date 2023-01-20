@@ -557,6 +557,7 @@ class MasterParticipantData:
                         self.generate_infection_and_reason_dict(df_up)
 
         if flag_update_active:
+            print('Updating MPD Reason or DOR')
             DOR = self.DOR
             df_up = pd.DataFrame(reason_dictionary)
             df_up[DOR] = pd.to_datetime(df_up['date'])
@@ -567,7 +568,7 @@ class MasterParticipantData:
             #self.update_reason_dates_and_status(df_up)
             #Merge instead of point modifications
             self.parent.df = self.parent.merge_with_M_and_return_M(df_up,
-                    'ID', kind='original+')
+                    'ID', kind='update+')
             self.update_active_status_column()
         if flag_update_waves:
             df_up = pd.DataFrame(infection_dictionary)
@@ -590,8 +591,8 @@ class MasterParticipantData:
     def single_column_update(self):
         #Use this function for updates using 
         #the one-column format.
-        fname  = 'updates.xlsx'
-        folder = 'Tara_jan_13_2023'
+        fname  = 'update.xlsx'
+        folder = 'Tara_jan_20_2023'
         df_up = self.load_single_column_df_for_update(fname, folder)
         print(df_up)
         #Pre-update
