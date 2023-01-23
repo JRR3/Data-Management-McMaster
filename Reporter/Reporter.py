@@ -1024,10 +1024,14 @@ class Reporter:
 
     def boxplots_using_L_file(self):
 
-        fname  = 'L.xlsx'
-        folder = 'Lucas_jan_04_2023'
+        fname  = 'L_avec_metadata.xlsx'
+        folder = 'Jessica_jan_23_2023'
         fname = os.path.join('..','requests',folder, fname)
         df_up = pd.read_excel(fname)
+        site_selection = df_up['Site'].isin([20,61])
+        #print(len(df_up))
+        df_up = df_up[~site_selection]
+        #print(len(df_up))
         print(df_up)
 
         use_swarm = True
@@ -1116,7 +1120,7 @@ class Reporter:
         n_groups = len(groups)
 
 
-        generate_descriptive_stats = False
+        generate_descriptive_stats = True
         if generate_descriptive_stats:
 
             selection  = df_up[NPCD] == 4
@@ -1127,7 +1131,7 @@ class Reporter:
             df_g = df_up.groupby([df_up[NPCD], df_up[MSD], df_up[BIS]])
             descriptor = df_g.describe()[bio_columns]
             fname  = 'stats_L_x.xlsx'
-            folder = 'Lucas_jan_04_2023'
+            folder = 'Jessica_jan_23_2023'
             fname = os.path.join('..','requests',folder, fname)
             descriptor.to_excel(fname)
             return
@@ -1192,7 +1196,7 @@ class Reporter:
                 fname  = 'swarm_' + bio_column + '.png'
             else:
                 fname  = 'bplot_' + bio_column + '.png'
-            folder = 'Lucas_jan_04_2023'
+            folder = 'Jessica_jan_23_2023'
             fname = os.path.join('..','requests',folder, fname)
             print(f'{fname=}')
             plt.legend(bbox_to_anchor=(1.4, 0.45), loc='center', borderaxespad=0)

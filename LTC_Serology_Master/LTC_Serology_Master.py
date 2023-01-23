@@ -539,7 +539,9 @@ class LTCSerologyMaster:
         #self.parent.MPD_obj.add_site_column()
 
         v_date_cols = self.parent.LIS_obj.vaccine_date_cols
+        v_type_cols = self.parent.LIS_obj.vaccine_type_cols
         inf_date_cols = self.parent.LIS_obj.positive_date_cols
+        inf_type_cols = self.parent.LIS_obj.positive_type_cols
         index_to_i_status = {}
         print('Warning: Make sure the W file is updated.')
         fname  = 'W.xlsx'
@@ -547,13 +549,15 @@ class LTCSerologyMaster:
         df_w = pd.read_excel(fname)
 
         NPD  = 'Nearest pre-collection dose'
-        df_w[NPD] = 0
+        #df_w[NPD] = 0
+        df_w[NPD] = np.nan
 
         VD  = 'Vaccination date'
         df_w[VD] = np.nan
 
         DSD  = 'Days since dose'
-        df_w[DSD] = 0
+        #df_w[DSD] = 0
+        df_w[DSD] = np.nan
 
         MSD = 'Months since dose'
         df_w[MSD] = ''
@@ -561,8 +565,12 @@ class LTCSerologyMaster:
         NPI = 'Nearest pre-collection infection'
         df_w[NPI] = np.nan
 
+        IT = 'Infection type'
+        df_w[IT] = np.nan
+
         DSI = 'Days since infection'
         df_w[DSI] = np.nan
+
 
         TIS = 'Ternary infection status'
         df_w[TIS] = ''
@@ -573,7 +581,7 @@ class LTCSerologyMaster:
         DOC = self.DOC
 
         g_labels  = ['Full ID', 'Site',
-                DOC, NPD, VD, DSD, MSD, NPI, DSI, TIS, BIS]
+                DOC, NPD, VD, DSD, MSD, NPI, IT, DSI, TIS, BIS]
         g_labels += self.numeric_columns
 
         rx_int = re.compile('[0-9]+')
@@ -583,8 +591,24 @@ class LTCSerologyMaster:
                 continue
             #Vaccine calculation
             v_dates = row[v_date_cols]
-            if v_dates.isnull().all():
+            v_types = row[v_type_cols]
+
+            #if v_dates.isnull().all():
+                #continue
+
+            #======Filter for 4 or more vaccines
+            if v_dates.count() < 4:
                 continue
+            #======First 4 doses are mRNA and not bivalent
+            v_type_selection = v_types.iloc[:4].isin(['Moderna','Pfizer'])
+            if not v_type_selection.all():
+                continue
+            #======If 5 doses, check it is BModernaO
+            if v_dates.count() == 5:
+                if v_types.iloc[4] == 'BModernaO':
+                    pass
+                else:
+                    continue
             selection = v_dates.notnull()
             v_dates = v_dates[selection]
             doc = row[DOC]
@@ -603,8 +627,16 @@ class LTCSerologyMaster:
             vaccine_n = int(vaccine_n)
             df_w.loc[index, NPD] = vaccine_n
             df_w.loc[index, VD] = vaccine_date
-            #Infection calculation
+
+            #Infection types (PCR and RAT)
+            i_types = row[inf_type_cols]
+            i_type_selection = i_types.isin(['PCR', 'RAT']).values
+            i_types = i_types[i_type_selection]
+
+            #Infection dates
             i_dates = row[inf_date_cols]
+            i_dates = i_dates[i_type_selection]
+
             if i_dates.isnull().all():
                 df_w.loc[index, TIS] = 'Not Inf'
                 df_w.loc[index, BIS] = 'Not Infected'
@@ -618,6 +650,11 @@ class LTCSerologyMaster:
                 df_w.loc[index, TIS] = 'Not Inf'
                 df_w.loc[index, BIS] = 'Not Infected'
                 continue
+
+            argmin = deltas.argmin()
+            i_type = i_types.iloc[argmin]
+            df_w.loc[index, IT] = i_type
+
             deltas = deltas.sort_values()
             i_index = deltas.index[0]
             infection_n = rx_int.search(i_index).group(0)
@@ -666,9 +703,17 @@ class LTCSerologyMaster:
 
         df_w = df_w[g_labels]
         df_w.dropna(subset=['Full ID'], axis=0, inplace=True)
+        df_w.dropna(subset=[NPD], axis=0, inplace=True)
 
-        fname  = 'L.xlsx'
-        folder = 'Lucas_jan_04_2023'
+        ####### Include metadata
+        df_w = self.parent.create_df_with_ID_from_full_ID(df_w)
+        #pd.merge(df_w, self.parent.df, on='ID', how='inner')
+        #print(df_w)
+        #return
+        #######
+
+        fname  = 'L_sans_metadata.xlsx'
+        folder = 'Jessica_jan_23_2023'
         fname = os.path.join('..','requests',folder, fname)
         df_w.to_excel(fname, index=False)
 

@@ -408,7 +408,7 @@ class Merger:
         return Z[X.columns]
 
     def create_df_with_ID_from_full_ID(self, Y):
-        #This function was updated on Oct 31, 2022
+        #This function was updated on Jan 23, 2023
         #For safety reasons we create a copy of the 
         #original data frame.
         #This function is used inside the LND and LSM
@@ -419,7 +419,7 @@ class Merger:
             print('Creating the ID column.')
             flag_needs_order = True
             column_order = [self.merge_column] + X.columns.to_list()
-            X[self.merge_column] = ''
+            X[self.merge_column] = np.nan
         else:
             print('The ID column already exists.')
 
@@ -1100,6 +1100,50 @@ class Merger:
         df_i.to_excel(fname, index=False)
 
 
+    def jessica_req_jan_23_2023(self):
+        #Use Nuc data to identify infections.
+        #fname = 'update.xlsx'
+        fname  = 'L_sans_metadata.xlsx'
+        folder = 'Jessica_jan_23_2023'
+        fname = os.path.join(self.requests_path, folder, fname)
+        df_w = pd.read_excel(fname)
+        isin = df_w['ID'].isin(self.df['ID'])
+        if not isin.all():
+            raise ValueError('Missing data')
+
+        #Columns to remove
+        r_slice = slice('Blood Draw:Baseline - B', 'Blood Draw:Repeat - JR')
+        remove = ['Notes/Comments', 'Refusals', 'Health Info Only?']
+        remove+= self.df.loc[:,r_slice].columns.to_list()
+        print(remove)
+
+        #Clone MPD file
+        m_clone = self.df.copy()
+
+        #Remove columns
+        m_clone.drop(columns=remove, inplace=True)
+
+        #Age
+        self.MPD_obj.compute_age_from_dob(m_clone)
+
+        df_m = pd.merge(df_w, m_clone, on='ID', how='inner')
+
+        AABC = 'Age at blood collection'
+        df_m[AABC] = np.nan
+        for index, row in df_m.iterrows():
+            dob = row['DOB']
+            if pd.isnull(dob):
+                continue
+            doc = row['Date Collected']
+            delta = (doc - dob).days
+            years = delta // 365
+            df_m.loc[index,AABC] = years
+
+        fname  = 'L_avec_metadata.xlsx'
+        folder = 'Jessica_jan_23_2023'
+        fname = os.path.join('..','requests',folder, fname)
+        df_m.to_excel(fname, index=False)
+
 
 
 
@@ -1166,4 +1210,9 @@ obj = Merger()
 #obj.MPD_obj.single_column_update()
 #obj.write_the_M_file_to_excel()
 #obj.LIS_obj.produce_infection_and_vaccine_melted_files()
-obj.tara_req_jan_20_2023()
+#obj.tara_req_jan_20_2023()
+#Jan 23 2023
+#obj.merge_M_with_LSM()
+#obj.LSM_obj.generate_L_format()
+obj.REP_obj.boxplots_using_L_file()
+#obj.jessica_req_jan_23_2023()
