@@ -95,7 +95,7 @@ class Merger:
     def update_master_using_SID(self):
         #This function updates the merged file M with the
         #Sample Inventory Data file provided by Megan.
-        folder = 'Megan_jan_13_2023'
+        folder = 'Megan_jan_25_2023'
         fname = 'sid.xlsx'
         fname = os.path.join(self.requests_path, folder, fname)
         #We are only interested in the first column (ID=A) and the 
@@ -312,10 +312,12 @@ class Merger:
     def update_LSM(self, file_name=None):
         #This function was updated on Dec 21 2022
         if file_name:
+            #Not none
             fname = file_name
         else:
-            fname = 'anomalies.xlsx'
-        folder = 'Jessica_dec_23_2022'
+            #None
+            fname = 'updates.xlsx'
+        folder = 'Jessica_jan_25_2023'
         fname = os.path.join('..','requests',folder, fname)
         book = pd.read_excel(fname, sheet_name=None)
         print(f'LSM is looking into the {folder=}')
@@ -347,7 +349,7 @@ class Merger:
 
         #The writing process should be executed 
         #externally for safety reasons.
-        print('Do not forget to write the write the file to Excel.')
+        print('Do not forget to write the file to Excel.')
 
     def check_LSM_dates(self):
         #This function was updated on 12-Oct-2022
@@ -1100,11 +1102,12 @@ class Merger:
         df_i.to_excel(fname, index=False)
 
 
-    def jessica_req_jan_23_2023(self):
+    def jessica_req_jan_25_2023(self):
         #Use Nuc data to identify infections.
         #fname = 'update.xlsx'
+        #folder = 'Jessica_jan_23_2023'
         fname  = 'L_sans_metadata.xlsx'
-        folder = 'Jessica_jan_23_2023'
+        folder = 'Jessica_jan_25_2023'
         fname = os.path.join(self.requests_path, folder, fname)
         df_w = pd.read_excel(fname)
         isin = df_w['ID'].isin(self.df['ID'])
@@ -1140,7 +1143,7 @@ class Merger:
             df_m.loc[index,AABC] = years
 
         fname  = 'L_avec_metadata.xlsx'
-        folder = 'Jessica_jan_23_2023'
+        folder = 'Jessica_jan_25_2023'
         fname = os.path.join('..','requests',folder, fname)
         df_m.to_excel(fname, index=False)
 
@@ -1214,5 +1217,15 @@ obj = Merger()
 #Jan 23 2023
 #obj.merge_M_with_LSM()
 #obj.LSM_obj.generate_L_format()
-obj.REP_obj.boxplots_using_L_file()
+#obj.REP_obj.boxplots_using_L_file()
 #obj.jessica_req_jan_23_2023()
+#Jan 25 2023
+#obj.update_LSM()
+#obj.LSM_obj.write_LSM_to_excel()
+#obj.update_master_using_SID()
+#obj.write_the_M_file_to_excel()
+#obj.SID_obj.migrate_dates_from_SID_to_LSM()
+#obj.LSM_obj.write_LSM_to_excel()
+#obj.merge_M_with_LSM()
+obj.LSM_obj.generate_L_format()
+obj.jessica_req_jan_25_2023()

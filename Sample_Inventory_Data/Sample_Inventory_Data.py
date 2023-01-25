@@ -319,12 +319,19 @@ class SampleInventoryData:
                     dc['Date Collected'].append(doc)
                     unprocessed_counter += 1
         df_up = pd.DataFrame(dc)
+        df_up['p Full ID'] = df_up['Full ID']
         print(df_up)
-        self.parent.LSM_obj.direct_serology_update_with_headers(df_up)
 
+        status_pre = self.parent.MPD_obj.compute_data_density(self.parent.LSM_obj.df)
+
+        self.parent.LSM_obj.direct_serology_update_with_headers(df_up)
 
         print(f'{sample_counter=}')
         print(f'{processed_counter=}')
         print(f'{unprocessed_counter=}')
+
+        status_post = self.parent.MPD_obj.compute_data_density(self.parent.LSM_obj.df)
+
+        self.parent.MPD_obj.monotonic_increment_check(status_pre, status_post)
 
 

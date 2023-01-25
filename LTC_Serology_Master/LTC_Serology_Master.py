@@ -439,6 +439,7 @@ class LTCSerologyMaster:
         df_up.replace('retest on next plate', np.nan, inplace=True)
         df_up.replace('NT', np.nan, inplace=True)
         df_up['p Full ID'] = df_up['p Full ID'].str.replace(' ','')
+        df_up['p Full ID'] = df_up['p Full ID'].str.replace('wks','wk')
         #=========== Removal of cutoff===============
         selection = df_up['p Full ID'].str.lower().str.contains('cutoff')
         if selection.any():
@@ -529,7 +530,7 @@ class LTCSerologyMaster:
         plt.savefig(fname)
 
     def generate_L_format(self):
-        #Dec 22 2022
+        #Jan 25 2023
         #Replicate the format in Lucas' table.
         #A=No infection before the DOC
         #B=Most recent infection before the DOC took place 
@@ -713,7 +714,7 @@ class LTCSerologyMaster:
         #######
 
         fname  = 'L_sans_metadata.xlsx'
-        folder = 'Jessica_jan_23_2023'
+        folder = 'Jessica_jan_25_2023'
         fname = os.path.join('..','requests',folder, fname)
         df_w.to_excel(fname, index=False)
 
@@ -754,6 +755,10 @@ class LTCSerologyMaster:
         #This function uses the "p Full ID" column to check the validity
         #of the format, and then creates the "standard" format in the
         #"Full ID" column.
+
+        if 'Full ID' not in df.columns:
+            df['Full ID'] = np.nan
+
         txt = '(?P<site>[0-9]{2})[-](?P<user>[0-9]{7})-(?P<time>[a-zA-Z0-9]+)'
         rexp = re.compile(txt)
         def process_id(txt):
