@@ -769,8 +769,10 @@ class Merger:
         self.MPD_obj.update_active_status_column()
 
 
-    def taras_req_jan_09_2023(self):
+    def taras_req_jan_26_2023(self):
         #Use Nuc data to identify infections.
+        #The first version was produced on January 09 2023
+        #The second version was produced on January 26 2023
 
         HPORI = 'Has a PCR or RAT Inf'
         self.df[HPORI] = False
@@ -857,6 +859,7 @@ class Merger:
         nuc_t   = [nuc_G_t, nuc_A_t]
 
         old_date = datetime.datetime(1980,1,1)
+        #Dictionaries to classify each case.
         id_to_no_inf = {}
         id_to_3mo = {}
         id_to_6mo = {}
@@ -864,16 +867,22 @@ class Merger:
 
 
         for index_m, row_m in self.df.iterrows():
+            #Iterate over the MPD
             ID = row_m['ID']
             i_types = row_m[self.LIS_obj.positive_type_cols]
-            selection = i_types.isin(['RAT','PCR'])
-            selection = selection[selection]
-            n_inf     = len(selection)
+            #Select only RAT and PCR
+            is_RAT_or_PCR = i_types.isin(['RAT','PCR'])
+            RAT_or_PCR    = is_RAT_or_PCR[is_RAT_or_PCR]
+            n_inf         = len(RAT_or_PCR)
             if n_inf == 0:
+                #No infection
                 self.df.loc[index_m, HPORI] = False
                 selection = self.LSM_obj.df['ID'] == ID
                 if ~selection.any():
+                    #If no samples on record,
+                    #move on to the next participant.
                     continue
+                #############NO Infection case#########
                 df_s = self.LSM_obj.df.loc[selection,:]
                 for index_s, row_s in df_s.iterrows():
                     #Iterate over the collected samples
@@ -881,8 +890,12 @@ class Merger:
                     nuc_data = row_s[NUC]
                     if nuc_data.count() == 0:
                         #No nucleocapsid data
+                        #Move on since we need this information.
                         continue
+                    #Check if the NUC data is above threshold.
                     nuc_status = nuc_t < nuc_data
+                    #Try to find if this ID has already stored a 
+                    #NUC+ (positive) value.
                     old_sample = id_to_no_inf.get(ID, old_date)
                     if old_sample  == old_date:
                         #No True cases have been reported
@@ -905,17 +918,22 @@ class Merger:
                         self.df.loc[index_m, nuc_p] = True
                     else:
                         self.df.loc[index_m, nuc_0s] = False
-                        self.df.loc[index_m, nuc_p] = False
+
+                        if pd.isnull(self.df.loc[index_m, nuc_p]):
+                            self.df.loc[index_m, nuc_p] = False
+
                 #End of for loop (samples)
                 print('=====================')
                 continue
-            #n_of_RAT_PCR_infections += n_inf
+            #######END OF NO Infection###############
+            #######PCR/RAT+ Infection ###############
             self.df.loc[index_m, HPORI] = True
-            for i_type in selection.index:
+            for i_type in RAT_or_PCR.index:
                 #Iterate over the infection dates
                 doi_h = i_type.replace('Type','Date')
                 doi   = row_m[doi_h]
                 self.df.loc[index_m, LDOI] = doi
+                #Samples with that ID
                 selection = self.LSM_obj.df['ID'] == ID
                 if ~selection.any():
                     continue
@@ -923,13 +941,17 @@ class Merger:
                 for index_s, row_s in df_s.iterrows():
                     #Iterate over the collected samples
                     doc = row_s[DOC]
+                    #(DOI, DOC)
                     delta = (doc - doi) / np.timedelta64(1,'D')
                     if delta < 0:
+                        #Collection ===> Infection
                         #The sample was not collected after the infection
                         continue
+                    #Infection ===> Collection 
                     nuc_data = row_s[NUC]
                     if nuc_data.count() == 0:
                         #No nucleocapsid data
+                        #Move on since we need this information.
                         continue
                     nuc_status = nuc_t < nuc_data
                     if  delta < 3*30:
@@ -957,7 +979,10 @@ class Merger:
                             self.df.loc[index_m, nuc_p] = True
                         else:
                             self.df.loc[index_m, nuc_3s] = False
-                            self.df.loc[index_m, nuc_p] = False
+
+                            if pd.isnull(self.df.loc[index_m, nuc_p]):
+                                self.df.loc[index_m, nuc_p] = False
+
                     elif delta < 6*30:
                         old_doi = id_to_6mo.get(ID, old_date)
                         if old_doi  == old_date:
@@ -986,7 +1011,11 @@ class Merger:
                             self.df.loc[index_m, nuc_p] = True
                         else:
                             self.df.loc[index_m, nuc_6s] = False
-                            self.df.loc[index_m, nuc_p] = False
+
+                            if pd.isnull(self.df.loc[index_m, nuc_p]):
+                                self.df.loc[index_m, nuc_p] = False
+
+                    #More than 6 months
                     else:
                         old_doi = id_to_6mop.get(ID, old_date)
                         if old_doi  == old_date:
@@ -1013,139 +1042,138 @@ class Merger:
                             self.df.loc[index_m, nuc_p] = True
                         else:
                             self.df.loc[index_m, nuc_6ps] = False
-                            self.df.loc[index_m, nuc_p] = False
+
+                            if pd.isnull(self.df.loc[index_m, nuc_p]):
+                                self.df.loc[index_m, nuc_p] = False
 
             print('=====================')
         fname = 'Nuc_inf_classification.xlsx'
-        folder= 'Tara_jan_09_2023'
+        folder= 'Tara_jan_26_2023'
         fname = os.path.join(self.requests_path, folder, fname)
         df = self.df[list_of_labels]
         df.to_excel(fname, index=False)
 
 
-    def braeden_req_jan_09_2023(self):
+    def taras_req_2_jan_26_2023(self):
         #Use Nuc data to identify infections.
-        fname = '20230106-CoronavirusRBDTiter-SummaryData.xlsx'
-        folder= 'Braeden_jan_09_2023'
+        fname = 'Nuc_inf_classification.xlsx'
+        folder= 'Tara_jan_26_2023'
         fname = os.path.join(self.requests_path, folder, fname)
-        df = pd.read_excel(fname, sheet_name='Metadata')
-        print(df)
-        fname  = 'W.xlsx'
-        fname = os.path.join(self.outputs_path, fname)
-        df_w = pd.read_excel(fname)
-        self.MPD_obj.compute_age_from_dob(df_w)
-        selection = df_w['Full ID'].isin(df['ID Visit'])
-        df_s = df_w.loc[selection,:].copy()
-        print(df_s)
-        for col, dtype in zip(df_s.columns, df_s.dtypes):
-            print(f'{col:35}: {dtype}')
-            if 'datetime64' in str(dtype):
-                df_s[col] = df_s[col].dt.strftime('%d-%b-%Y')
-                print(df_s[col])
-        fname = 'data_request_braeden_09_jan_2023.xlsx'
-        folder= 'Braeden_jan_09_2023'
+        df = pd.read_excel(fname)
+
+        HPORI = 'Has a PCR or RAT Inf'
+
+
+        DOI   = 'Date of Infection'
+        LDOI   = 'Last PCR or RAT Inf'
+        DOC   = self.LSM_obj.DOC
+
+        nuc_p   = 'Has NUC+'
+
+        list_of_labels = ['ID', HPORI, LDOI, nuc_p]
+
+        nuc_G = 'Nuc-IgG-100'
+        nuc_A = 'Nuc-IgA-100'
+        NUC   = [nuc_G, nuc_A]
+
+        DOC_0 = DOC + '_No_Inf'
+        nuc_G_0 = 'Nuc-IgG-100_No_Inf'
+        nuc_A_0 = 'Nuc-IgA-100_No_Inf'
+        NUC_0   = [nuc_G_0, nuc_A_0]
+        nuc_G_0_s = 'Nuc-IgG-100_No_Inf_s'
+        nuc_A_0_s = 'Nuc-IgA-100_No_Inf_s'
+        NUC_0S   = [nuc_G_0_s, nuc_A_0_s]
+        nuc_0s   = 'Nuc_No_Inf_positive'
+        L0 = [DOC_0] + NUC_0 + NUC_0S + [nuc_0s]
+
+        list_of_labels += L0
+
+        DOI_3 = 'Date of Infection 3mo'
+        DOC_3 = DOC + '_3mo'
+        days_3= 'Delta days (3mo)'
+        nuc_G_3 = 'Nuc-IgG-100_3mo'
+        nuc_A_3 = 'Nuc-IgA-100_3mo'
+        NUC_3   = [nuc_G_3, nuc_A_3]
+        nuc_G_3_s = 'Nuc-IgG-100_3mo_s'
+        nuc_A_3_s = 'Nuc-IgA-100_3mo_s'
+        NUC_3S   = [nuc_G_3_s, nuc_A_3_s]
+        nuc_3s   = 'Nuc_3mo_positive'
+        L3 = [DOI_3, DOC_3, days_3] + NUC_3 + NUC_3S + [nuc_3s]
+
+        list_of_labels += L3
+
+        DOI_6 = 'Date of Infection 6mo'
+        DOC_6 = DOC + '_6mo'
+        days_6= 'Delta days (6mo)'
+        nuc_G_6 = 'Nuc-IgG-100_6mo'
+        nuc_A_6 = 'Nuc-IgA-100_6mo'
+        NUC_6   = [nuc_G_6, nuc_A_6]
+        nuc_G_6_s = 'Nuc-IgG-100_6mo_s'
+        nuc_A_6_s = 'Nuc-IgA-100_6mo_s'
+        NUC_6S   = [nuc_G_6_s, nuc_A_6_s]
+        nuc_6s   = 'Nuc_6mo_positive'
+        L6 = [DOI_6, DOC_6, days_6] + NUC_6 + NUC_6S + [nuc_6s]
+
+        list_of_labels += L6
+
+        DOI_6p = 'Date of Infection 6+mo'
+        DOC_6p = DOC + '_6+mo'
+        days_6p= 'Delta days (6+mo)'
+        nuc_G_6p = 'Nuc-IgG-100_6+mo'
+        nuc_A_6p = 'Nuc-IgA-100_6+mo'
+        NUC_6p   = [nuc_G_6p, nuc_A_6p]
+        nuc_G_6p_s = 'Nuc-IgG-100_6+mo_s'
+        nuc_A_6p_s = 'Nuc-IgA-100_6+mo_s'
+        NUC_6pS   = [nuc_G_6p_s, nuc_A_6p_s]
+        nuc_6ps   = 'Nuc_6+mo_positive'
+        L6p = [DOI_6p, DOC_6p, days_6p] + NUC_6p + NUC_6pS + [nuc_6ps]
+
+        list_of_labels += L6p
+
+        fname = 'Nuc_inf_matrices.xlsx'
+        folder= 'Tara_jan_26_2023'
         fname = os.path.join(self.requests_path, folder, fname)
-        df_s.to_excel(fname, index=False)
+
+        nuc_array = [np.array(['Nuc', 'Nuc']), np.array(['+', '-'])]
+        inf_array = [np.array(['Inf', 'Inf']), np.array(['+', '-'])]
+        m = pd.DataFrame(np.zeros((2,2)), index = nuc_array, columns=inf_array)
+
+        nuc_list = [nuc_3s, nuc_6s, nuc_6ps]
+
+        with pd.ExcelWriter(fname) as writer:
+            for nuc_xs in nuc_list:
+                #Positive Infection and positive Nuc 3mo
+                s1 = df[HPORI] == True
+                s2 = df[nuc_xs] == True
+                df_s = df[s1 & s2]
+                nuc_pos_inf_pos = len(df_s)
+                m.loc[('Nuc','+'),('Inf','+')] = nuc_pos_inf_pos
+
+                #Positive Infection and negative Nuc 3mo
+                s1 = df[HPORI] == True
+                s2 = df[nuc_xs] == False
+                df_s = df[s1 & s2]
+                nuc_neg_inf_pos = len(df_s)
+                m.loc[('Nuc','-'),('Inf','+')] = nuc_neg_inf_pos
+
+                #Negative Infection and positive Nuc 
+                s1 = df[HPORI] == False
+                s2 = df[nuc_0s] == True
+                df_s = df[s1 & s2]
+                nuc_pos_inf_neg = len(df_s)
+                m.loc[('Nuc','+'),('Inf','-')] = nuc_pos_inf_neg
+
+                #Negative Infection and negative Nuc 3mo
+                s1 = df[HPORI] == False
+                s2 = df[nuc_0s] == False
+                df_s = df[s1 & s2]
+                nuc_neg_inf_neg = len(df_s)
+                m.loc[('Nuc','-'),('Inf','-')] = nuc_neg_inf_neg
+
+                sh_name = nuc_xs
+                m.to_excel(writer, sheet_name = sh_name)
 
 
-
-    def lindsay_req_jan_17_2023(self):
-        #Use Nuc data to identify infections.
-        #fname = 'update.xlsx'
-        fname = 'all_participants.xlsx'
-        folder= 'Lindsay_jan_17_2023'
-        fname = os.path.join(self.requests_path, folder, fname)
-        df_up = pd.read_excel(fname)
-        selection = df_up.ID.isin(self.df.ID)
-        print('New individuals')
-        print(df_up[~selection])
-        return
-        status_pre = self.MPD_obj.compute_data_density(self.df)
-        self.df = self.merge_with_M_and_return_M(df_up, 'ID', kind='original+')
-        status_post = self.MPD_obj.compute_data_density(self.df)
-        self.MPD_obj.monotonic_increment_check(status_pre, status_post)
-
-    def tara_req_jan_20_2023(self):
-        #Use Nuc data to identify infections.
-        #fname = 'update.xlsx'
-        fname = 'Infection_dates_as_one_column.xlsx'
-        folder= 'one_column_files'
-        fname = os.path.join(self.requests_path, folder, fname)
-        df_i = pd.read_excel(fname)
-        L = []
-        d_headers = []
-        v_dates_h = self.LIS_obj.vaccine_date_cols
-        for name in df_i.columns:
-            if 'S:' not in name and 'R:' not in name:
-                L.append(name)
-        df_i = df_i[L]
-        for k in range(len(v_dates_h)):
-            index = str(k+1)
-            h = 'Vac #' + index + ' - Inf'
-            d_headers.append(h)
-            df_i[h] = np.nan
-        print(df_i)
-        for index_i, row_i in df_i.iterrows():
-            ID = row_i['ID']
-            i_date = row_i['Infection date']
-            #print(i_date)
-            selection = self.df.ID == ID
-            v_dates = self.df.loc[selection, v_dates_h]
-            #print(v_dates)
-            deltas = (v_dates - i_date) / np.timedelta64(1,'D')
-            #print(deltas)
-            df_i.loc[index_i, d_headers] = deltas.values[0]
-        print(df_i)
-        fname = 'tara_request_jan_20_2023.xlsx'
-        folder= 'Tara_jan_20_2023'
-        fname = os.path.join(self.requests_path, folder, fname)
-        df_i.to_excel(fname, index=False)
-
-
-    def jessica_req_jan_25_2023(self):
-        #Use Nuc data to identify infections.
-        #fname = 'update.xlsx'
-        #folder = 'Jessica_jan_23_2023'
-        fname  = 'L_sans_metadata.xlsx'
-        folder = 'Jessica_jan_25_2023'
-        fname = os.path.join(self.requests_path, folder, fname)
-        df_w = pd.read_excel(fname)
-        isin = df_w['ID'].isin(self.df['ID'])
-        if not isin.all():
-            raise ValueError('Missing data')
-
-        #Columns to remove
-        r_slice = slice('Blood Draw:Baseline - B', 'Blood Draw:Repeat - JR')
-        remove = ['Notes/Comments', 'Refusals', 'Health Info Only?']
-        remove+= self.df.loc[:,r_slice].columns.to_list()
-        print(remove)
-
-        #Clone MPD file
-        m_clone = self.df.copy()
-
-        #Remove columns
-        m_clone.drop(columns=remove, inplace=True)
-
-        #Age
-        self.MPD_obj.compute_age_from_dob(m_clone)
-
-        df_m = pd.merge(df_w, m_clone, on='ID', how='inner')
-
-        AABC = 'Age at blood collection'
-        df_m[AABC] = np.nan
-        for index, row in df_m.iterrows():
-            dob = row['DOB']
-            if pd.isnull(dob):
-                continue
-            doc = row['Date Collected']
-            delta = (doc - dob).days
-            years = delta // 365
-            df_m.loc[index,AABC] = years
-
-        fname  = 'L_avec_metadata.xlsx'
-        folder = 'Jessica_jan_25_2023'
-        fname = os.path.join('..','requests',folder, fname)
-        df_m.to_excel(fname, index=False)
 
 
 
@@ -1227,5 +1255,6 @@ obj = Merger()
 #obj.SID_obj.migrate_dates_from_SID_to_LSM()
 #obj.LSM_obj.write_LSM_to_excel()
 #obj.merge_M_with_LSM()
-obj.LSM_obj.generate_L_format()
-obj.jessica_req_jan_25_2023()
+#obj.LSM_obj.generate_L_format()
+#obj.jessica_req_jan_25_2023()
+obj.taras_req_2_jan_26_2023()

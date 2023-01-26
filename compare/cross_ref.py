@@ -2878,6 +2878,134 @@ class Comparator:
         print(f'The {fpure=} file has been written to Excel.')
 
 
+    def braeden_req_jan_09_2023(self):
+        #Use Nuc data to identify infections.
+        fname = '20230106-CoronavirusRBDTiter-SummaryData.xlsx'
+        folder= 'Braeden_jan_09_2023'
+        fname = os.path.join(self.requests_path, folder, fname)
+        df = pd.read_excel(fname, sheet_name='Metadata')
+        print(df)
+        fname  = 'W.xlsx'
+        fname = os.path.join(self.outputs_path, fname)
+        df_w = pd.read_excel(fname)
+        self.MPD_obj.compute_age_from_dob(df_w)
+        selection = df_w['Full ID'].isin(df['ID Visit'])
+        df_s = df_w.loc[selection,:].copy()
+        print(df_s)
+        for col, dtype in zip(df_s.columns, df_s.dtypes):
+            print(f'{col:35}: {dtype}')
+            if 'datetime64' in str(dtype):
+                df_s[col] = df_s[col].dt.strftime('%d-%b-%Y')
+                print(df_s[col])
+        fname = 'data_request_braeden_09_jan_2023.xlsx'
+        folder= 'Braeden_jan_09_2023'
+        fname = os.path.join(self.requests_path, folder, fname)
+        df_s.to_excel(fname, index=False)
+
+
+
+    def lindsay_req_jan_17_2023(self):
+        #Use Nuc data to identify infections.
+        #fname = 'update.xlsx'
+        fname = 'all_participants.xlsx'
+        folder= 'Lindsay_jan_17_2023'
+        fname = os.path.join(self.requests_path, folder, fname)
+        df_up = pd.read_excel(fname)
+        selection = df_up.ID.isin(self.df.ID)
+        print('New individuals')
+        print(df_up[~selection])
+        return
+        status_pre = self.MPD_obj.compute_data_density(self.df)
+        self.df = self.merge_with_M_and_return_M(df_up, 'ID', kind='original+')
+        status_post = self.MPD_obj.compute_data_density(self.df)
+        self.MPD_obj.monotonic_increment_check(status_pre, status_post)
+
+    def tara_req_jan_20_2023(self):
+        #Use Nuc data to identify infections.
+        #fname = 'update.xlsx'
+        fname = 'Infection_dates_as_one_column.xlsx'
+        folder= 'one_column_files'
+        fname = os.path.join(self.requests_path, folder, fname)
+        df_i = pd.read_excel(fname)
+        L = []
+        d_headers = []
+        v_dates_h = self.LIS_obj.vaccine_date_cols
+        for name in df_i.columns:
+            if 'S:' not in name and 'R:' not in name:
+                L.append(name)
+        df_i = df_i[L]
+        for k in range(len(v_dates_h)):
+            index = str(k+1)
+            h = 'Vac #' + index + ' - Inf'
+            d_headers.append(h)
+            df_i[h] = np.nan
+        print(df_i)
+        for index_i, row_i in df_i.iterrows():
+            ID = row_i['ID']
+            i_date = row_i['Infection date']
+            #print(i_date)
+            selection = self.df.ID == ID
+            v_dates = self.df.loc[selection, v_dates_h]
+            #print(v_dates)
+            deltas = (v_dates - i_date) / np.timedelta64(1,'D')
+            #print(deltas)
+            df_i.loc[index_i, d_headers] = deltas.values[0]
+        print(df_i)
+        fname = 'tara_request_jan_20_2023.xlsx'
+        folder= 'Tara_jan_20_2023'
+        fname = os.path.join(self.requests_path, folder, fname)
+        df_i.to_excel(fname, index=False)
+
+
+    def add_metadata_to_L_file(self):
+        #January 25 2023
+        #First generate the L file.
+        #Use the LSM class
+        #Infections and doses
+        #fname = 'update.xlsx'
+        #folder = 'Jessica_jan_23_2023'
+        fname  = 'L_sans_metadata.xlsx'
+        folder = 'Jessica_jan_25_2023'
+        fname = os.path.join(self.requests_path, folder, fname)
+        df_w = pd.read_excel(fname)
+        isin = df_w['ID'].isin(self.df['ID'])
+        if not isin.all():
+            raise ValueError('Missing data')
+
+        #Columns to remove
+        r_slice = slice('Blood Draw:Baseline - B', 'Blood Draw:Repeat - JR')
+        remove = ['Notes/Comments', 'Refusals', 'Health Info Only?']
+        remove+= self.df.loc[:,r_slice].columns.to_list()
+        print(remove)
+
+        #Clone MPD file
+        m_clone = self.df.copy()
+
+        #Remove columns
+        m_clone.drop(columns=remove, inplace=True)
+
+        #Age
+        self.MPD_obj.compute_age_from_dob(m_clone)
+
+        df_m = pd.merge(df_w, m_clone, on='ID', how='inner')
+
+        AABC = 'Age at blood collection'
+        df_m[AABC] = np.nan
+        for index, row in df_m.iterrows():
+            dob = row['DOB']
+            if pd.isnull(dob):
+                continue
+            doc = row['Date Collected']
+            delta = (doc - dob).days
+            years = delta // 365
+            df_m.loc[index,AABC] = years
+
+        fname  = 'L_avec_metadata.xlsx'
+        folder = 'Jessica_jan_25_2023'
+        fname = os.path.join('..','requests',folder, fname)
+        df_m.to_excel(fname, index=False)
+
+
 
 #obj = Comparator()
 #obj.load_the_rainbow()
