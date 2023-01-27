@@ -133,7 +133,7 @@ class MasterParticipantData:
 
     def add_site_column(self, df):
         #Jan 04 2023
-        distinguish_between_LTC_and_RH = True
+        distinguish_between_LTC_and_RH = False
         rexp = re.compile('(?P<site>[0-9]+)[-](?P<user>[0-9]+)')
         def get_site(txt):
             obj = rexp.search(txt)
@@ -152,6 +152,11 @@ class MasterParticipantData:
         if distinguish_between_LTC_and_RH:
             df[self.site_type] = 'LTC'
             df[self.site_type] = df[self.site_type].where(df[site] < 50, 'RH')
+
+        sl = slice('Sex','Blood Draw:Repeat - JR')
+        cols  = ['ID', site]
+        cols += df.loc[:,sl].columns.to_list()
+        self.parent.df = df[cols].copy()
 
     ##########Oct 19 2022##################
     def update_M_from_comments_and_dates(self):

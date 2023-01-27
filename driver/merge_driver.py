@@ -143,12 +143,14 @@ class Merger:
         self.backup_the_M_file()
         fname = self.M_fname
         fname = os.path.join(self.outputs_path, fname)
+
         with pd.ExcelWriter(fname) as writer:
             self.df.to_excel(writer,
                     sheet_name = 'data', index = False)
-            print('Writing the Delta report to Excel')
-            self.MPD_obj.delta_report.to_excel(writer,
-                    sheet_name = 'report', index = False)
+            if self.MPD_obj.delta_report:
+                print('Writing the Delta report to Excel')
+                self.MPD_obj.delta_report.to_excel(writer,
+                        sheet_name = 'report', index = False)
 
         print('The M file has been written to Excel')
 
@@ -1174,6 +1176,99 @@ class Merger:
                 m.to_excel(writer, sheet_name = sh_name)
 
 
+    def taras_req_jan_27_2023(self):
+        #Use Nuc data to identify infections.
+        #self.MPD_obj.add_site_column(self.df)
+        self.print_column_and_datatype(self.df)
+        ######These lines eliminate the non-date cells.
+        #for index_m, row_m in self.df.iterrows():
+            #print('=====================')
+            #ID = row_m['ID']
+            #print(ID)
+            #for col, code in self.SID_obj.i_blood_draw_code_to_col_name.items():
+                #data = row_m[col]
+                #if pd.isnull(data):
+                    #continue
+                #dtype = str(type(data))
+                #if 'time' in dtype:
+                    #pass
+                #else:
+                    #print('Erasing:', data)
+                    #self.df.loc[index_m, col] = np.nan
+        fname = 'template_h.xlsx'
+        folder= 'Tara_jan_27_2023'
+        fname = os.path.join(self.requests_path, folder, fname)
+        df_r = pd.read_excel(fname, sheet_name = 'relations')
+        df_h = pd.read_excel(fname, sheet_name = 'Report')
+        print(df_r)
+        print(df_h)
+
+        source_to_target    = {}
+        anticipated_dc    = {}
+
+        #Select the sites
+        sites = [20,61]
+        s = pd.isnull(self.df['ID'])
+        for site in sites:
+            s |= self.df['Site'] == site
+        df_s = self.df[s].copy()
+
+        #Extract the new names for the source df
+        for index, row in df_r.iterrows():
+
+            source = row['Source']
+            target = row['Target']
+            aux    = row['Aux']
+            add    = row['Add']
+
+            if pd.notnull(source):
+                source_to_target[source] = target
+
+            if pd.notnull(aux):
+                anticipated_dc[target] = (aux, add)
+
+        df_s.rename(columns=source_to_target, inplace=True)
+
+        #Add new columns to the source df
+        for column in df_h.columns:
+            if column not in df_s.columns:
+                print(column)
+                df_s[column] = np.nan
+
+
+        #Store the names of the target df
+        original_columns = df_h.columns
+
+        df_m = pd.concat([df_h, df_s], axis=0, join='inner')
+        df_m = df_m[original_columns].copy()
+
+        #Create barcode
+        def create_barcode(txt):
+            return 'LTC1-' + txt
+
+        df_m['Barcode'] = df_m['ID'].apply(create_barcode)
+
+        #self.print_column_and_datatype(df_m)
+
+        for target, (aux, offset) in anticipated_dc.items():
+            #If the vaccine column is empty, ignore.
+            if df_m[aux].isnull().all():
+                continue
+            df_m[target] = df_m[aux] + pd.DateOffset(days=offset)
+            print('-------------')
+
+        #Write dates in format day-Month-Year
+        for col, col_type in zip(df_m.columns,df_m.dtypes):
+            if 'time' in str(col_type):
+                print(col, col_type)
+                df_m[col] = df_m[col].dt.strftime('%d-%b-%Y')
+
+
+
+        fname = 'raw_data.xlsx'
+        folder= 'Tara_jan_27_2023'
+        fname = os.path.join(self.requests_path, folder, fname)
+        df_m.to_excel(fname, index=False)
 
 
 
@@ -1255,6 +1350,9 @@ obj = Merger()
 #obj.SID_obj.migrate_dates_from_SID_to_LSM()
 #obj.LSM_obj.write_LSM_to_excel()
 #obj.merge_M_with_LSM()
+#Jan 26 2023
 #obj.LSM_obj.generate_L_format()
 #obj.jessica_req_jan_25_2023()
-obj.taras_req_2_jan_26_2023()
+#obj.taras_req_2_jan_26_2023()
+#Jan 27 2023
+obj.taras_req_jan_27_2023()
