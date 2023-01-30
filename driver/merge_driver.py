@@ -147,7 +147,9 @@ class Merger:
         with pd.ExcelWriter(fname) as writer:
             self.df.to_excel(writer,
                     sheet_name = 'data', index = False)
-            if self.MPD_obj.delta_report:
+            if self.MPD_obj.delta_report is None:
+                pass
+            else:
                 print('Writing the Delta report to Excel')
                 self.MPD_obj.delta_report.to_excel(writer,
                         sheet_name = 'report', index = False)
@@ -319,7 +321,7 @@ class Merger:
         else:
             #None
             fname = 'updates.xlsx'
-        folder = 'Jessica_jan_25_2023'
+        folder = 'Jessica_jan_30_2023'
         fname = os.path.join('..','requests',folder, fname)
         book = pd.read_excel(fname, sheet_name=None)
         print(f'LSM is looking into the {folder=}')
@@ -1355,4 +1357,9 @@ obj = Merger()
 #obj.jessica_req_jan_25_2023()
 #obj.taras_req_2_jan_26_2023()
 #Jan 27 2023
-obj.taras_req_jan_27_2023()
+#obj.taras_req_jan_27_2023()
+#Jan 30 2023
+#obj.MPD_obj.single_column_update()
+#obj.write_the_M_file_to_excel()
+obj.update_LSM()
+obj.LSM_obj.write_LSM_to_excel()
