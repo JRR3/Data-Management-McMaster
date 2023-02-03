@@ -132,8 +132,12 @@ class MasterParticipantData:
 
 
     def add_site_column(self, df):
-        #Jan 04 2023
-        distinguish_between_LTC_and_RH = False
+        #Feb 03 2023
+        #Note that this flag has to be active for the 
+        #function:
+        #melt_infection_or_vaccination_dates(self, kind='Infection')
+        #within the LIS class.
+        distinguish_between_LTC_and_RH = True
         rexp = re.compile('(?P<site>[0-9]+)[-](?P<user>[0-9]+)')
         def get_site(txt):
             obj = rexp.search(txt)
@@ -144,9 +148,10 @@ class MasterParticipantData:
 
         site = 'Site'
         if site in df.columns:
-            return
-        df[site] = df['ID']
-        df[site] = df[site].apply(get_site)
+            pass
+        else:
+            df[site] = df['ID']
+            df[site] = df[site].apply(get_site)
         #If we need to distinguish between LTC and RH
         #proceed to the next instructions.
         if distinguish_between_LTC_and_RH:
@@ -597,7 +602,7 @@ class MasterParticipantData:
         #Use this function for updates using 
         #the one-column format.
         fname  = 'updates.xlsx'
-        folder = 'Tara_30_jan_2023'
+        folder = 'Tara_feb_03_2023'
         df_up = self.load_single_column_df_for_update(fname, folder)
         print(df_up)
         #Pre-update

@@ -3006,6 +3006,9 @@ class Comparator:
         df_m.to_excel(fname, index=False)
 
 
+    def merge_MPD_LIS_SID_components(self):
+        A = pd.merge(self.MPD_obj.df, self.LIS_obj.df, on='ID', how='outer')
+        self.df = pd.merge(A, self.SID_obj.df, on='ID', how='outer')
 
 #obj = Comparator()
 #obj.load_the_rainbow()

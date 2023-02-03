@@ -84,9 +84,14 @@ class LTCSerologyMaster:
         with pd.ExcelWriter(fname) as writer:
             self.df.to_excel(writer,
                     sheet_name = 'data', index = False)
-            print('Writing the Delta report to Excel')
-            self.parent.MPD_obj.delta_report.to_excel(writer,
-                    sheet_name = 'report', index = False)
+            #########
+            if self.parent.MPD_obj.delta_report is None:
+                pass
+            else:
+                print('Writing the Delta report to Excel')
+                self.parent.MPD_obj.delta_report.to_excel(writer,
+                        sheet_name = 'report', index = False)
+            #########
 
         print('The LSM file has been written to Excel.')
 
@@ -788,3 +793,23 @@ class LTCSerologyMaster:
                 df.loc[index, 'Full ID'] = full_ID
             else:
                 df.loc[index, 'Full ID'] = p_full_ID
+
+    def include_nucleocapsid_status(self):
+        nuc_G = 'Nuc-IgG-100'
+        nuc_G_s = 'Nuc-IgG-100 positive'
+        nuc_A = 'Nuc-IgA-100'
+        nuc_A_s = 'Nuc-IgA-100 positive'
+        nuc_G_t = 0.547779865867836
+        nuc_A_t = 0.577982139779995
+        nuc_t   = [nuc_G_t, nuc_A_t]
+
+        #main labels
+        labels = self.df.columns.to_list()[:4]
+        labels += [nuc_G_s, nuc_A, nuc_A_s]
+        labels += self.df.columns[5:].to_list()
+
+        #New columns
+        self.df[nuc_G_s] = nuc_G_t < self.df[nuc_G]
+        self.df[nuc_A_s] = nuc_A_t < self.df[nuc_A]
+
+        self.df = self.df[labels].copy()

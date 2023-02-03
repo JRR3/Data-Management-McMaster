@@ -156,9 +156,6 @@ class Merger:
 
         print('The M file has been written to Excel')
 
-    def merge_MPD_LIS_SID_components(self):
-        A = pd.merge(self.MPD_obj.df, self.LIS_obj.df, on='ID', how='outer')
-        self.df = pd.merge(A, self.SID_obj.df, on='ID', how='outer')
 
     def load_the_M_file(self):
         #Load the Master file M
@@ -453,6 +450,30 @@ class Merger:
             raise ValueError('No repetitions should be present.')
         print('The merge operation is complete. Returning merged DF.')
         return X
+
+    def generate_the_tri_sheet_file(self):
+        #This function combines the Master_sans_Serology
+        #the Master_avec_Serology, and the
+        #Infection_column file into one Excel workbook.
+        #Feb 03 2023
+        fname  = 'tri_merge.xlsx'
+        folder = 'Tara_feb_03_2023'
+        fname = os.path.join('..','requests',folder, fname)
+        master_avec_serology = pd.merge(self.LSM_obj.df,
+                self.df, on='ID', how='outer')
+        kind = 'Infection'
+        melted_infection = self.LIS_obj.melt_infection_or_vaccination_dates(kind)
+
+        with pd.ExcelWriter(fname) as writer:
+
+            sh_name = 'Master_sans_Serology'
+            self.df.to_excel(writer, sheet_name = sh_name, index=False)
+
+            sh_name = 'Master_avec_Serology'
+            master_avec_serology.to_excel(writer, sheet_name = sh_name, index=False)
+
+            sh_name = 'Infection_column'
+            melted_infection.to_excel(writer, sheet_name = sh_name, index=False)
 
 
     def schlegel_village_update(self):
@@ -1178,8 +1199,38 @@ class Merger:
                 m.to_excel(writer, sheet_name = sh_name)
 
 
-    def taras_req_jan_27_2023(self):
-        #Use Nuc data to identify infections.
+    def ahmad_req_feb_03_2023(self):
+        #Erase all traces of DBS infections.
+        #The columns have to be reorganized to
+        #avoid leaving gaps.
+        v_types_selector = self.LIS_obj.positive_type_cols
+        number_regexp = re.compile('[0-9]+')
+        for index, row in self.df.iterrows():
+            v_types = row[v_types_selector]
+            if 0 < v_types.count():
+                selector = v_types.notnull()
+                v_types = v_types[selector]
+                for v_type_index, v_type_value in v_types.items():
+                    if v_type_value == 'DBS':
+                        v_date_index = v_type_index.replace('Type', 'Date')
+                        print('Erasing:', self.df.loc[index, v_type_index])
+                        print('Erasing:', self.df.loc[index, v_date_index])
+                        self.df.loc[index, v_type_index] = np.nan
+                        self.df.loc[index, v_date_index] = np.nan
+            print('---------------------')
+        self.LIS_obj.order_infections_and_vaccines()
+        self.LIS_obj.compute_waves_of_infection()
+        self.LIS_obj.assume_PCR_if_empty()
+        self.LIS_obj.update_PCR_and_infection_status()
+
+
+
+    def taras_req_feb_03_2023(self):
+        #This function creates a spreadsheet that
+        #can be used to populate the template file
+        #for the retirement and LTC resident homes.
+
+
         #self.MPD_obj.add_site_column(self.df)
         self.print_column_and_datatype(self.df)
         ######These lines eliminate the non-date cells.
@@ -1198,18 +1249,21 @@ class Merger:
                     #print('Erasing:', data)
                     #self.df.loc[index_m, col] = np.nan
         fname = 'template_h.xlsx'
-        folder= 'Tara_jan_27_2023'
+        folder= 'Tara_feb_03_2023'
         fname = os.path.join(self.requests_path, folder, fname)
         df_r = pd.read_excel(fname, sheet_name = 'relations')
         df_h = pd.read_excel(fname, sheet_name = 'Report')
         print(df_r)
         print(df_h)
 
-        source_to_target    = {}
+        source_to_target  = {}
         anticipated_dc    = {}
 
         #Select the sites
-        sites = [20,61]
+        #sites = [20,61]
+        sites = [2, 3, 5, 6, 7,
+                9, 11, 12, 14, 19,
+                51, 52, 53, 54, 55, 56]
         s = pd.isnull(self.df['ID'])
         for site in sites:
             s |= self.df['Site'] == site
@@ -1245,10 +1299,12 @@ class Merger:
         df_m = df_m[original_columns].copy()
 
         #Create barcode
+        #Because the barcode does not have a predictable
+        #pattern, we do not include it into the template.
         def create_barcode(txt):
             return 'LTC1-' + txt
 
-        df_m['Barcode'] = df_m['ID'].apply(create_barcode)
+        #df_m['Barcode'] = df_m['ID'].apply(create_barcode)
 
         #self.print_column_and_datatype(df_m)
 
@@ -1267,8 +1323,8 @@ class Merger:
 
 
 
-        fname = 'raw_data.xlsx'
-        folder= 'Tara_jan_27_2023'
+        fname = 'raw_data_list_feb_03_2023.xlsx'
+        folder= 'Tara_feb_03_2023'
         fname = os.path.join(self.requests_path, folder, fname)
         df_m.to_excel(fname, index=False)
 
@@ -1361,5 +1417,14 @@ obj = Merger()
 #Jan 30 2023
 #obj.MPD_obj.single_column_update()
 #obj.write_the_M_file_to_excel()
-obj.update_LSM()
-obj.LSM_obj.write_LSM_to_excel()
+#obj.update_LSM()
+#obj.LSM_obj.write_LSM_to_excel()
+#Feb 03 2023
+#obj.ahmad_req_feb_03_2023()
+#obj.write_the_M_file_to_excel()
+#obj.MPD_obj.single_column_update()
+#obj.write_the_M_file_to_excel()
+#obj.taras_req_feb_03_2023()
+#obj.LSM_obj.include_nucleocapsid_status()
+#obj.LSM_obj.write_LSM_to_excel()
+obj.generate_the_tri_sheet_file()

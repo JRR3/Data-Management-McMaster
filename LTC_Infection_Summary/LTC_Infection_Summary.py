@@ -575,12 +575,14 @@ class LTCInfectionSummary:
                 df.loc[index, companion] = p_types
                 print('Modified:')
                 print(p_dates)
+                #========================================
                 #Remove the comment for testing purposes.
-                instruction = input('Should we proceed? :')
-                if instruction == 'y':
-                    pass
-                else:
-                    raise ValueError('Permutation')
+                #========================================
+                #instruction = input('Should we proceed? :')
+                #if instruction == 'y':
+                    #pass
+                #else:
+                    #raise ValueError('Permutation')
 
 
     def assume_PCR_if_empty(self):
@@ -889,7 +891,7 @@ class LTCInfectionSummary:
         #It also includes the corresponding method of detection.
         if kind != 'Infection' and kind != 'Vaccine':
             raise ValueError('Unexpected kind of column.')
-        self.parent.MPD_obj.add_site_column(self.parent.df)
+        #self.parent.MPD_obj.add_site_column(self.parent.df)
         self.add_n_infections_column()
         DOC = self.parent.LSM_obj.DOC
         if kind == 'Infection':
@@ -907,7 +909,7 @@ class LTCInfectionSummary:
                 'Reason',
                 dor,
                 'Site',
-                site_type,
+                #site_type,
                 '# infections']
         #A type of melting process.
         df = self.parent.df.pivot_longer(index = cols_to_keep,
