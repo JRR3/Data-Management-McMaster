@@ -1288,3 +1288,11 @@ class Reporter:
         fname = 'Time_between_infection_and_death.xlsx'
         fname = os.path.join(self.requests_path, folder, fname)
         df_w.to_excel(fname, index=False)
+
+    def track_serology_with_infections(self):
+        #Use the periods between dates of collection
+        #to identify trends between participants.
+        #folder = 'Tara_jan_05_2023'
+        fname = 'W.xlsx'
+        fname = os.path.join(self.outputs_path, fname)
+        for index_w, row_w in df_w.iterrows():
