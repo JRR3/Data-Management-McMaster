@@ -2527,10 +2527,10 @@ class Comparator:
             df_z[fsd] = pd.to_datetime(df_z[fsd])
             df_z.drop(columns=['DOB','Sex'], inplace=True)
             print(df_z)
-            original_labels = list(self.df.columns)
+            original_columns = list(self.df.columns)
             new_labels = ['Ethnicity','CFS', fsd]
             Z = pd.merge(self.df, df_z, on='ID', how='outer')
-            labels = original_labels[:3] + new_labels + original_labels[3:]
+            labels = original_columns[:3] + new_labels + original_columns[3:]
             #print(f'# of labels Z: {len(Z.columns)}')
             #print(f'# of labels in new: {len(labels)}')
             Z = Z[labels]
@@ -3010,6 +3010,120 @@ class Comparator:
         A = pd.merge(self.MPD_obj.df, self.LIS_obj.df, on='ID', how='outer')
         self.df = pd.merge(A, self.SID_obj.df, on='ID', how='outer')
 
+    def lindsays_request_feb_06_2023(self):
+        fname = 'consent.xlsx'
+        folder= 'Lindsay_feb_06_2023'
+        fname = os.path.join(self.requests_path, folder, fname)
+        df_up = pd.read_excel(fname)
+        print(df_up)
+
+        P_day = 'POC DAY'
+        P_month = 'POC MONTH'
+        P_year = 'POC YEAR'
+        POC = [P_year, P_month, P_day]
+
+        S_day = 'SDM DAY'
+        S_month = 'SDM MONTH'
+        S_year = 'SDM YEAR'
+        SDM = [S_year, S_month, S_day]
+
+        DOE = 'Enrollment Date'
+        PID = 'Participant ID'
+        blood_slice = slice('Blood Draw:Baseline - B',
+                'Blood Draw:Repeat - JR')
+
+        missing_doe = 0
+        completed_doe = 0
+
+        PS = 'POC/SDM date'
+        BA = 'Blood alert'
+        EBD = 'Earliest blood draw'
+        self.df[PS] = np.nan
+        self.df[BA] = np.nan
+
+        labels = ['ID', DOE, PS, 'Delta', EBD, BA]
+
+        for index_m, row_m in self.df.iterrows():
+
+            ID = row_m['ID']
+            doe = row_m[DOE]
+
+            flag_missing_doe = False
+            flag_ID_in_Lindsay = False
+
+            flag_ps_exists = False
+            flag_poc_exists = False
+            flag_sdm_exists = False
+
+            lindsay_selector = df_up[PID] == ID
+
+            if not lindsay_selector.any():
+                #No matching ID inside Lindsay's file.
+                pass
+
+            else:
+                flag_ID_in_Lindsay = True
+                poc_cells = df_up.loc[lindsay_selector, POC].iloc[0]
+
+                if poc_cells.notnull().all():
+                    flag_poc_exists = True
+                    flag_ps_exists = True
+                    poc_year, poc_month, poc_day = poc_cells.astype(int)
+                    poc_date = datetime.datetime(poc_year, poc_month, poc_day)
+                    ps_date = poc_date
+
+                if ~flag_poc_exists:
+                    #No POC
+                    sdm_cells = df_up.loc[lindsay_selector, SDM].iloc[0]
+                    if sdm_cells.notnull().all():
+                        flag_sdm_exists = True
+                        flag_ps_exists = True
+                        sdm_year, sdm_month, sdm_day = sdm_cells.astype(int)
+                        if sdm_day == 0:
+                            sdm_day = 1
+                        sdm_date = datetime.datetime(sdm_year, sdm_month, sdm_day)
+                        ps_date = sdm_date
+
+            if flag_ps_exists:
+                self.df.loc[index_m, PS] = ps_date
+
+            if pd.isnull(doe):
+                missing_doe += 1
+                if flag_ps_exists:
+                    self.df.loc[index_m, DOE] = ps_date
+                    completed_doe += 1
+                else:
+                    flag_missing_doe = True
+
+            if flag_ps_exists and ~flag_missing_doe:
+                delta = (doe - ps_date) / np.timedelta64(1,'D')
+                self.df.loc[index_m, 'Delta'] = delta
+
+            blood_dates = row_m[blood_slice]
+            blood_selector = blood_dates.notnull()
+
+            if blood_dates.count() == 0:
+                pass
+            else:
+                blood_dates = blood_dates[blood_selector]
+                blood_date = blood_dates.min()
+                self.df.loc[index_m, EBD] = blood_date
+                if ~flag_missing_doe:
+                    if blood_date < doe:
+                        self.df.loc[index_m, BA] = 'Chronology error'
+                else:
+                    self.df.loc[index_m, BA] = 'Missing DOE'
+
+
+        print(f'{missing_doe=}')
+        print(f'{completed_doe=}')
+        df = self.df[labels].copy()
+
+        fname = 'compare.xlsx'
+        folder= 'Lindsay_feb_06_2023'
+        fname = os.path.join(self.requests_path, folder, fname)
+        df.to_excel(fname, index=False)
+
 #obj = Comparator()
 #obj.load_the_rainbow()
 
@@ -3252,3 +3366,65 @@ class Comparator:
 #obj.merge_M_with_LSM()
 #Dec 16 2022
 #obj.taras_request_dec_15_2022()
+#Dec 20 2022
+#obj.REP_obj.ahmads_request_dec_16_2022()
+#obj.update_master_using_SID()
+#obj.write_the_M_file_to_excel()
+#obj.SID_obj.migrate_dates_from_SID_to_LSM()
+#obj.LSM_obj.write_LSM_to_excel()
+#Dec 21 2022
+#obj.REP_obj.ahmads_request_dec_16_2022()
+#Dec 22 2022
+#obj.update_LSM()
+#obj.LSM_obj.write_LSM_to_excel()
+#obj.merge_M_with_LSM()
+#obj.LSM_obj.generate_L_format()
+#Dec 23 2022
+#obj.MPD_obj.single_column_update()
+#obj.write_the_M_file_to_excel()
+#obj.lindsay_dec_23_2022()
+#obj.write_the_M_file_to_excel()
+#obj.LSM_obj.generate_letter_to_AN_code_table()
+#obj.update_LSM()
+#obj.LSM_obj.write_LSM_to_excel()
+#Jan 04 2023
+#obj.MPD_obj.single_column_update()
+#obj.write_the_M_file_to_excel()
+#obj.taras_req_jan_04_2023()
+#obj.LIS_obj.produce_infection_and_vaccine_melted_files()
+#obj.update_LSM()
+#obj.LSM_obj.write_LSM_to_excel()
+#obj.MPD_obj.single_column_update()
+#obj.write_the_M_file_to_excel()
+#Jan 05 2023
+#obj.LIS_obj.produce_infection_and_vaccine_melted_files()
+#obj.taras_inf_and_death_jan_04_2023()
+#obj.merge_M_with_LSM()
+#obj.LSM_obj.generate_L_format()
+#obj.REP_obj.boxplots_using_L_file()
+#obj.REP_obj.generate_report_for_time_between_infection_and_death()
+#obj.REP_obj.generate_plot_for_time_between_infection_and_death()
+#Jan 06 2023
+#Jan 09 2023
+#obj.taras_req_jan_09_2023()
+#obj.merge_M_with_LSM()
+#obj.braeden_req_jan_09_2023()
+#Jan 13 2023
+#obj.update_master_using_SID()
+#obj.MPD_obj.single_column_update()
+#obj.write_the_M_file_to_excel()
+#Jan 16 2023
+#obj.LIS_obj.produce_infection_and_vaccine_melted_files()
+#Jan 17 2023
+#obj.lindsay_req_jan_17_2023()
+#obj.write_the_M_file_to_excel()
+#Jan 20 2023
+#obj.MPD_obj.single_column_update()
+#obj.write_the_M_file_to_excel()
+#obj.LIS_obj.produce_infection_and_vaccine_melted_files()
+#obj.tara_req_jan_20_2023()
+#Jan 23 2023
+#obj.merge_M_with_LSM()
+#obj.LSM_obj.generate_L_format()
+#obj.REP_obj.boxplots_using_L_file()
+#obj.jessica_req_jan_23_2023()

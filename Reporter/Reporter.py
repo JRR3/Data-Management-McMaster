@@ -1301,83 +1301,151 @@ class Reporter:
         #Id to sample
         ID_to_samples = {}
 
-        #Id to any infection 
-        ID_to_any_inf = {}
-        ID_to_pre_inf = {}
-        ID_to_int_inf = {}
+        #Id to delta infection 
+        #Days post dose
+        ID_to_delta_inf = {}
 
         vaccine_index = 4
 
         ref_a = 3*30
         ref_b = 6*30
-        refs  = [ref_a, ref_b]
+        ref_days_post  = [ref_a, ref_b]
+
         tolerance_between_ref_and_days_post_dose = 30 #days
         tolerance_between_inf_and_ref_a = 3*30 #days
+        ref_a_minus_tol = ref_a - tolerance_between_inf_and_ref_a 
 
         DOC = 'Date Collected'
         vaccine_dates_h = self.parent.LIS_obj.vaccine_date_cols
         inf_dates_h = self.parent.LIS_obj.positive_date_cols
         for index_m, row_m in self.parent.df.iterrows():
+
             ID = row_m['ID']
+
             vaccine_dates = row_m[vaccine_dates_h]
-            vaccine_date = vaccine_dates[vaccine_index-1]
+            vaccine_date = vaccine_dates.iloc[vaccine_index-1]
+
             if pd.isnull(vaccine_date):
                 continue
+
+            lower_bound = vaccine_date + pd.DateOffset(days=ref_a_minus_tol)
+            ref_date_a = vaccine_date + pd.DateOffset(days=ref_a)
+            ref_date_b = vaccine_date + pd.DateOffset(days=ref_b)
+            ref_dates = [ref_date_a, ref_date_b]
+
             selector = self.parent.LSM_obj.df['ID'] == ID
             if not selector.any():
                 continue
 
             df_lsm = self.parent.LSM_obj.df[selector]
-            flag_a = False
-            flag_b = False
+
+            flag_vector    = np.full(2,False)
+            full_ID_vector = [0,0]
+            delta_vector   = [0,0]
+            doc_vector     = [0,0]
 
             for index_s, row_s in df_lsm.iterrows():
                 full_ID = row_s['Full ID']
                 doc = row_s[DOC]
+
                 if doc <= vaccine_date:
+                    #We need it to be posterior to the vaccination date
                     continue
 
-                delta = (doc - vaccine_date) / np.timedelta64(1,'D')
 
-                #Use ref_a as the reference
-                diff_a = (delta - ref_a)
-                dist_a = np.abs(diff_a)
+                for k, ref_date in enumerate(ref_dates):
 
-                #Use ref_b as the reference
-                diff_b = (delta - ref_b)
-                dist_b = np.abs(diff_b)
+                    delta = (doc - ref_date) / np.timedelta64(1,'D')
+                    dist  = np.abs(delta)
 
-                if dist_a < tolerance_between_ref_and_days_post_dose:
-                    flag_a = True
-                    delta_a = diff_a
-                    full_ID_a  = full_ID
+                    if dist < tolerance_between_ref_and_days_post_dose:
+                        flag_vector[k] = True
+                        delta_vector[k] = delta
+                        full_ID_vector[k] = full_ID
+                        doc_vector[k] = doc
 
-                if dist_b < tolerance_between_ref_and_days_post_dose:
-                    flag_b = True
-                    delta_b = diff_b
-                    full_ID_b  = full_ID
+            if flag_vector.all():
 
-            if flag_a and flag_b:
-                ID_to_samples[ID] = (full_ID_a, full_ID_b, delta_a, delta_b)
+                ID_to_samples[ID] = [full_ID_vector, delta_vector, doc_vector]
+
+                inf_dates = row_m[inf_dates_h]
+
+
+                if inf_dates.count() == 0:
+                    #Next candidate
+                    continue
+
+
+                selector = inf_dates.notnull()
+                inf_dates = inf_dates[selector]
+
+                selector = inf_dates  <= doc_vector[1]
+
+                if not selector.any():
+                    #Next candidate
+                    continue
+
+                inf_dates = inf_dates[selector]
+
+                selector = lower_bound <= inf_dates
+
+                if not selector.any():
+                    #Next candidate
+                    continue
+
+                inf_dates = pd.to_datetime(inf_dates[selector])
+                delta_inf = (inf_dates - vaccine_date) / np.timedelta64(1,'D')
+
+                ID_to_delta_inf[ID] = delta_inf
+
+                if 1 < delta_inf.count():
+                    print(f'{ID=} has {delta_inf.count()} infections')
 
         bio_params = ['Nuc-IgG-100']
+        folder = self.parent.LSM_path
+        fname = 'serology_thresholds.xlsx'
+        fname = os.path.join(folder, fname)
+        df_t = pd.read_excel(fname)
 
         for bio_param in bio_params:
+            selector = df_t['Ig'] == bio_param
+            if not selector.any():
+                print(f'{bio_param=}')
+                raise ValueError('Bio parameter not found')
+            bio_t = df_t.loc[selector, 'Threshold'].iloc[0]
             fig, ax = plt.subplots()
-            for ID, t in ID_to_samples.items():
-                full_ID_a, full_ID_b, delta_a, delta_b = t
-                full_IDs = [full_ID_a, full_ID_b]
-                deltas   = [delta_a, delta_b]
+            cax = ax.twinx()
+            for ID, V in ID_to_samples.items():
+                full_ID_vector = V[0]
+                delta_vector   = V[1]
                 X = []
                 Y = []
-                for full_ID, delta, ref in zip(full_IDs, deltas, refs):
+                for full_ID, delta, ref in zip(full_ID_vector,
+                        delta_vector, ref_days_post):
                     s = self.parent.LSM_obj.df['Full ID'] == full_ID
                     row_s = self.parent.LSM_obj.df[s].iloc[0]
-                    Y.append(row_s[bio_param])
+                    bio_value = row_s[bio_param]
+                    Y.append(bio_value)
                     X.append(ref + delta)
-                ax.plot(X,Y,'b-',marker = 'o')
+                if Y[0] < bio_t and bio_t < Y[1]:
+                    ax.plot(X,Y,'b-',marker = 'o')
+                    if ID in ID_to_delta_inf:
+                        delta_inf_vector = ID_to_delta_inf[ID]
+                        for delta_inf in delta_inf_vector:
+                            cax.plot(delta_inf,0.5,'ro')
+
+            ax.axvline(x = ref_a, color='k', linewidth=2)
+            ax.axvline(x = ref_b, color='k', linewidth=2)
+            ax.axhline(y = bio_t, color='gray', linewidth=2)
+            ticks = np.array([0,30,60,90,120,150,180,210], dtype=int)
+            ax.set_xticks(ticks)
+            labels = ticks // 30
+            ax.set_xticklabels(labels)
+            ax.set_xlabel('Months post-4th dose')
+            ax.set_ylabel(bio_param)
         fname = 'plot.png'
-        fname = os.path.join(self.outputs_path, fname)
+        folder = 'Ahmad_feb_06_2023'
+        fname = os.path.join(self.requests_path, folder, fname)
         plt.savefig(fname)
         plt.close('all')
 

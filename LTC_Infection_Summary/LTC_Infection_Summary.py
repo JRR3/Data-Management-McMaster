@@ -927,6 +927,8 @@ class LTCInfectionSummary:
             df = df[selection]
         print(df)
         #======================================
+        return df
+        #======================================
         #Add the new columns to the df
         states = ['before', 'after']
         Ig_cols = self.parent.LSM_obj.numeric_columns
