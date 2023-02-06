@@ -25,6 +25,7 @@ class Reporter:
         self.parent = None
         self.dpath = path
         self.requests_path = os.path.join('..', 'requests')
+        self.outputs_path = os.path.join('..', 'outputs')
 
 
         if parent:
@@ -1292,7 +1293,95 @@ class Reporter:
     def track_serology_with_infections(self):
         #Use the periods between dates of collection
         #to identify trends between participants.
-        #folder = 'Tara_jan_05_2023'
-        fname = 'W.xlsx'
+
+        #fname = 'W.xlsx'
+        #fname = os.path.join(self.outputs_path, fname)
+        #df_w  = pd.read_excel(fname)
+
+        #Id to sample
+        ID_to_samples = {}
+
+        #Id to any infection 
+        ID_to_any_inf = {}
+        ID_to_pre_inf = {}
+        ID_to_int_inf = {}
+
+        vaccine_index = 4
+
+        ref_a = 3*30
+        ref_b = 6*30
+        refs  = [ref_a, ref_b]
+        tolerance_between_ref_and_days_post_dose = 30 #days
+        tolerance_between_inf_and_ref_a = 3*30 #days
+
+        DOC = 'Date Collected'
+        vaccine_dates_h = self.parent.LIS_obj.vaccine_date_cols
+        inf_dates_h = self.parent.LIS_obj.positive_date_cols
+        for index_m, row_m in self.parent.df.iterrows():
+            ID = row_m['ID']
+            vaccine_dates = row_m[vaccine_dates_h]
+            vaccine_date = vaccine_dates[vaccine_index-1]
+            if pd.isnull(vaccine_date):
+                continue
+            selector = self.parent.LSM_obj.df['ID'] == ID
+            if not selector.any():
+                continue
+
+            df_lsm = self.parent.LSM_obj.df[selector]
+            flag_a = False
+            flag_b = False
+
+            for index_s, row_s in df_lsm.iterrows():
+                full_ID = row_s['Full ID']
+                doc = row_s[DOC]
+                if doc <= vaccine_date:
+                    continue
+
+                delta = (doc - vaccine_date) / np.timedelta64(1,'D')
+
+                #Use ref_a as the reference
+                diff_a = (delta - ref_a)
+                dist_a = np.abs(diff_a)
+
+                #Use ref_b as the reference
+                diff_b = (delta - ref_b)
+                dist_b = np.abs(diff_b)
+
+                if dist_a < tolerance_between_ref_and_days_post_dose:
+                    flag_a = True
+                    delta_a = diff_a
+                    full_ID_a  = full_ID
+
+                if dist_b < tolerance_between_ref_and_days_post_dose:
+                    flag_b = True
+                    delta_b = diff_b
+                    full_ID_b  = full_ID
+
+            if flag_a and flag_b:
+                ID_to_samples[ID] = (full_ID_a, full_ID_b, delta_a, delta_b)
+
+        bio_params = ['Nuc-IgG-100']
+
+        for bio_param in bio_params:
+            fig, ax = plt.subplots()
+            for ID, t in ID_to_samples.items():
+                full_ID_a, full_ID_b, delta_a, delta_b = t
+                full_IDs = [full_ID_a, full_ID_b]
+                deltas   = [delta_a, delta_b]
+                X = []
+                Y = []
+                for full_ID, delta, ref in zip(full_IDs, deltas, refs):
+                    s = self.parent.LSM_obj.df['Full ID'] == full_ID
+                    row_s = self.parent.LSM_obj.df[s].iloc[0]
+                    Y.append(row_s[bio_param])
+                    X.append(ref + delta)
+                ax.plot(X,Y,'b-',marker = 'o')
+        fname = 'plot.png'
         fname = os.path.join(self.outputs_path, fname)
-        for index_w, row_w in df_w.iterrows():
+        plt.savefig(fname)
+        plt.close('all')
+
+
+
+
+
