@@ -1304,6 +1304,8 @@ class Reporter:
         #Id to delta infection 
         #Days post dose
         ID_to_delta_inf = {}
+        ID_to_delta_only_lower_inf = {}
+        ID_to_delta_within_inf = {}
 
         vaccine_index = 4
 
@@ -1379,6 +1381,8 @@ class Reporter:
                 selector = inf_dates.notnull()
                 inf_dates = inf_dates[selector]
 
+                #Infection happened before or 
+                #at the RIGHT date of collection.
                 selector = inf_dates  <= doc_vector[1]
 
                 if not selector.any():
@@ -1387,6 +1391,9 @@ class Reporter:
 
                 inf_dates = inf_dates[selector]
 
+                #After or at the LEFT reference point 
+                #minus the tolerance.
+                #In this case, the vaccination date.
                 selector = lower_bound <= inf_dates
 
                 if not selector.any():
@@ -1399,9 +1406,21 @@ class Reporter:
                 ID_to_delta_inf[ID] = delta_inf
 
                 if 1 < delta_inf.count():
-                    print(f'{ID=} has {delta_inf.count()} infections')
+                    #print(f'{ID=} has {delta_inf.count()} infections')
+                    pass
 
-        bio_params = ['Nuc-IgG-100']
+                #Infection is at or after the LEFT date of collection.
+                selector = doc_vector[0] <= inf_dates
+
+                if not selector.any():
+                    #Next candidate
+                    continue
+
+                inf_dates = inf_dates[selector]
+
+                ID_to_delta_within_inf[ID] = inf_dates
+
+        bio_params = ['Nuc-IgG-100', 'Nuc-IgA-100']
         folder = self.parent.LSM_path
         fname = 'serology_thresholds.xlsx'
         fname = os.path.join(folder, fname)
@@ -1411,6 +1430,8 @@ class Reporter:
         labels = ticks // 30
 
         for bio_param in bio_params:
+
+            print(f'{bio_param=}')
 
             folder_1 = 'Ahmad_feb_06_2023'
             folder_2 = bio_param
@@ -1428,6 +1449,10 @@ class Reporter:
             fig_g, ax_g = plt.subplots()
             counter = 0
 
+            n_cases = 0
+            n_inf_within = 0
+            n_inf = 0
+            n_only_lower_inf = 0
             #================Y MAX==================
             y_max = 0
             for ID, V in ID_to_samples.items():
@@ -1439,10 +1464,10 @@ class Reporter:
                     bio_value = row_s[bio_param]
                     Y.append(bio_value)
                 if Y[0] < bio_t and bio_t < Y[1]:
+                    n_cases += 1
                     if y_max < Y[1]:
                         y_max = Y[1]
-            #================Y MAX==================
-
+            #================END Y MAX==================
             for ID, V in ID_to_samples.items():
                 full_ID_vector = V[0]
                 delta_vector   = V[1]
@@ -1459,7 +1484,15 @@ class Reporter:
                     counter += 1
                     bio_delta = Y[1] - Y[0]
                     bio_delta_str = '{:0.2f}'.format(bio_delta)
-                    ax_g.plot(X,Y,'b-',marker = 'o')
+                    if ID in ID_to_delta_inf:
+                        n_inf += 1
+                        if ID in ID_to_delta_within_inf:
+                            n_inf_within += 1
+                            ax_g.plot(X,Y,'r-',marker = 'o')
+                        else:
+                            ax_g.plot(X,Y,'r--',marker = 'o')
+                    else:
+                        ax_g.plot(X,Y,'b-',marker = 'o')
                     fig, ax = plt.subplots()
                     ax.plot(X,Y,'b-',marker = 'o')
                     ax.axvline(x = ref_a, color='k', linewidth=2)
@@ -1482,6 +1515,13 @@ class Reporter:
                     fig.savefig(fname)
                     plt.close(fig)
 
+            n_only_lower_inf = n_inf - n_inf_within
+            print(f'{n_cases=}')
+            print(f'{n_inf=}')
+            print(f'{n_inf_within=}')
+            print(f'{n_only_lower_inf=}')
+            print('==========================')
+
             ax_g.axvline(x = ref_a, color='k', linewidth=2)
             ax_g.axvline(x = ref_b, color='k', linewidth=2)
             ax_g.axhline(y = bio_t, color='gray', linewidth=2)
@@ -1490,10 +1530,10 @@ class Reporter:
             ax_g.set_xlabel('Months post-4th dose')
             ax_g.set_ylabel(bio_param)
             ax_g.set_ylim([0,y_max])
-        fname = 'global.png'
-        fname = os.path.join(folder, fname)
-        fig_g.savefig(fname)
-        plt.close('all')
+            fname = 'global.png'
+            fname = os.path.join(folder, fname)
+            fig_g.savefig(fname)
+            plt.close('all')
 
 
 

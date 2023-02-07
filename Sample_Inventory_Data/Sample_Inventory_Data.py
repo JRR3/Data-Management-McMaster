@@ -203,6 +203,20 @@ class SampleInventoryData:
         else:
             print('No repeats were found in Sample Inventory')
 
+        #Keep only dates and ID
+        for index_r, row in df_up.iterrows():
+            #print('=============')
+            for index_c, item in row.items():
+                if index_c == 'ID':
+                    continue
+                if pd.notnull(item):
+                    type_str = str(type(item))
+                    if 'time' in type_str:
+                        pass
+                    else:
+                        print('Erasing:', item)
+                        df_up.loc[index_r, index_c] = np.nan
+
     def relate_blood_draw_code_to_col_name(self):
         #This function uses the PARENT object.
         #Generate a dictionary to relate the

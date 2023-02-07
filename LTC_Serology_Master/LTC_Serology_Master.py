@@ -803,13 +803,19 @@ class LTCSerologyMaster:
         nuc_A_t = 0.577982139779995
         nuc_t   = [nuc_G_t, nuc_A_t]
 
-        #main labels
-        labels = self.df.columns.to_list()[:4]
-        labels += [nuc_G_s, nuc_A, nuc_A_s]
-        labels += self.df.columns[5:].to_list()
+        if nuc_G_s in self.df.columns and nuc_A_s in self.df.columns:
+            #New columns
+            self.df[nuc_G_s] = self.df[nuc_G_s].where(self.df[nuc_G].notnull(),np.nan)
+            self.df[nuc_A_s] = self.df[nuc_A_s].where(self.df[nuc_A].notnull(),np.nan)
 
-        #New columns
-        self.df[nuc_G_s] = nuc_G_t < self.df[nuc_G]
-        self.df[nuc_A_s] = nuc_A_t < self.df[nuc_A]
+        else:
+            #main labels
+            labels = self.df.columns.to_list()[:4]
+            labels += [nuc_G_s, nuc_A, nuc_A_s]
+            labels += self.df.columns[5:].to_list()
 
-        self.df = self.df[labels].copy()
+            #New columns
+            self.df[nuc_G_s] = nuc_G_t < self.df[nuc_G]
+            self.df[nuc_A_s] = nuc_A_t < self.df[nuc_A]
+
+            self.df = self.df[labels].copy()

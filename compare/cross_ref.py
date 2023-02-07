@@ -3124,6 +3124,156 @@ class Comparator:
         fname = os.path.join(self.requests_path, folder, fname)
         df.to_excel(fname, index=False)
 
+    def ahmad_req_feb_03_2023(self):
+        #Erase all traces of DBS infections.
+        #The columns have to be reorganized to
+        #avoid leaving gaps.
+        v_types_selector = self.LIS_obj.positive_type_cols
+        number_regexp = re.compile('[0-9]+')
+        for index, row in self.df.iterrows():
+            v_types = row[v_types_selector]
+            if 0 < v_types.count():
+                selector = v_types.notnull()
+                v_types = v_types[selector]
+                for v_type_index, v_type_value in v_types.items():
+                    if v_type_value == 'DBS':
+                        v_date_index = v_type_index.replace('Type', 'Date')
+                        print('Erasing:', self.df.loc[index, v_type_index])
+                        print('Erasing:', self.df.loc[index, v_date_index])
+                        self.df.loc[index, v_type_index] = np.nan
+                        self.df.loc[index, v_date_index] = np.nan
+            print('---------------------')
+        self.LIS_obj.order_infections_and_vaccines()
+        self.LIS_obj.compute_waves_of_infection()
+        self.LIS_obj.assume_PCR_if_empty()
+        self.LIS_obj.update_PCR_and_infection_status()
+
+    def lindsays_request_feb_06_2023(self):
+        #Use Lindsays file to update the dates of enrollment.
+        #The earliest blood collection date cannot be before the
+        #enrollment date.
+        fname = 'consent.xlsx'
+        folder= 'Lindsay_feb_06_2023'
+        fname = os.path.join(self.requests_path, folder, fname)
+        df_up = pd.read_excel(fname)
+        print(df_up)
+        original_columns = self.df.columns
+
+        P_day = 'POC DAY'
+        P_month = 'POC MONTH'
+        P_year = 'POC YEAR'
+        POC = [P_year, P_month, P_day]
+
+        S_day = 'SDM DAY'
+        S_month = 'SDM MONTH'
+        S_year = 'SDM YEAR'
+        SDM = [S_year, S_month, S_day]
+
+        DOE = 'Enrollment Date'
+        PID = 'Participant ID'
+        blood_slice = slice('Blood Draw:Baseline - B',
+                'Blood Draw:Repeat - JR')
+
+        missing_doe = 0
+
+        PS = 'POC/SDM date'
+        BA = 'Blood alert'
+        EBD = 'Earliest blood draw'
+        self.df[PS] = np.nan
+        self.df[BA] = np.nan
+        self.df['Old DOE'] = self.df[DOE]
+
+        labels = ['ID', 'Old DOE', PS, 'Delta', DOE, EBD, BA]
+
+        for index_m, row_m in self.df.iterrows():
+
+            ID = row_m['ID']
+            doe = row_m[DOE]
+
+            flag_missing_doe = False
+            flag_ID_in_Lindsay = False
+
+            flag_ps_exists = False
+            flag_poc_exists = False
+            flag_sdm_exists = False
+
+            lindsay_selector = df_up[PID] == ID
+
+            if not lindsay_selector.any():
+                #No matching ID inside Lindsay's file.
+                pass
+
+            else:
+                flag_ID_in_Lindsay = True
+                poc_cells = df_up.loc[lindsay_selector, POC].iloc[0]
+
+                if poc_cells.notnull().all():
+                    flag_poc_exists = True
+                    flag_ps_exists = True
+                    poc_year, poc_month, poc_day = poc_cells.astype(int)
+                    poc_date = datetime.datetime(poc_year, poc_month, poc_day)
+                    ps_date = poc_date
+
+                if ~flag_poc_exists:
+                    #No POC
+                    sdm_cells = df_up.loc[lindsay_selector, SDM].iloc[0]
+                    if sdm_cells.notnull().all():
+                        flag_sdm_exists = True
+                        flag_ps_exists = True
+                        sdm_year, sdm_month, sdm_day = sdm_cells.astype(int)
+                        if sdm_day == 0:
+                            sdm_day = 1
+                        sdm_date = datetime.datetime(sdm_year, sdm_month, sdm_day)
+                        ps_date = sdm_date
+
+            if pd.isnull(doe):
+                missing_doe += 1
+                flag_missing_doe = True
+
+
+            if flag_ps_exists:
+
+                self.df.loc[index_m, PS] = ps_date
+
+                if not flag_missing_doe:
+                    delta = (doe - ps_date) / np.timedelta64(1,'D')
+                    self.df.loc[index_m, 'Delta'] = delta
+
+                #Force the POC/SDM date for the DOE
+                self.df.loc[index_m, DOE] = ps_date
+                doe = ps_date
+                flag_missing_doe = False
+
+            blood_dates = row_m[blood_slice]
+            blood_selector = blood_dates.notnull()
+
+            if blood_dates.count() == 0:
+                pass
+            else:
+                blood_dates = blood_dates[blood_selector]
+                blood_date = blood_dates.min()
+                self.df.loc[index_m, EBD] = blood_date
+                if not flag_missing_doe:
+                    if blood_date < doe:
+                        self.df.loc[index_m, BA] = 'Fixed: Chronology error'
+                        self.df.loc[index_m, DOE] = blood_date
+                        doe = blood_date
+                else:
+                    self.df.loc[index_m, BA] = 'Fixed: Missing DOE'
+                    self.df.loc[index_m, DOE] = blood_date
+                    doe = blood_date
+
+
+        print(f'{missing_doe=}')
+        df = self.df[labels].copy()
+
+        fname = 'compare.xlsx'
+        folder= 'Lindsay_feb_06_2023'
+        fname = os.path.join(self.requests_path, folder, fname)
+        df.to_excel(fname, index=False)
+
+        self.df = self.df[original_columns].copy()
+
 #obj = Comparator()
 #obj.load_the_rainbow()
 
