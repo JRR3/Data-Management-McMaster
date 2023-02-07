@@ -1407,14 +1407,42 @@ class Reporter:
         fname = os.path.join(folder, fname)
         df_t = pd.read_excel(fname)
 
+        ticks = np.array([0,30,60,90,120,150,180,210], dtype=int)
+        labels = ticks // 30
+
         for bio_param in bio_params:
+
+            folder_1 = 'Ahmad_feb_06_2023'
+            folder_2 = bio_param
+            folder = os.path.join(self.requests_path, folder_1, folder_2)
+            if os.path.exists(folder):
+                pass
+            else:
+                os.makedirs(folder)
+
             selector = df_t['Ig'] == bio_param
             if not selector.any():
                 print(f'{bio_param=}')
                 raise ValueError('Bio parameter not found')
             bio_t = df_t.loc[selector, 'Threshold'].iloc[0]
-            fig, ax = plt.subplots()
-            cax = ax.twinx()
+            fig_g, ax_g = plt.subplots()
+            counter = 0
+
+            #================Y MAX==================
+            y_max = 0
+            for ID, V in ID_to_samples.items():
+                full_ID_vector = V[0]
+                Y = []
+                for full_ID in full_ID_vector:
+                    s = self.parent.LSM_obj.df['Full ID'] == full_ID
+                    row_s = self.parent.LSM_obj.df[s].iloc[0]
+                    bio_value = row_s[bio_param]
+                    Y.append(bio_value)
+                if Y[0] < bio_t and bio_t < Y[1]:
+                    if y_max < Y[1]:
+                        y_max = Y[1]
+            #================Y MAX==================
+
             for ID, V in ID_to_samples.items():
                 full_ID_vector = V[0]
                 delta_vector   = V[1]
@@ -1428,25 +1456,43 @@ class Reporter:
                     Y.append(bio_value)
                     X.append(ref + delta)
                 if Y[0] < bio_t and bio_t < Y[1]:
+                    counter += 1
+                    bio_delta = Y[1] - Y[0]
+                    bio_delta_str = '{:0.2f}'.format(bio_delta)
+                    ax_g.plot(X,Y,'b-',marker = 'o')
+                    fig, ax = plt.subplots()
                     ax.plot(X,Y,'b-',marker = 'o')
+                    ax.axvline(x = ref_a, color='k', linewidth=2)
+                    ax.axvline(x = ref_b, color='k', linewidth=2)
+                    ax.axhline(y = bio_t, color='gray', linewidth=2)
+                    ax.set_xticks(ticks)
+                    ax.set_xticklabels(labels)
+                    ax.set_xlabel('Months post-4th dose')
+                    ax.set_ylabel(bio_param)
+                    ax.set_ylim([0,y_max])
+                    ax.set_title(ID + ': $\Delta$=' + bio_delta_str)
                     if ID in ID_to_delta_inf:
+                        cax = ax.twinx()
+                        cax.get_yaxis().set_visible(False)
                         delta_inf_vector = ID_to_delta_inf[ID]
                         for delta_inf in delta_inf_vector:
                             cax.plot(delta_inf,0.5,'ro')
+                    fname = str(counter) + '.png'
+                    fname = os.path.join(folder, fname)
+                    fig.savefig(fname)
+                    plt.close(fig)
 
-            ax.axvline(x = ref_a, color='k', linewidth=2)
-            ax.axvline(x = ref_b, color='k', linewidth=2)
-            ax.axhline(y = bio_t, color='gray', linewidth=2)
-            ticks = np.array([0,30,60,90,120,150,180,210], dtype=int)
-            ax.set_xticks(ticks)
-            labels = ticks // 30
-            ax.set_xticklabels(labels)
-            ax.set_xlabel('Months post-4th dose')
-            ax.set_ylabel(bio_param)
-        fname = 'plot.png'
-        folder = 'Ahmad_feb_06_2023'
-        fname = os.path.join(self.requests_path, folder, fname)
-        plt.savefig(fname)
+            ax_g.axvline(x = ref_a, color='k', linewidth=2)
+            ax_g.axvline(x = ref_b, color='k', linewidth=2)
+            ax_g.axhline(y = bio_t, color='gray', linewidth=2)
+            ax_g.set_xticks(ticks)
+            ax_g.set_xticklabels(labels)
+            ax_g.set_xlabel('Months post-4th dose')
+            ax_g.set_ylabel(bio_param)
+            ax_g.set_ylim([0,y_max])
+        fname = 'global.png'
+        fname = os.path.join(folder, fname)
+        fig_g.savefig(fname)
         plt.close('all')
 
 
