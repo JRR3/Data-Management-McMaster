@@ -1284,9 +1284,9 @@ class Merger:
                     #print('Erasing:', data)
                     #self.df.loc[index_m, col] = np.nan
         fname = 'template_h.xlsx'
-        folder= 'Lindsay_feb_07_2023'
+        folder= 'Deanna_feb_08_2023'
         fname = os.path.join(self.requests_path, folder, fname)
-        df_r = pd.read_excel(fname, sheet_name = 'relations')
+        df_r = pd.read_excel(fname, sheet_name = 'Rel')
         df_h = pd.read_excel(fname, sheet_name = 'Report')
         print(df_r)
         print(df_h)
@@ -1297,21 +1297,23 @@ class Merger:
         #===============================
         #Select the sites (If necessary)
         #===============================
-        #sites = [20,61]
+        sites = [20,61]
         #sites = [2, 3, 5, 6, 7,
                 #9, 11, 12, 14, 19,
                 #51, 52, 53, 54, 55, 56]
-        #selector = pd.isnull(self.df['ID'])
-        #for site in sites:
-            #selector |= self.df['Site'] == site
+        selector = pd.isnull(self.df['ID'])
+        for site in sites:
+            selector |= self.df['Site'] == site
 
         #================================================
         #Source data frame to be converted into a raw file
         #================================================
-        fname = 'ids.xlsx'
-        fname = os.path.join(self.requests_path, folder, fname)
-        df_ids= pd.read_excel(fname)
-        selector = self.df['ID'].isin(df_ids['ID'])
+        #fname = 'ids.xlsx'
+        #fname = os.path.join(self.requests_path, folder, fname)
+        #df_ids= pd.read_excel(fname)
+        #selector = self.df['ID'].isin(df_ids['ID'])
+
+
         df_s = self.df[selector].copy()
 
         #Extract the new names for the source df
@@ -1326,14 +1328,15 @@ class Merger:
                 source_to_target[source] = target
 
             if pd.notnull(aux):
-                anticipated_dc[target] = (aux, add)
+                aux_with_new_name = source_to_target[aux]
+                anticipated_dc[target] = (aux_with_new_name, add)
 
         df_s.rename(columns=source_to_target, inplace=True)
 
         #Add new columns to the source df
         for column in df_h.columns:
             if column not in df_s.columns:
-                print(column)
+                #print(column)
                 df_s[column] = np.nan
 
 
@@ -1346,19 +1349,86 @@ class Merger:
         #Create barcode
         #Because the barcode does not have a predictable
         #pattern, we do not include it into the template.
-        def create_barcode(txt):
-            return 'LTC1-' + txt
+        #def create_barcode(txt):
+            #return 'LTC1-' + txt
 
         #df_m['Barcode'] = df_m['ID'].apply(create_barcode)
 
         #self.print_column_and_datatype(df_m)
 
-        for target, (aux, offset) in anticipated_dc.items():
-            #If the vaccine column is empty, ignore.
-            if df_m[aux].isnull().all():
+
+
+        #Add anticipated dates
+        v_dates_t = self.LIS_obj.vaccine_date_cols
+        v_dates_h = []
+        for v_date in v_dates_t:
+            v_dates_h.append(source_to_target[v_date])
+
+        REF = 'Study Refusals'
+        rexp = re.compile('(?P<number>[0-9]+)[a-z]+')
+
+        def extract_number(txt):
+            obj = rexp.search(txt)
+            if obj:
+                return int(obj.group('number'))
+
+        for index, row in df_m.iterrows():
+            #if row['ID'] == '02-1912375':
+                #return
+            print(row['ID'])
+            flag_next_participant = False
+
+            #Reason
+            if pd.notnull(row['Reason']):
+                print('Not active')
                 continue
-            df_m[target] = df_m[aux] + pd.DateOffset(days=offset)
-            print('-------------')
+
+            #Refusal
+            if pd.notnull(row[REF]):
+                ref = row[REF]
+                if 'blood' in ref.lower():
+                    print('Changing:', ref, ' to B:Blood')
+                    df_m.loc[index,REF] = 'B: Blood'
+                    continue
+                else:
+                    print('Erasing:', ref)
+                    df_m.loc[index,REF] = np.nan
+
+            v_dates = row[v_dates_h]
+            #No vaccines
+            if v_dates.count() == 0:
+                print('No vaccines')
+                continue
+
+            selector = v_dates.notnull()
+            v_dates = v_dates[selector]
+            print(v_dates)
+            last_vaccine = extract_number(v_dates.index[-1])
+
+            for target, (aux, offset) in anticipated_dc.items():
+
+                if pd.isnull(row[aux]):
+                    continue
+
+                post_dose = extract_number(target)
+
+                if post_dose < last_vaccine:
+                    print(post_dose, ' < ', last_vaccine)
+                    continue
+
+                actual = target.replace('Anticipated', 'Actual')
+                if pd.notnull(row[actual]):
+                    print(actual, ' has ', row[actual])
+                    continue
+
+                df_m.loc[index,target] = row[aux] + pd.DateOffset(days=offset)
+
+        #for target, (aux, offset) in anticipated_dc.items():
+            ##If the vaccine column is empty, ignore.
+            #if df_m[aux].isnull().all():
+                #continue
+            #df_m[target] = df_m[aux] + pd.DateOffset(days=offset)
+            #print('-------------')
 
         #Write dates in format day-Month-Year
         for col, col_type in zip(df_m.columns,df_m.dtypes):
@@ -1366,6 +1436,7 @@ class Merger:
                 print(col, col_type)
                 df_m[col] = df_m[col].dt.strftime('%d-%b-%Y')
 
+        df_m['Site'] = df_m['Site'].astype(str).str.zfill(2)
 
         fname = 'raw_data_list.xlsx'
         fname = os.path.join(self.requests_path, folder, fname)
@@ -1453,5 +1524,7 @@ obj = Merger()
 
 #obj.generate_the_tri_sheet_file()
 #obj.REP_obj.track_serology_with_infections()
-obj.ahmads_request_feb_07_2023()
+#obj.ahmads_request_feb_07_2023()
 
+#Feb 09 2023
+obj.create_raw_files_for_template()
