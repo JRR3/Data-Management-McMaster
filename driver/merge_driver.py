@@ -1297,10 +1297,10 @@ class Merger:
         #===============================
         #Select the sites (If necessary)
         #===============================
-        sites = [20,61]
-        #sites = [2, 3, 5, 6, 7,
-                #9, 11, 12, 14, 19,
-                #51, 52, 53, 54, 55, 56]
+        #sites = [20,61]
+        sites = [2, 3, 5, 6, 7,
+                9, 11, 12, 14, 19,
+                51, 52, 53, 54, 55, 56]
         selector = pd.isnull(self.df['ID'])
         for site in sites:
             selector |= self.df['Site'] == site
@@ -1372,16 +1372,13 @@ class Merger:
             if obj:
                 return int(obj.group('number'))
 
+        #================
+        #================Iterate over all participants in df_m
+        #================
         for index, row in df_m.iterrows():
             #if row['ID'] == '02-1912375':
                 #return
             print(row['ID'])
-            flag_next_participant = False
-
-            #Reason
-            if pd.notnull(row['Reason']):
-                print('Not active')
-                continue
 
             #Refusal
             if pd.notnull(row[REF]):
@@ -1393,6 +1390,12 @@ class Merger:
                 else:
                     print('Erasing:', ref)
                     df_m.loc[index,REF] = np.nan
+
+            #Reason
+            if pd.notnull(row['Reason']):
+                print('Not active')
+                continue
+
 
             v_dates = row[v_dates_h]
             #No vaccines
@@ -1527,4 +1530,5 @@ obj = Merger()
 #obj.ahmads_request_feb_07_2023()
 
 #Feb 09 2023
+#Feb 10 2023
 obj.create_raw_files_for_template()
