@@ -1536,6 +1536,36 @@ class Reporter:
             plt.close('all')
 
 
+    def plot_infections_on_map(self):
+        #Plot the infections on top of a map
+        folder='Megan_feb_13_2023'
+        fname = 'coordinates.xlsx'
+        fname = os.path.join(self.requests_path, folder, fname)
+        df_c = pd.read_excel(fname)
+        #print(df_c)
+        fname = 'map_v3.png'
+        iname = os.path.join(self.requests_path, folder, fname)
+        fig, ax = plt.subplots()
+        im = mpl.image.imread(iname)
+        ax.imshow(im)
+
+        for index, row in df_c.iterrows():
+            if pd.isnull(row['Width']):
+                continue
+            x = row['Width']
+            y = row['Height']
+            ax.plot(x,y,'bo', markersize=3)
+            w = 100
+            h = 0
+            ax.plot([x,x],[y,y-w],'b-', linewidth=2)
+            #rectangle = mpl.patches.Rectangle((x, y),
+                    #w, h, edgecolor='orange', facecolor='green',
+                    #linewidth=3)
+            #ax.add_patch(rectangle)
+
+        fname = 'test.png'
+        fname = os.path.join(self.requests_path, folder, fname)
+        fig.savefig(fname)
 
 
 
