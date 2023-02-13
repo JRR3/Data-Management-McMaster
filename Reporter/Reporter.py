@@ -6,6 +6,7 @@ import pandas as pd
 #import plotly.express as pxp
 import os
 import re
+import PIL
 import networkx as nx
 import matplotlib as mpl
 mpl.rcParams['figure.dpi'] = 300
@@ -1536,36 +1537,166 @@ class Reporter:
             plt.close('all')
 
 
+    def plot_infections_on_bars(self):
+        folder='Megan_feb_13_2023'
+        fname = 'tri_merge.xlsx'
+        fname = os.path.join(self.requests_path, folder, fname)
+        df_i = pd.read_excel(fname, sheet_name = 'Infection_column')
+        print(df_i)
+
+        intervals = pd.date_range(start='2019-12-31', end='2023-02-01', freq='M')
+        periods   = pd.period_range(start='2020-01', end='2023-01', freq='M')
+        periods   = periods.to_timestamp().strftime('%b-%y')
+        #print(intervals)
+        #print(periods)
+        DOI = 'Infection date'
+        bins = pd.cut(df_i[DOI], intervals, labels=periods)
+        grouped_dates = df_i[DOI].groupby([df_i['Site'], bins]).agg('count')
+        #print(grouped_dates[(1,)])
+        grouped_dates = grouped_dates.rename('Count')
+        df = grouped_dates.reset_index()
+        print(df)
+        fig, ax = plt.subplots()
+        sns.barplot(ax = ax, data=df, x='Infection date',y='Count',hue='Site')
+        #grouped_dates.plot(ax=ax)
+
+        plt.xticks(rotation=90)
+        plt.tight_layout()
+
+        fname = 'bars.png'
+        fname = os.path.join(self.requests_path, folder, fname)
+        fig.savefig(fname)
+
     def plot_infections_on_map(self):
         #Plot the infections on top of a map
         folder='Megan_feb_13_2023'
-        fname = 'coordinates.xlsx'
+        fname = 'coordinates_with_deltas.xlsx'
         fname = os.path.join(self.requests_path, folder, fname)
-        df_c = pd.read_excel(fname)
+        #Data frame with coordinates
+        df_c = pd.read_excel(fname, dtype={'Site':np.int32,
+            'ID':np.int32, 'Index':np.int32,
+            'x':np.int32, 'y':np.int32,
+            'x_L':np.int32, 'y_L':np.int32})
+        site_to_index = {}
+        for index, row in df_c.iterrows():
+            idx = row['Index']
+            if idx == 0:
+                continue
+            site = row['Site']
+            site_to_index[site] = idx
+
         #print(df_c)
+        fname = 'tri_merge.xlsx'
+        fname = os.path.join(self.requests_path, folder, fname)
+        #Data frame with infections
+        df_i = pd.read_excel(fname, sheet_name = 'Infection_column')
+
+        intervals = pd.date_range(start='2019-12-31', end='2023-02-01', freq='M')
+        periods   = pd.period_range(start='2020-01', end='2023-01', freq='M')
+        periods   = periods.to_timestamp().strftime('%b-%y')
+
+        DOI = 'Infection date'
+        bins = pd.cut(df_i[DOI], intervals, labels=periods)
+        grouped_dates = df_i[DOI].groupby([df_i['Site'], bins]).agg('count')
+        grouped_dates = grouped_dates.rename('Count')
+        df_i = grouped_dates.reset_index().groupby('Infection date')
+        fc = 10
+        for k, (g_name, df_g) in enumerate(df_i):
+            if 1 < k:
+                break
+            print(f'Plotting for {g_name=}')
+            fig, ax = plt.subplots()
+            self.reuse_plot_infections_on_map(folder, df_c, ax)
+            for index_g, row_g in df_g.iterrows():
+                site = row_g['Site']
+                s = df_c['Site'] == site
+                if df_c.loc[s,'Index'].iloc[0] == 0:
+                    continue
+                count = row_g['Count']
+                if count == 0:
+                    continue
+                print('Site:', site, ' Count:', count)
+                #ID = site_to_index[site]
+                x = df_c.loc[s, 'x'].iloc[0]
+                y = df_c.loc[s, 'y'].iloc[0]
+                if site > 30:
+                    #Vertical
+                    dx = 0
+                    dy = -count * fc
+                    xn = x + dx
+                    yn = y + dy
+                    ax.plot([x,xn],[y,yn],'b-')
+                else:
+                    #Horizontal
+                    dy = 0
+                    dx = count * fc
+                    xn = x + dx
+                    yn = y + dy
+                    ax.plot([x,xn],[y,yn],'k-')
+            ax.axis('off')
+            fname = g_name + '.png'
+            fname = os.path.join(self.requests_path, folder, 'plots', fname)
+            fig.savefig(fname)
+            plt.close('all')
+
+
+
+
+
+    def reuse_plot_infections_on_map(self, folder, df_c, ax):
+        #Plot the infections on top of a map
         fname = 'map_v3.png'
         iname = os.path.join(self.requests_path, folder, fname)
-        fig, ax = plt.subplots()
         im = mpl.image.imread(iname)
         ax.imshow(im)
 
         for index, row in df_c.iterrows():
-            if pd.isnull(row['Width']):
+            if row['ID'] == 0:
                 continue
-            x = row['Width']
-            y = row['Height']
-            ax.plot(x,y,'bo', markersize=3)
-            w = 100
-            h = 0
-            ax.plot([x,x],[y,y-w],'b-', linewidth=2)
-            #rectangle = mpl.patches.Rectangle((x, y),
-                    #w, h, edgecolor='orange', facecolor='green',
-                    #linewidth=3)
-            #ax.add_patch(rectangle)
+            x = row['x']
+            y = row['y']
+            x_L = row['x_L']
+            y_L = row['y_L']
+            site = row['Site']
+            ID = row['ID']
+            c = row['Coordinates']
+            ax.plot(x,y,'wo', markersize=3)
+            x_new = x + x_L
+            y_new = y + y_L
+            ax.text(x_new, y_new, ID)
 
-        fname = 'test.png'
-        fname = os.path.join(self.requests_path, folder, fname)
-        fig.savefig(fname)
+        #First 10 names
+        x = 1310
+        y = 240
+        for index, row in df_c.iterrows():
+            if row['ID'] == 0:
+                continue
+            name = row['Short Name']
+            ID   = row['ID']
+            if ID <= 10:
+                x += 0
+                y += 60
+                txt = str(ID) + ' ' + name
+                ax.text(x, y, txt, fontsize=8)
 
+        #Following 6 names
+        x = 810
+        y = 620
+        for index, row in df_c.iterrows():
+            if row['ID'] == 0:
+                continue
+            name = row['Short Name']
+            ID   = row['ID']
+            if 10 < ID:
+                x += 0
+                y += 60
+                txt = str(ID) + ' ' + name
+                ax.text(x, y, txt, fontsize=8)
 
+        #Shalom Village line
+        x = 550
+        y = 1000
+        dx = 55
+        dy = -55
+        ax.plot([x,x+dx],[y, y+dy],'-', color='gray')
 

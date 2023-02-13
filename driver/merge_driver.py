@@ -1534,4 +1534,5 @@ obj = Merger()
 #obj.create_raw_files_for_template()
 
 #Feb 13 2023
+#obj.REP_obj.plot_infections_on_bars()
 obj.REP_obj.plot_infections_on_map()
