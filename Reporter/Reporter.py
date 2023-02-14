@@ -1577,13 +1577,18 @@ class Reporter:
             'ID':np.int32, 'Index':np.int32,
             'x':np.int32, 'y':np.int32,
             'x_L':np.int32, 'y_L':np.int32})
-        site_to_index = {}
+        site_to_ID = {}
+        ID_to_label = {}
+        visited_ID = {}
         for index, row in df_c.iterrows():
-            idx = row['Index']
-            if idx == 0:
+            ID = row['Index']
+            if ID == 0:
                 continue
             site = row['Site']
-            site_to_index[site] = idx
+            name = row['Short Name']
+            site_to_ID[site] = ID
+            ID_to_label[ID] = str(ID) + name + ':'
+            visited_ID[ID] = False
 
         #print(df_c)
         fname = 'tri_merge.xlsx'
@@ -1601,42 +1606,68 @@ class Reporter:
         grouped_dates = grouped_dates.rename('Count')
         df_i = grouped_dates.reset_index().groupby('Infection date')
         fc = 10
+        lw = 3
         for k, (g_name, df_g) in enumerate(df_i):
-            if 1 < k:
+            if 10000 < k:
                 break
             print(f'Plotting for {g_name=}')
             fig, ax = plt.subplots()
             self.reuse_plot_infections_on_map(folder, df_c, ax)
+            ID_to_label_m = ID_to_label.copy()
+            visited_ID_m = visited_ID.copy()
             for index_g, row_g in df_g.iterrows():
+
                 site = row_g['Site']
                 s = df_c['Site'] == site
-                if df_c.loc[s,'Index'].iloc[0] == 0:
+
+                ID = df_c.loc[s,'Index'].iloc[0]
+
+                if ID == 0:
                     continue
+
                 count = row_g['Count']
-                if count == 0:
-                    continue
-                print('Site:', site, ' Count:', count)
-                #ID = site_to_index[site]
-                x = df_c.loc[s, 'x'].iloc[0]
-                y = df_c.loc[s, 'y'].iloc[0]
-                if site > 30:
-                    #Vertical
-                    dx = 0
-                    dy = -count * fc
-                    xn = x + dx
-                    yn = y + dy
-                    ax.plot([x,xn],[y,yn],'b-')
+
+                if visited_ID_m[ID]:
+                    ID_to_label_m[ID] += ',' + str(count)
                 else:
-                    #Horizontal
-                    dy = 0
-                    dx = count * fc
-                    xn = x + dx
-                    yn = y + dy
-                    ax.plot([x,xn],[y,yn],'k-')
+                    visited_ID_m[ID] = True
+                    ID_to_label_m[ID] += str(count)
+
+
+                if count == 0:
+                    pass
+                else:
+                    print('Site:', site, ' Count:', count)
+                    #ID = site_to_index[site]
+                    x = df_c.loc[s, 'x'].iloc[0]
+                    y = df_c.loc[s, 'y'].iloc[0]
+                    if site > 30:
+                        #Vertical
+                        #Blue for RH
+                        dx = 0
+                        dy = -count * fc
+                        xn = x + dx
+                        yn = y + dy
+                        ax.plot([x,xn],[y,yn],'b-', linewidth=lw)
+                    else:
+                        #Horizontal
+                        #Black for LTC
+                        dy = 0
+                        dx = count * fc
+                        xn = x + dx
+                        yn = y + dy
+                        ax.plot([x,xn],[y,yn],'k-', linewidth=lw)
+
+            self.plot_names_on_map(df_c, ax, ID_to_label_m)
+            ax.plot([125, 250], [100, 100], 'k-', linewidth=4)
+            ax.text(260, 100, 'LTC', fontsize=18)
+            ax.plot([125, 250], [200, 200], 'b-', linewidth=4)
+            ax.text(260, 200, 'RH', fontsize=18)
+            ax.text(1375, 1000, g_name, fontsize=18)
             ax.axis('off')
             fname = g_name + '.png'
             fname = os.path.join(self.requests_path, folder, 'plots', fname)
-            fig.savefig(fname)
+            fig.savefig(fname, bbox_inches='tight', pad_inches=0)
             plt.close('all')
 
 
@@ -1665,33 +1696,6 @@ class Reporter:
             y_new = y + y_L
             ax.text(x_new, y_new, ID)
 
-        #First 10 names
-        x = 1310
-        y = 240
-        for index, row in df_c.iterrows():
-            if row['ID'] == 0:
-                continue
-            name = row['Short Name']
-            ID   = row['ID']
-            if ID <= 10:
-                x += 0
-                y += 60
-                txt = str(ID) + ' ' + name
-                ax.text(x, y, txt, fontsize=8)
-
-        #Following 6 names
-        x = 810
-        y = 620
-        for index, row in df_c.iterrows():
-            if row['ID'] == 0:
-                continue
-            name = row['Short Name']
-            ID   = row['ID']
-            if 10 < ID:
-                x += 0
-                y += 60
-                txt = str(ID) + ' ' + name
-                ax.text(x, y, txt, fontsize=8)
 
         #Shalom Village line
         x = 550
@@ -1699,4 +1703,31 @@ class Reporter:
         dx = 55
         dy = -55
         ax.plot([x,x+dx],[y, y+dy],'-', color='gray')
+
+    def plot_names_on_map(self, df_c, ax, ID_to_label):
+        #First 10 names
+        #x = 1310
+        #y = 240
+        for index, row in df_c.iterrows():
+            ID   = row['ID']
+            if ID == 0:
+                continue
+            txt = ID_to_label[ID]
+            x = row['label_x']
+            y = row['label_y']
+            ax.text(x, y, txt, fontsize=8)
+
+        ##Following 6 names
+        #x = 810
+        #y = 620
+        #for index, row in df_c.iterrows():
+            #if row['ID'] == 0:
+                #continue
+            #name = row['Short Name']
+            #ID   = row['ID']
+            #if 10 < ID:
+                #x += 0
+                #y += 60
+                #txt = str(ID) + ' ' + name
+                #ax.text(x, y, txt, fontsize=8)
 

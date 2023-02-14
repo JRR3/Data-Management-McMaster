@@ -318,7 +318,7 @@ class Merger:
         else:
             #None
             fname = 'updates.xlsx'
-        folder = 'Jessica_feb_07_2023'
+        folder = 'Jessica_feb_14_2023'
         fname = os.path.join('..','requests',folder, fname)
         book = pd.read_excel(fname, sheet_name=None)
         print(f'LSM is looking into the {folder=}')
@@ -338,6 +338,7 @@ class Merger:
             #self.LSM_obj.merge_serology_update(df_up)
         self.check_LSM_dates()
 
+        self.LSM_obj.include_nucleocapsid_status()
         #After going through the updates, we compute the new
         #data density state of the LSM file.
         status_post = self.MPD_obj.compute_data_density(self.LSM_obj.df)
@@ -1208,6 +1209,10 @@ class Merger:
 
     def extract_ID_from_sv_file(self):
         #Feb 07 2023
+        #Extract the ID from Deanna's file
+        #There are two columns, and whenever it is not 
+        #possible to extract the ID from the first, we
+        #try with the second one.
         fname = 'sv_data.xlsx'
         folder= 'Lindsay_feb_07_2023'
         fname = os.path.join(self.requests_path, folder, fname)
@@ -1449,6 +1454,7 @@ class Merger:
 
     def ahmads_request_feb_07_2023(self):
         #Feb 07 2023
+        #Get the full IDs of the samples that have to be processed.
         fname = 'missing_data.xlsx'
         folder= 'Ahmad_feb_06_2023'
         fname = os.path.join(self.requests_path, folder, fname)
@@ -1463,6 +1469,47 @@ class Merger:
                 selector = self.LSM_obj.df[col].isnull()
                 samples = self.LSM_obj.df.loc[selector,'Full ID']
                 samples.to_excel(writer, sheet_name = col, index = False)
+
+    def deannas_request_feb_14_2023(self):
+        #Feb 07 2023
+        #Extract the ID from Deanna's file
+        #There are two columns, and whenever it is not 
+        #possible to extract the ID from the first, we
+        #try with the second one.
+        folder= 'Deanna_feb_14_2023'
+        fname = 'ids.xlsx'
+        fname = os.path.join(self.requests_path, folder, fname)
+        df = pd.read_excel(fname)
+        df['ID_unique'] = np.nan
+        df['ID_repeated'] = np.nan
+        vc = df['ID'].value_counts()
+        vc = vc[vc.gt(1)]
+        vc = vc.index.to_list()
+        df.iloc[:len(vc),2] = vc
+        unique = df['ID'].unique()
+        df.iloc[:len(unique),1] = unique
+        fname = 'ids_with_decomposition.xlsx'
+        fname = os.path.join(self.requests_path, folder, fname)
+        df.to_excel(fname, index=False)
+
+    def taras_request_feb_14_2023(self):
+        s = self.df['ID'].isnull()
+        sites = [15,16,17]
+        for site in sites:
+            s |= self.df['Site'] == site
+        blood_slice = slice('Blood Draw:Baseline - B','Blood Draw:Repeat - JR')
+        for index, row in self.df.loc[s,:].iterrows():
+            blood_dates = row[blood_slice]
+            selector = blood_dates.notnull()
+            blood_dates = blood_dates[selector]
+            if len(blood_dates) == 0:
+                print('Empty')
+            else:
+                date = blood_dates.max()
+                ID = row['ID']
+                self.df.loc[index, 'Reason'] = 'Withdrew'
+                self.df.loc[index, 'Date Removed from Study'] = date
+                print('Terminated ', ID, ' on the ', date)
 
 
 
@@ -1510,6 +1557,7 @@ obj = Merger()
 #obj.lindsays_request_feb_06_2023()
 #obj.write_the_M_file_to_excel()
 #obj.generate_the_tri_sheet_file()
+
 #Feb 07 2023
 #obj.REP_obj.track_serology_with_infections()
 #obj.extract_ID_from_sv_file()
@@ -1535,4 +1583,13 @@ obj = Merger()
 
 #Feb 13 2023
 #obj.REP_obj.plot_infections_on_bars()
+#obj.REP_obj.plot_infections_on_map()
+
+#Feb 14 2023
+#obj.taras_request_feb_14_2023()
+#obj.write_the_M_file_to_excel()
+
+#obj.update_LSM()
+#obj.LSM_obj.write_LSM_to_excel()
+
 obj.REP_obj.plot_infections_on_map()
