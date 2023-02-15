@@ -1587,7 +1587,9 @@ class Reporter:
             site = row['Site']
             name = row['Short Name']
             site_to_ID[site] = ID
-            ID_to_label[ID] = str(ID) + name + ':'
+            txt = str(ID) + name
+            txt = '{:25}'.format(txt)
+            ID_to_label[ID] = txt
             visited_ID[ID] = False
 
         #print(df_c)
@@ -1608,7 +1610,7 @@ class Reporter:
         fc = 10
         lw = 3
         for k, (g_name, df_g) in enumerate(df_i):
-            if 10000 < k:
+            if 1 < k:
                 break
             print(f'Plotting for {g_name=}')
             fig, ax = plt.subplots()
@@ -1619,8 +1621,9 @@ class Reporter:
 
                 site = row_g['Site']
                 s = df_c['Site'] == site
+                s_index = s[s].index[0]
 
-                ID = df_c.loc[s,'Index'].iloc[0]
+                ID = df_c.loc[s_index,'Index']
 
                 if ID == 0:
                     continue
@@ -1639,24 +1642,22 @@ class Reporter:
                 else:
                     print('Site:', site, ' Count:', count)
                     #ID = site_to_index[site]
-                    x = df_c.loc[s, 'x'].iloc[0]
-                    y = df_c.loc[s, 'y'].iloc[0]
-                    if site > 30:
+                    x = df_c.loc[s_index, 'x']
+                    y = df_c.loc[s_index, 'y']
+                    orientation = df_c.loc[s_index,'Orientation']
+                    color = df_c.loc[s_index,'Color']
+                    style = color + '-'
+                    if orientation == 'V':
                         #Vertical
-                        #Blue for RH
                         dx = 0
                         dy = -count * fc
-                        xn = x + dx
-                        yn = y + dy
-                        ax.plot([x,xn],[y,yn],'b-', linewidth=lw)
-                    else:
+                    elif orientation == 'H':
                         #Horizontal
-                        #Black for LTC
                         dy = 0
                         dx = count * fc
-                        xn = x + dx
-                        yn = y + dy
-                        ax.plot([x,xn],[y,yn],'k-', linewidth=lw)
+                    xn = x + dx
+                    yn = y + dy
+                    ax.plot([x,xn],[y,yn],style, linewidth=lw)
 
             self.plot_names_on_map(df_c, ax, ID_to_label_m)
             ax.plot([125, 250], [100, 100], 'k-', linewidth=4)
@@ -1665,7 +1666,8 @@ class Reporter:
             ax.text(260, 200, 'RH', fontsize=18)
             ax.text(1375, 1000, g_name, fontsize=18)
             ax.axis('off')
-            fname = g_name + '.png'
+            #fname = g_name + '.png'
+            fname = str(k).zfill(2) + '.png'
             fname = os.path.join(self.requests_path, folder, 'plots', fname)
             fig.savefig(fname, bbox_inches='tight', pad_inches=0)
             plt.close('all')
@@ -1705,9 +1707,7 @@ class Reporter:
         ax.plot([x,x+dx],[y, y+dy],'-', color='gray')
 
     def plot_names_on_map(self, df_c, ax, ID_to_label):
-        #First 10 names
-        #x = 1310
-        #y = 240
+
         for index, row in df_c.iterrows():
             ID   = row['ID']
             if ID == 0:
@@ -1717,17 +1717,4 @@ class Reporter:
             y = row['label_y']
             ax.text(x, y, txt, fontsize=8)
 
-        ##Following 6 names
-        #x = 810
-        #y = 620
-        #for index, row in df_c.iterrows():
-            #if row['ID'] == 0:
-                #continue
-            #name = row['Short Name']
-            #ID   = row['ID']
-            #if 10 < ID:
-                #x += 0
-                #y += 60
-                #txt = str(ID) + ' ' + name
-                #ax.text(x, y, txt, fontsize=8)
 
