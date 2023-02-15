@@ -1588,7 +1588,11 @@ class Reporter:
             name = row['Short Name']
             site_to_ID[site] = ID
             txt = str(ID) + name
-            txt = '{:25}'.format(txt)
+            if ID <= 10:
+                txt = '{:22}'.format(txt)
+            else:
+                txt = '{:19}'.format(txt)
+            #print(len(txt))
             ID_to_label[ID] = txt
             visited_ID[ID] = False
 
@@ -1608,15 +1612,17 @@ class Reporter:
         grouped_dates = grouped_dates.rename('Count')
         df_i = grouped_dates.reset_index().groupby('Infection date')
         fc = 10
-        lw = 3
+        lw = 2
         for k, (g_name, df_g) in enumerate(df_i):
-            if 1 < k:
+            if 100 < k:
                 break
             print(f'Plotting for {g_name=}')
             fig, ax = plt.subplots()
             self.reuse_plot_infections_on_map(folder, df_c, ax)
             ID_to_label_m = ID_to_label.copy()
             visited_ID_m = visited_ID.copy()
+            ltc_cases = 0
+            rh_cases = 0
             for index_g, row_g in df_g.iterrows():
 
                 site = row_g['Site']
@@ -1629,6 +1635,10 @@ class Reporter:
                     continue
 
                 count = row_g['Count']
+                if site < 30:
+                    ltc_cases += count
+                else:
+                    rh_cases += count
 
                 if visited_ID_m[ID]:
                     ID_to_label_m[ID] += ',' + str(count)
@@ -1647,27 +1657,48 @@ class Reporter:
                     orientation = df_c.loc[s_index,'Orientation']
                     color = df_c.loc[s_index,'Color']
                     style = color + '-'
-                    if orientation == 'V':
+
+                    if orientation == 'U':
                         #Vertical
                         dx = 0
                         dy = -count * fc
-                    elif orientation == 'H':
+                    if orientation == 'D':
+                        #Vertical
+                        dx = 0
+                        dy = count * fc
+                    elif orientation == 'R':
                         #Horizontal
                         dy = 0
                         dx = count * fc
+
+
+                    if site < 30:
+                        x += 0
+                    else:
+                        x += 10
+
                     xn = x + dx
                     yn = y + dy
+
                     ax.plot([x,xn],[y,yn],style, linewidth=lw)
 
-            self.plot_names_on_map(df_c, ax, ID_to_label_m)
-            ax.plot([125, 250], [100, 100], 'k-', linewidth=4)
-            ax.text(260, 100, 'LTC', fontsize=18)
-            ax.plot([125, 250], [200, 200], 'b-', linewidth=4)
-            ax.text(260, 200, 'RH', fontsize=18)
-            ax.text(1375, 1000, g_name, fontsize=18)
+            #self.plot_names_on_map(df_c, ax, ID_to_label_m)
+            y = 650
+            x = 900
+            ax.plot([x, x+125], [y, y], 'k-', linewidth=4)
+            #txt = 'LTC(' + str(ltc_cases).zfill(2) + ')'
+            txt = 'Long-Term-Care    (' + str(ltc_cases).zfill(2) + ')'
+            ax.text(x+130, y, txt, fontsize=14, color='k')
+
+            ax.plot([x, x+125], [y+100, y+100], 'b-', linewidth=4)
+            txt = 'Retirement Home (' + str(rh_cases).zfill(2) + ')'
+            ax.text(x+130, y+100, txt, fontsize=14, color='b')
+
+            ax.text(1430, y-200, g_name, fontsize=18)
             ax.axis('off')
             #fname = g_name + '.png'
-            fname = str(k).zfill(2) + '.png'
+            #fname = str(k).zfill(2) + '.png'
+            fname = 'im' + str(k).zfill(2) + '.png'
             fname = os.path.join(self.requests_path, folder, 'plots', fname)
             fig.savefig(fname, bbox_inches='tight', pad_inches=0)
             plt.close('all')
@@ -1678,7 +1709,7 @@ class Reporter:
 
     def reuse_plot_infections_on_map(self, folder, df_c, ax):
         #Plot the infections on top of a map
-        fname = 'map_v3.png'
+        fname = 'map_v4.png'
         iname = os.path.join(self.requests_path, folder, fname)
         im = mpl.image.imread(iname)
         ax.imshow(im)
@@ -1696,7 +1727,7 @@ class Reporter:
             ax.plot(x,y,'wo', markersize=3)
             x_new = x + x_L
             y_new = y + y_L
-            ax.text(x_new, y_new, ID)
+            #ax.text(x_new, y_new, ID)
 
 
         #Shalom Village line
@@ -1704,9 +1735,10 @@ class Reporter:
         y = 1000
         dx = 55
         dy = -55
-        ax.plot([x,x+dx],[y, y+dy],'-', color='gray')
+        #ax.plot([x,x+dx],[y, y+dy],'-', color='gray')
 
     def plot_names_on_map(self, df_c, ax, ID_to_label):
+        rexp = re.compile(',(?P<number>[0-9]+)')
 
         for index, row in df_c.iterrows():
             ID   = row['ID']
@@ -1715,6 +1747,19 @@ class Reporter:
             txt = ID_to_label[ID]
             x = row['label_x']
             y = row['label_y']
-            ax.text(x, y, txt, fontsize=8)
+            obj = rexp.search(txt)
+            if obj:
+                n = obj.group('number')
+                sub = obj.group(0)
+                start = txt.replace(sub,',')
+                l_start = len(start)
+                end = ' ' * l_start  + n
+                ax.text(x, y, end, fontsize=8, color='b')
+                ax.text(x, y, start, fontsize=8, color='k')
+            else:
+                if ID in [14,15,16]:
+                    ax.text(x, y, txt, fontsize=8, color='b')
+                else:
+                    ax.text(x, y, txt, fontsize=8, color='k')
 
 
