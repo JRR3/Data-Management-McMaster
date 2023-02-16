@@ -1213,20 +1213,31 @@ class Merger:
         #There are two columns, and whenever it is not 
         #possible to extract the ID from the first, we
         #try with the second one.
-        fname = 'sv_data.xlsx'
-        folder= 'Lindsay_feb_07_2023'
+        fname = 'sv_data_feb_6_2023.xlsx'
+        folder= 'Deanna_feb_16_2023'
         fname = os.path.join(self.requests_path, folder, fname)
         df_up = pd.read_excel(fname)
         df_up['ID'] = df_up['ID'].str.replace(' ','')
         df_up['Barcode'] = df_up['Barcode'].str.replace(' ','')
+
+        df_up.replace('n/a', np.nan, inplace=True)
+        df_up.replace('N/A', np.nan, inplace=True)
+        df_up.replace('refused', np.nan, inplace=True)
+        df_up.replace('Refused', np.nan, inplace=True)
+        df_up.replace('REFUSED', np.nan, inplace=True)
+        df_up.replace('DECLINED', np.nan, inplace=True)
         print(df_up)
+
+        v_slice = slice('Vaccine Date 1', 'Vaccine Type 5')
         rexp = re.compile('[0-9]{2}-[0-9]{7}')
         L = []
+        n_new_vaccine_dates = 0
         for index_up, row_up in df_up.iterrows():
 
             ID_t = row_up['ID']
             bc_t = row_up['Barcode']
             flag_found_ID = False
+            index_m = -1
 
             if pd.notnull(ID_t):
                 obj = rexp.search(ID_t)
@@ -1234,24 +1245,61 @@ class Merger:
                     ID = obj.group(0)
                     selector = self.df['ID'] == ID
                     if selector.any():
+                        index_m = selector[selector].index[0]
                         L.append(ID)
                         flag_found_ID = True
-                        print(ID)
+                        #print(ID)
 
-            if flag_found_ID:
-                continue
 
-            if pd.notnull(bc_t):
+            if (not flag_found_ID) and pd.notnull(bc_t):
                 obj = rexp.search(bc_t)
                 if obj:
                     ID = obj.group(0)
                     selector = self.df['ID'] == ID
                     if selector.any():
+                        index_m = selector[selector].index[0]
                         L.append(ID)
                         flag_found_ID = True
-                        print(ID)
+                        #print(ID)
 
+            if not flag_found_ID:
+                raise ValueError('No ID')
+
+            #Vaccine time
+            print(f'============{ID=}=======')
+            v_items = row_up[v_slice]
+            for col_name, col_value in v_items.items():
+                if pd.notnull(col_value):
+                    print(f'Working with: {col_name=}')
+                    stored = self.df.loc[index_m, col_name]
+                    if pd.notnull(stored):
+                        if stored != col_value:
+                            print('We have a difference')
+                            print(f'{stored=}')
+                            print(f'{col_value=}')
+                        else:
+                            pass
+                    else:
+                        print('Storing:')
+                        print(f'{col_value=}')
+                        if 'Type' in col_name:
+                            if col_value in self.LIS_obj.list_of_valid_vaccines:
+                                self.df.loc[index_m, col_name] = col_value
+                            else:
+                                raise ValueError('Vaccine type undefined')
+                        elif 'Date' in col_name:
+                            if 'time' in str(type(col_value)):
+                                self.df.loc[index_m, col_name] = col_value
+                                n_new_vaccine_dates += 1
+                            else:
+                                raise ValueError('Vaccine date undefined')
+
+
+
+
+        print(f'{n_new_vaccine_dates=}')
         print(len(L))
+        return
         df = pd.DataFrame({'ID':L})
         #print(df['ID'].unique().shape)
         fname = 'ids.xlsx'
@@ -1289,7 +1337,7 @@ class Merger:
                     #print('Erasing:', data)
                     #self.df.loc[index_m, col] = np.nan
         fname = 'template_h.xlsx'
-        folder= 'Deanna_feb_08_2023'
+        folder= 'Deanna_feb_16_2023'
         fname = os.path.join(self.requests_path, folder, fname)
         df_r = pd.read_excel(fname, sheet_name = 'Rel')
         df_h = pd.read_excel(fname, sheet_name = 'Report')
@@ -1440,13 +1488,22 @@ class Merger:
 
         #Write dates in format day-Month-Year
         for col, col_type in zip(df_m.columns,df_m.dtypes):
+            print('===============',col)
             if 'time' in str(col_type):
-                print(col, col_type)
+                print('>>>>>Time', col, col_type)
                 df_m[col] = df_m[col].dt.strftime('%d-%b-%Y')
+                continue
+            if 'Blood' in col:
+                if df_m[col].count() == 0:
+                    continue
+                print('>>>>>Blood', col, col_type)
+                df_m[col] = pd.to_datetime(df_m[col])
+                df_m[col] = df_m[col].dt.strftime('%d-%b-%Y')
+                continue
 
         df_m['Site'] = df_m['Site'].astype(str).str.zfill(2)
 
-        fname = 'raw_data_list.xlsx'
+        fname = 'raw_data_list_feb_16_2023.xlsx'
         fname = os.path.join(self.requests_path, folder, fname)
         df_m.to_excel(fname, index=False)
 
@@ -1510,6 +1567,37 @@ class Merger:
                 self.df.loc[index, 'Reason'] = 'Withdrew'
                 self.df.loc[index, 'Date Removed from Study'] = date
                 print('Terminated ', ID, ' on the ', date)
+
+    def taras_request_feb_16_2023(self):
+        folder= 'Tara_feb_16_2023'
+        fname = 'update.xlsx'
+        fname = os.path.join(self.requests_path, folder, fname)
+        df_up = pd.read_excel(fname, usecols = 'A:I',
+                sheet_name = 'Master_sans_Serology')
+        df_up.dropna(subset='Active', inplace=True)
+        #print(df_up['Active'])
+        DOR = 'Date Removed from Study'
+        n_active_changes = 0
+        for index_up, row_up in df_up.iterrows():
+            status_up = row_up['Active']
+            ID = row_up['ID']
+            print(f'{ID=}')
+            selector = self.df['ID'] == ID
+            index_m = selector[selector].index[0]
+            status_m = self.df.loc[index_m,'Active']
+            if pd.notnull(status_up):
+                if status_up == 1:
+                    if status_m == True:
+                        #print('Equal')
+                        pass
+                    else:
+                        print('>>>>Different')
+                        self.df.loc[index_m, 'Active'] = True
+                        self.df.loc[index_m, 'Reason'] = np.nan
+                        self.df.loc[index_m,  DOR] = np.nan
+                        n_active_changes += 1
+
+        print(f'{n_active_changes=}')
 
 
 
@@ -1592,4 +1680,13 @@ obj = Merger()
 #obj.update_LSM()
 #obj.LSM_obj.write_LSM_to_excel()
 
-obj.REP_obj.plot_infections_on_map()
+#obj.REP_obj.plot_infections_on_map()
+
+#Feb 16 2023
+#obj.create_raw_files_for_template()
+#obj.extract_ID_from_sv_file()
+#obj.LIS_obj.order_infections_and_vaccines()
+#obj.write_the_M_file_to_excel()
+#obj.taras_request_feb_16_2023()
+#obj.write_the_M_file_to_excel()
+obj.create_raw_files_for_template()
