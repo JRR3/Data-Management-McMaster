@@ -7,6 +7,7 @@ import pandas as pd
 import os
 import re
 import PIL
+from tqdm import tqdm as pbar
 import networkx as nx
 import matplotlib as mpl
 mpl.rcParams['figure.dpi'] = 300
@@ -1764,13 +1765,95 @@ class Reporter:
 
 
     def draw_history(self):
+        #This function is used to plot the serology trajectory
+        #of a given participant.
         bio_list = ['Nuc-IgG-100']
-        for index_m, row_m in self.parent.df.iterrows():
+        main_folder = 'Tara_feb_21_2023'
+        fname = 'serology_thresholds.xlsx'
+        date_format = mpl.dates.DateFormatter('%b-%y')
+        fname = os.path.join(self.parent.LSM_path, fname)
+        df_t = pd.read_excel(fname)
+        inf_date_h = self.parent.LIS_obj.positive_date_cols
+        vac_date_h = self.parent.LIS_obj.vaccine_date_cols
+        counter = 0
+        for index_m, row_m in pbar(self.parent.df.iterrows(),
+                total=self.parent.df.shape[0]):
+            counter += 1
+            #if 2 < counter:
+                #break
             ID = row_m['ID']
             s = self.parent.LSM_obj.df['ID'] == ID
             if not s.any():
                 continue
             df_s = self.parent.LSM_obj.df[s]
-            for index_s, row_s in df_s.iterrows():
-                for bio in bio_list:
+            for bio in bio_list:
+                L = []
+                s = df_t['Ig'] == bio
+                threshold = df_t.loc[s,'Threshold'].iloc[0]
+                for index_s, row_s in df_s.iterrows():
                     bio_value = row_s[bio]
+                    if pd.notnull(bio_value):
+                        doc = row_s['Date Collected']
+                        L.append((doc, bio_value))
+                if 1 < len(L):
+                    fig, ax = plt.subplots()
+
+                    #Create DF.
+                    df = pd.DataFrame(L, columns=['Time',bio])
+
+                    #Was the threshold crossed?
+                    flag_crossed_threhold = False
+                    if df[bio].min() < threshold and threshold < df[bio].max():
+                        flag_crossed_threhold = True
+
+                    #Serology time
+                    df.plot(ax=ax, x='Time', y=bio, kind='line', marker='o', color='blue')
+
+                    #Infection time
+                    flag_had_infections = False
+                    inf_dates = row_m[inf_date_h]
+                    if 0 < inf_dates.count():
+                        flag_had_infections = True
+                        s = inf_dates.notnull()
+                        inf_dates = inf_dates[s]
+                        for _ , date in inf_dates.items():
+                            ax.axvline(date, color='red', linewidth=3)
+
+                    #Vaccination time
+                    vac_dates = row_m[vac_date_h]
+                    if 0 < vac_dates.count():
+                        s = vac_dates.notnull()
+                        vac_dates = vac_dates[s]
+                        for _ , date in vac_dates.items():
+                            ax.axvline(date, color='black', linestyle='--', linewidth=2)
+
+                    #Plot threshold line
+                    ax.axhline(threshold, color='gray', linewidth=3)
+                    ax.xaxis.set_major_formatter(date_format)
+                    ax.set_title(ID)
+                    ax.set_ylabel(bio)
+                    ax.get_legend().remove()
+                    fname = ID + '.png'
+
+                    if flag_had_infections:
+                        inf_folder = 'infected'
+                    else:
+                        inf_folder = 'not_infected'
+
+                    if flag_crossed_threhold:
+                        c_folder = 'crossed'
+                    else:
+                        c_folder = 'not_crossed'
+
+                    storage_folder = os.path.join(self.requests_path,
+                            main_folder,
+                            bio,
+                            inf_folder,
+                            c_folder)
+                    if not os.path.exists(storage_folder):
+                        os.makedirs(storage_folder)
+                    fname = os.path.join(storage_folder, fname)
+                    fig.savefig(fname)
+                    plt.close('all')
+
+

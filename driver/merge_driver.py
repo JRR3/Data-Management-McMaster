@@ -458,7 +458,7 @@ class Merger:
         #Infection_column file into one Excel workbook.
         #Feb 03 2023
         fname  = 'tri_merge.xlsx'
-        folder = 'Jessica_feb_17_2023'
+        folder = 'Jessica_feb_21_2023'
         fname = os.path.join('..','requests',folder, fname)
         master_avec_serology = pd.merge(self.LSM_obj.df,
                 self.df, on='ID', how='outer')
@@ -1858,3 +1858,7 @@ obj = Merger()
 #obj.LSM_obj.write_LSM_to_excel()
 
 #obj.generate_the_tri_sheet_file()
+#Feb 21 2023
+#obj.REP_obj.draw_history()
+#obj.LSM_obj.find_repeated_dates()
+obj.generate_the_tri_sheet_file()

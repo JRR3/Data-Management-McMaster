@@ -829,3 +829,14 @@ class LTCSerologyMaster:
 
         if not condition:
             self.df = self.df[labels].copy()
+
+    def find_repeated_dates(self):
+        df_s = self.df.groupby('ID')
+        for ID, df_g in df_s:
+            vc = df_g['Date Collected'].value_counts()
+            if vc.gt(1).any():
+                vc = vc[vc.gt(1)]
+                print(ID)
+                print(vc)
+                print('============')
+
