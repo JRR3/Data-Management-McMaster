@@ -28,7 +28,7 @@ class SampleInventoryData:
         self.blood_draw_code_to_col_name = {}
         self.i_blood_draw_code_to_col_name = {}
         self.original_to_current = {}
-        self.code_regexp = re.compile('[-][ ]*(?P<code>[A-Z]+)')
+        self.code_regexp = re.compile('[-][ ]*(?P<code>[A-Z]+[0-9]*)')
 
         if parent:
             self.parent = parent
@@ -269,6 +269,9 @@ class SampleInventoryData:
                 delta = (doc_M - doc_LSM) / np.timedelta64(1, 'D')
                 delta = np.abs(delta)
                 if 1 < delta:
+                    print(f'{full_ID=}')
+                    print('M file  :', doc_M)
+                    print('LSM file:', doc_LSM)
                     raise ValueError('The date for this ID does not match the M file.')
             else:
                 #If the date is empty in the LSM file, we 

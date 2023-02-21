@@ -765,6 +765,15 @@ class LTCSerologyMaster:
             df['Full ID'] = np.nan
 
         txt = '(?P<site>[0-9]{2})[-](?P<user>[0-9]{7})-(?P<time>[a-zA-Z0-9]+)'
+        alpha_num_codes = ['Baseline', '9mo', '9moR', '12mo',
+                           '12moR', '15mo', '15moR', '18mo',
+                           '18moR', '21mo', '21moR', '3mo3',
+                           '3mo3R', '6mo3', '6mo3R', '9mo3',
+                           '9mo3R', '12mo3', '12mo3R', '15mo3',
+                           '15mo3R', '3wk4', '3wk4R', '3mo4',
+                           '3mo4R', '6mo4', '6mo4R', '9mo4',
+                           '9mo4R', '12mo4', '12mo4R', '3wk5',
+                           '3wk5R', '3mo5', '3mo5R']
         rexp = re.compile(txt)
         def process_id(txt):
             if isinstance(txt, str):
@@ -785,9 +794,10 @@ class LTCSerologyMaster:
             code = process_id(p_full_ID)
             #The last element of the list 'code' has the time.
             doc_code = code[-1]
-            if 2 < len(doc_code):
+            if doc_code in alpha_num_codes:
                 #The doc_code is alphanumeric and has to be converted.
                 lcode = self.ancode_to_lcode[doc_code]
+                #Get the time indicator from the whole label
                 code[-1] = lcode
                 full_ID  = '-'.join(code)
                 df.loc[index, 'Full ID'] = full_ID

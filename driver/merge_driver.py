@@ -318,7 +318,7 @@ class Merger:
         else:
             #None
             fname = 'updates.xlsx'
-        folder = 'Jessica_feb_14_2023'
+        folder = 'Jessica_feb_17_2023'
         fname = os.path.join('..','requests',folder, fname)
         book = pd.read_excel(fname, sheet_name=None)
         print(f'LSM is looking into the {folder=}')
@@ -458,7 +458,7 @@ class Merger:
         #Infection_column file into one Excel workbook.
         #Feb 03 2023
         fname  = 'tri_merge.xlsx'
-        folder = 'Jessica_feb_07_2023'
+        folder = 'Jessica_feb_17_2023'
         fname = os.path.join('..','requests',folder, fname)
         master_avec_serology = pd.merge(self.LSM_obj.df,
                 self.df, on='ID', how='outer')
@@ -1299,13 +1299,11 @@ class Merger:
 
         print(f'{n_new_vaccine_dates=}')
         print(len(L))
-        return
-        df = pd.DataFrame({'ID':L})
-        #print(df['ID'].unique().shape)
-        fname = 'ids.xlsx'
-        folder= 'Lindsay_feb_07_2023'
-        fname = os.path.join(self.requests_path, folder, fname)
-        df.to_excel(fname, index=False)
+        #df = pd.DataFrame({'ID':L})
+        #fname = 'ids.xlsx'
+        #folder= 'Lindsay_feb_07_2023'
+        #fname = os.path.join(self.requests_path, folder, fname)
+        #df.to_excel(fname, index=False)
 
 
 
@@ -1337,7 +1335,7 @@ class Merger:
                     #print('Erasing:', data)
                     #self.df.loc[index_m, col] = np.nan
         fname = 'template_h.xlsx'
-        folder= 'Deanna_feb_16_2023'
+        folder= 'Deanna_feb_17_2023'
         fname = os.path.join(self.requests_path, folder, fname)
         df_r = pd.read_excel(fname, sheet_name = 'Rel')
         df_h = pd.read_excel(fname, sheet_name = 'Report')
@@ -1353,7 +1351,7 @@ class Merger:
         #sites = [20,61]
         sites = [2, 3, 5, 6, 7,
                 9, 11, 12, 14, 19,
-                51, 52, 53, 54, 55, 56]
+                50, 51, 52, 53, 54, 55, 56]
         selector = pd.isnull(self.df['ID'])
         for site in sites:
             selector |= self.df['Site'] == site
@@ -1374,6 +1372,7 @@ class Merger:
 
             source = row['Source']
             target = row['Target']
+            #Target example: Blood Draw - 3 Week Post 1st (Anticipated)
             aux    = row['Aux']
             add    = row['Add']
 
@@ -1396,6 +1395,8 @@ class Merger:
         #Store the names of the target df
         original_columns = df_h.columns
 
+        #Note that due to the concatenation
+        #the headers use the new names.
         df_m = pd.concat([df_h, df_s], axis=0, join='inner')
         df_m = df_m[original_columns].copy()
 
@@ -1421,6 +1422,8 @@ class Merger:
         rexp = re.compile('(?P<number>[0-9]+)[a-z]+')
 
         def extract_number(txt):
+            #For example, if we have the text "4th Dose"
+            #we want to extract the 4.
             obj = rexp.search(txt)
             if obj:
                 return int(obj.group('number'))
@@ -1463,20 +1466,28 @@ class Merger:
 
             for target, (aux, offset) in anticipated_dc.items():
 
+                #Target example: Blood Draw - 3 Week Post 1st (Anticipated)
+                #We want to extract the "1" from "1st".
+
                 if pd.isnull(row[aux]):
                     continue
 
                 post_dose = extract_number(target)
 
                 if post_dose < last_vaccine:
+                    #If the last vaccine took place after 
+                    #the "post_dose-th" = "1st", then ignore.
                     print(post_dose, ' < ', last_vaccine)
                     continue
 
                 actual = target.replace('Anticipated', 'Actual')
+                #Actual example: Blood Draw - 3 Week Post 1st (Actual)
                 if pd.notnull(row[actual]):
+                    #If we have it, then why compute an anticipated date?
                     print(actual, ' has ', row[actual])
                     continue
 
+                #If we are still here, add the offset.
                 df_m.loc[index,target] = row[aux] + pd.DateOffset(days=offset)
 
         #for target, (aux, offset) in anticipated_dc.items():
@@ -1487,6 +1498,7 @@ class Merger:
             #print('-------------')
 
         #Write dates in format day-Month-Year
+        #Don't forget to also change the blood draw columns.
         for col, col_type in zip(df_m.columns,df_m.dtypes):
             print('===============',col)
             if 'time' in str(col_type):
@@ -1501,9 +1513,10 @@ class Merger:
                 df_m[col] = df_m[col].dt.strftime('%d-%b-%Y')
                 continue
 
+        #Zero-pad the site column to 2 digits
         df_m['Site'] = df_m['Site'].astype(str).str.zfill(2)
 
-        fname = 'raw_data_list_feb_16_2023.xlsx'
+        fname = 'raw_data_list_feb_17_2023.xlsx'
         fname = os.path.join(self.requests_path, folder, fname)
         df_m.to_excel(fname, index=False)
 
@@ -1550,6 +1563,7 @@ class Merger:
         df.to_excel(fname, index=False)
 
     def taras_request_feb_14_2023(self):
+        #Terminate individuals from 15,16,17 using last blood draw.
         s = self.df['ID'].isnull()
         sites = [15,16,17]
         for site in sites:
@@ -1569,6 +1583,7 @@ class Merger:
                 print('Terminated ', ID, ' on the ', date)
 
     def taras_request_feb_16_2023(self):
+        #Use Tara's file to update the activation status.
         folder= 'Tara_feb_16_2023'
         fname = 'update.xlsx'
         fname = os.path.join(self.requests_path, folder, fname)
@@ -1598,6 +1613,149 @@ class Merger:
                         n_active_changes += 1
 
         print(f'{n_active_changes=}')
+
+
+    def taras_request_feb_17_2023(self):
+        #Extract the ID from Deanna's file
+        #There are two columns, and whenever it is not 
+        #possible to extract the ID from the first, we
+        #try with the second one.
+        fname = 'update_62.xlsx'
+        folder= 'Tara_feb_17_2023'
+        fname = os.path.join(self.requests_path, folder, fname)
+
+        inf_date_h = self.LIS_obj.positive_date_cols
+
+        df_up = pd.read_excel(fname, dtype={'Infections':str})
+        df_up['ID'] = df_up['ID'].str.replace(' ','')
+
+        df_up.replace('n/a', np.nan, inplace=True)
+        df_up.replace('N/A', np.nan, inplace=True)
+        df_up.replace('refused', np.nan, inplace=True)
+        df_up.replace('Refused', np.nan, inplace=True)
+        df_up.replace('REFUSED', np.nan, inplace=True)
+        df_up.replace('DECLINED', np.nan, inplace=True)
+        df_up.replace('BmodernaO', 'BModernaO', inplace=True)
+        df_up.replace('moderna', 'Moderna', inplace=True)
+        df_up.replace('pfizer', 'Pfizer', inplace=True)
+        print(df_up)
+
+        v_slice = slice('Vaccine Date 1', 'Vaccine Type 5')
+        dor_rexp = re.compile('[a-zA-Z]+[ ][0-9]+.*')
+        L = []
+        n_new_vaccine_dates = 0
+        for index_up, row_up in df_up.iterrows():
+
+            ID = row_up['ID']
+            selector = self.df['ID'] == ID
+            flag_found_ID = False
+
+            if selector.any():
+                flag_found_ID = True
+
+            if not flag_found_ID:
+                raise ValueError('No ID')
+
+            index_m = selector[selector].index[0]
+
+            #Vaccine time
+            print(f'============{ID=}=======')
+            v_items = row_up[v_slice]
+            for col_name, col_value in v_items.items():
+                if pd.notnull(col_value):
+                    print(f'Working with: {col_name=}')
+                    stored = self.df.loc[index_m, col_name]
+                    if pd.notnull(stored):
+                        if stored != col_value:
+                            print('We have a difference')
+                            print(f'{stored=}')
+                            print(f'{col_value=}')
+                        else:
+                            pass
+                    else:
+                        print('Storing:')
+                        print(f'{col_value=}')
+                        if 'Type' in col_name:
+                            if col_value in self.LIS_obj.list_of_valid_vaccines:
+                                self.df.loc[index_m, col_name] = col_value
+                            else:
+                                raise ValueError('Vaccine type undefined')
+                        elif 'Date' in col_name:
+                            if 'time' in str(type(col_value)):
+                                self.df.loc[index_m, col_name] = col_value
+                                n_new_vaccine_dates += 1
+                            else:
+                                raise ValueError('Vaccine date undefined')
+
+            #Infection time
+            infections = row_up['Infections']
+            if pd.notnull(infections):
+                if ',' in infections:
+                    L = infections.split(',')
+                else:
+                    L = [infections]
+                for txt in L:
+                    date_up = pd.to_datetime(txt, dayfirst=False)
+                    print('>>>>>>>>>', date_up)
+                    inf_dates = self.df.loc[index_m, inf_date_h]
+                    for col_name, inf_date in inf_dates.items():
+                        if pd.notnull(inf_date):
+                            delta = (inf_date - date_up) / np.timedelta64(1,'D')
+                            if np.abs(delta) < 7:
+                                print('We have it.')
+                                break
+                        else:
+                            raise ValueError('Is new?')
+
+            #Reasons time
+            reason_plus_date = row_up['Date Removed from Study']
+            if pd.notnull(reason_plus_date):
+                flag_found_reason = False
+                for k,reason in enumerate(self.MPD_obj.removal_states_l):
+                    if reason in reason_plus_date.lower():
+                        reason_up = self.MPD_obj.removal_states[k]
+                        flag_found_reason = True
+                        break
+
+                if not flag_found_reason:
+                    print(reason_plus_date)
+                    raise ValueError('Unknown reason')
+
+                obj = dor_rexp.search(reason_plus_date)
+                if obj:
+                    txt = obj.group(0)
+                    dor_up = pd.to_datetime(txt, dayfirst = False)
+                else:
+                    raise ValueError('Unknown DOR')
+
+                reason_m = self.df.loc[index_m, 'Reason']
+                dor_m = self.df.loc[index_m, self.MPD_obj.DOR]
+
+                if pd.notnull(reason_m):
+                    if reason_m != reason_up:
+                        print('++++++++++Different reason)')
+                        print('Original:', reason_m)
+                        print('New     :', reason_up)
+                        print('Updating reason')
+                        self.df.loc[index_m, 'Reason'] = reason_up
+                else:
+                    print('Storing reason:', reason_up)
+                    self.df.loc[index_m, 'Reason'] = reason_up
+
+                if pd.notnull(dor_m):
+                    if dor_m != dor_up:
+                        print('++++++++++Different dor)')
+                        print('Original:', dor_m)
+                        print('New     :', dor_up)
+                        print('Updating dor')
+                        self.df.loc[index_m, self.MPD_obj.DOR] = dor_up
+                else:
+                    print('Storing DOR:', dor_up)
+                    self.df.loc[index_m, self.MPD_obj.DOR] = dor_up
+
+
+        print(f'{n_new_vaccine_dates=}')
+
 
 
 
@@ -1689,4 +1847,14 @@ obj = Merger()
 #obj.write_the_M_file_to_excel()
 #obj.taras_request_feb_16_2023()
 #obj.write_the_M_file_to_excel()
-obj.create_raw_files_for_template()
+
+#Feb 17 2023
+#obj.create_raw_files_for_template()
+#obj.taras_request_feb_17_2023()
+#obj.LIS_obj.order_infections_and_vaccines()
+#obj.write_the_M_file_to_excel()
+
+#obj.update_LSM()
+#obj.LSM_obj.write_LSM_to_excel()
+
+#obj.generate_the_tri_sheet_file()

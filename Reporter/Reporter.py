@@ -1763,3 +1763,14 @@ class Reporter:
                     ax.text(x, y, txt, fontsize=8, color='k')
 
 
+    def draw_history(self):
+        bio_list = ['Nuc-IgG-100']
+        for index_m, row_m in self.parent.df.iterrows():
+            ID = row_m['ID']
+            s = self.parent.LSM_obj.df['ID'] == ID
+            if not s.any():
+                continue
+            df_s = self.parent.LSM_obj.df[s]
+            for index_s, row_s in df_s.iterrows():
+                for bio in bio_list:
+                    bio_value = row_s[bio]
