@@ -1795,6 +1795,7 @@ class Reporter:
                     if pd.notnull(bio_value):
                         doc = row_s['Date Collected']
                         L.append((doc, bio_value))
+                #At least two points
                 if 1 < len(L):
                     fig, ax = plt.subplots()
 
@@ -1805,6 +1806,11 @@ class Reporter:
                     flag_crossed_threhold = False
                     if df[bio].min() < threshold and threshold < df[bio].max():
                         flag_crossed_threhold = True
+                    else:
+                        #Did not cross.
+                        flag_below = False
+                        if df[bio].min() < threshold:
+                            flag_below = True
 
                     #Serology time
                     df.plot(ax=ax, x='Time', y=bio, kind='line', marker='o', color='blue')
@@ -1816,8 +1822,11 @@ class Reporter:
                         flag_had_infections = True
                         s = inf_dates.notnull()
                         inf_dates = inf_dates[s]
+                        flag_infection_within = False
                         for _ , date in inf_dates.items():
                             ax.axvline(date, color='red', linewidth=3)
+                            if df['Time'].min() <= date and date <= df['Time'].max():
+                                flag_infection_within = True
 
                     #Vaccination time
                     vac_dates = row_m[vac_date_h]
@@ -1837,19 +1846,27 @@ class Reporter:
 
                     if flag_had_infections:
                         inf_folder = 'infected'
+                        if flag_infection_within:
+                            inf_folder = os.path.join(inf_folder, 'inside')
+                        else:
+                            inf_folder = os.path.join(inf_folder, 'outside')
                     else:
                         inf_folder = 'not_infected'
 
                     if flag_crossed_threhold:
-                        c_folder = 'crossed'
+                        crossed_folder = 'crossed'
                     else:
-                        c_folder = 'not_crossed'
+                        crossed_folder = 'not_crossed'
+                        if flag_below:
+                            crossed_folder = os.path.join(crossed_folder, 'below')
+                        else:
+                            crossed_folder = os.path.join(crossed_folder, 'above')
 
                     storage_folder = os.path.join(self.requests_path,
                             main_folder,
                             bio,
                             inf_folder,
-                            c_folder)
+                            crossed_folder)
                     if not os.path.exists(storage_folder):
                         os.makedirs(storage_folder)
                     fname = os.path.join(storage_folder, fname)

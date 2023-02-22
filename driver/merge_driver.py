@@ -1861,4 +1861,7 @@ obj = Merger()
 #Feb 21 2023
 #obj.REP_obj.draw_history()
 #obj.LSM_obj.find_repeated_dates()
-obj.generate_the_tri_sheet_file()
+#obj.generate_the_tri_sheet_file()
+
+#Feb 21 2023
+obj.REP_obj.draw_history()
