@@ -9,6 +9,7 @@ import shutil
 import matplotlib as mpl
 mpl.rcParams['figure.dpi']=300
 import matplotlib.pyplot as plt
+from tqdm import tqdm as pbar
 
 
 # <b> Section: Master_Participant_Data </b>
@@ -831,6 +832,7 @@ class LTCSerologyMaster:
             self.df = self.df[labels].copy()
 
     def find_repeated_dates(self):
+        #Jessica's request Feb 21 2023
         df_s = self.df.groupby('ID')
         for ID, df_g in df_s:
             vc = df_g['Date Collected'].value_counts()
@@ -839,4 +841,105 @@ class LTCSerologyMaster:
                 print(ID)
                 print(vc)
                 print('============')
+
+    def nucleocapsid_stats(self):
+        #Feb 23 2023
+        inf_date_h = self.parent.LIS_obj.positive_date_cols
+        boundary_date  = datetime.datetime(2022,1,1)
+        nuc_G = 'Nuc-IgG-100'
+        nuc_G_t = 0.547779865867836
+        date_format = mpl.dates.DateFormatter('%b-%y')
+        main_folder = 'Andrew_feb_23_2023'
+
+        bio = nuc_G
+        bio_t = nuc_G_t
+
+        DOC = self.DOC
+
+        before_boundary = {'Nuc_pos':[], 'Nuc_neg':[]}
+        after_boundary = {'Nuc_pos':[], 'Nuc_neg':[]}
+
+        N = self.parent.df.shape[0]
+        for index_m, row_m in pbar(self.parent.df.iterrows(), total=N):
+            inf_dates = row_m[inf_date_h]
+            if inf_dates.count() == 0:
+                #No infections, carry on.
+                continue
+
+            s = inf_dates.notnull()
+            inf_dates = inf_dates[s]
+
+            ID = row_m['ID']
+            s = self.df['ID'] == ID
+            df_s = self.df[s]
+
+            n_bio_values = df_s[bio].count()
+            if n_bio_values < 2:
+                #No serology, carry on.
+                continue
+            #print(ID)
+            s = df_s[bio].notnull()
+            df_s = df_s[s].sort_values(DOC)
+            iterator = df_s.iterrows()
+
+            for (i1, r1), (i2, r2) in zip(iterator, iterator):
+
+                d1 = r1[DOC]
+                d2 = r2[DOC]
+
+                v1 = r1[bio]
+                v2 = r2[bio]
+
+                for col_name, inf_date in inf_dates.items():
+
+                    if d1 <= inf_date and inf_date <= d2:
+                        #We have an infection in between.
+                        dt = (d2 - inf_date) / np.timedelta64(1,'D')
+
+                        if v1 < bio_t and bio_t < v2:
+                            #We crossed
+                            nuc_status = 'Nuc_pos'
+                        else:
+                            nuc_status = 'Nuc_neg'
+
+                        fig, ax = plt.subplots()
+                        ax.plot([d1,d2],[v1,v2],'bo-')
+                        ax.axvline(inf_date, color='red', linewidth=3)
+                        ax.axhline(bio_t, color='grey', linewidth=3)
+                        ax.set_ylabel(bio)
+                        ax.xaxis.set_major_formatter(date_format)
+
+                        if d2 <= boundary_date:
+                            bd_status = 'before'
+                            before_boundary[nuc_status].append(ID)
+                        else:
+                            bd_status = 'after'
+                            after_boundary[nuc_status].append(ID)
+
+                        txt = '(' + bd_status + ')  '
+                        txt += ID
+                        txt += '    $\Delta t=$' + str(int(dt)) + ' days'
+                        ax.set_title(txt)
+
+                        fname = ID + '.png'
+
+                        folder = os.path.join(self.parent.requests_path,
+                                main_folder,
+                                bd_status,
+                                nuc_status)
+
+                        if not os.path.exists(folder):
+                            os.makedirs(folder)
+
+                        fname = os.path.join(folder, fname)
+                        fig.savefig(fname)
+                        plt.close('all')
+
+
+
+                        #We leave the loop since we just need one infection.
+                        break
+
+        #print('Before', boundary_date)
+
 

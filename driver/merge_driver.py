@@ -1864,4 +1864,7 @@ obj = Merger()
 #obj.generate_the_tri_sheet_file()
 
 #Feb 21 2023
-obj.REP_obj.draw_history()
+#obj.REP_obj.draw_history()
+
+#Feb 23 2023
+obj.LSM_obj.nucleocapsid_stats()
