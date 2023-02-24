@@ -1874,3 +1874,35 @@ class Reporter:
                     plt.close('all')
 
 
+    def dawns_request_feb_24_2023(self):
+        data = '''Australia Israel Norway Slovenia Hungary Austria Germany Portugal Canada
+        OECD(mean) U.S. Ireland Netherlands France Italy U.K. Spain Belgium'''
+        values = '''28 58 58 9 7 19 34 25 81 38 31 56 15 48 32 27 66 50'''
+        rexp = re.compile('[0-9a-zA-Z.)(]+')
+        countries = rexp.findall(data)
+        values = rexp.findall(values)
+        values = [int(x) for x in values]
+        df = pd.DataFrame({'Country':countries, 'Percentage':values})
+        df = df.sort_values('Percentage', ascending=False)
+        s = df['Country'].isin(['Canada', 'OECD(mean)'])
+        df1 = df[s].copy()
+        df2 = df[~s].copy()
+        df3 = pd.concat((df1, df2), join='outer')
+        print(df1)
+        print(df2)
+        print(df3)
+        fig, ax = plt.subplots()
+        colors = ['red' if k == 0 else 'blue' for k in range(len(df))]
+        sns.barplot(ax = ax,
+                x='Percentage',
+                y='Country',
+                data = df3,
+                label='LTC',
+                palette=colors)
+        ax.bar_label(ax.containers[0])
+        folder = 'Dawn_feb_24_2023'
+        fname = 'plot.png'
+        fname = os.path.join(self.requests_path, folder, fname)
+        ax.set_ylabel('')
+        fig.savefig(fname, bbox_inches='tight', pad_inches=0)
+        plt.close('all')

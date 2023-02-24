@@ -1769,6 +1769,7 @@ class Merger:
 
 
 
+
 obj = Merger()
 #Jan 25 2023
 #obj.update_LSM()
@@ -1867,4 +1868,8 @@ obj = Merger()
 #obj.REP_obj.draw_history()
 
 #Feb 23 2023
-obj.LSM_obj.nucleocapsid_stats()
+#obj.LSM_obj.nucleocapsid_stats()
+
+#Feb 24 2023
+#obj.REP_obj.dawns_request_feb_24_2023()
+obj.LSM_obj.check_vaccine_labels()

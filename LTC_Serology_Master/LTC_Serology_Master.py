@@ -28,6 +28,7 @@ class LTCSerologyMaster:
         self.non_numeric_columns = []
         self.numeric_columns     = []
         self.ancode_to_lcode     = {}
+        self.lcode_to_ancode     = {}
 
         self.load_LSM_file()
 
@@ -752,6 +753,7 @@ class LTCSerologyMaster:
             ancode = row['Alphanumeric code']
             lcode  = row['Letter code']
             self.ancode_to_lcode[ancode] = lcode
+            self.lcode_to_ancode[lcode] = ancode
 
     def check_full_id_format(self, df, col):
         #Modified to be applicable to any df and any given column.
@@ -941,5 +943,85 @@ class LTCSerologyMaster:
                         break
 
         #print('Before', boundary_date)
+
+    def check_vaccine_labels(self):
+        txt = '(?P<site>[0-9]{2})[-](?P<user>[0-9]{7})-(?P<time>[a-zA-Z0-9]+)'
+        extract_letter = re.compile(txt)
+        time_exp_to_mult_in_days = {'mo': 30, 'wk': 7}
+        txt = '(?P<tpost>[0-9]+)(?P<time_exp>[a-z]+)(?P<dose>[0-9]+)'
+        txt += '(?P<repeat>R)?'
+        extract_time_and_dose = re.compile(txt)
+        s = slice('ID','Date Collected')
+        df = self.df.loc[:,s].copy()
+
+        vac_dates_h = self.parent.LIS_obj.vaccine_date_cols
+
+        df['Vaccine #'] = np.nan
+        df['Vaccine date'] = np.nan
+        df['Time post-dose (real)'] = np.nan
+        df['Time post-dose (expected)'] = np.nan
+        df['|Delta T|'] = np.nan
+
+        for index_s, row_s in df.iterrows():
+            full_ID = row_s['Full ID']
+            ID = row_s['ID']
+            obj = extract_letter.match(full_ID)
+            if obj:
+                letter = obj.group('time')
+            else:
+                raise ValueError(full_ID)
+            ancode = self.lcode_to_ancode[letter]
+            print('===========================')
+            print(letter, '-->', ancode)
+            obj = extract_time_and_dose.search(ancode)
+            if obj:
+                tpost = obj.group('tpost')
+                tpost = int(tpost)
+                time_exp = obj.group('time_exp')
+                dose = obj.group('dose')
+                repeat = obj.group('repeat')
+                print(f'{tpost=}')
+                print(f'{time_exp=}')
+                print(f'{dose=}')
+                if repeat:
+                    print(f'{repeat=}')
+                mult_in_days = time_exp_to_mult_in_days[time_exp]
+                days_post_dose_expected = tpost * mult_in_days
+                doc = row_s[self.DOC]
+                print(f'{doc=}')
+                vac_date_h = 'Vaccine Date ' + dose
+                s = self.parent.df['ID'] == ID
+                index_m = s[s].index[0]
+                vac_date = self.parent.df.loc[index_m, vac_date_h]
+                print(f'{vac_date=}')
+                days_post_dose_real = (doc - vac_date) / np.timedelta64(1,'D')
+                #print(f'{days_post_dose_t=}')
+                #print(f'{days_post_dose_e=}')
+                delta = np.abs(days_post_dose_real - days_post_dose_expected)
+
+                df.loc[index_s,'Vaccine #'] = int(dose)
+                df.loc[index_s,'Vaccine date'] = vac_date
+                df.loc[index_s,'Time post-dose (real)'] = days_post_dose_real
+                df.loc[index_s,'Time post-dose (expected)'] = days_post_dose_expected
+                df.loc[index_s,'|Delta T|'] = delta
+
+                vac_dates = self.parent.df.loc[index_m, vac_dates_h]
+                s = vac_dates.notnull()
+                vac_dates = vac_dates[s]
+                delta_dates = doc - vac_dates
+                delta_dates = delta_dates.dt.days
+                print(delta_dates)
+                delta_dates = delta_dates[delta_dates.gt(0)]
+                print(delta_dates)
+                recommendation = delta_dates.sort_values().index[0]
+                return
+
+        print(df)
+        folder = 'Megan_feb_24_2023'
+        fname = 'serology_label_verification_feb_24_2023.xlsx'
+        fname = os.path.join(self.parent.requests_path, folder, fname)
+        df.to_excel(fname, index=False)
+
+
 
 
