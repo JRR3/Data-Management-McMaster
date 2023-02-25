@@ -18,6 +18,7 @@ class LTCSerologyMaster:
     def __init__(self, dpath, parent=None):
         self.parent       = None
         self.df           = None
+        self.serology_codes = None
         self.dpath        = dpath
         self.backups_path = os.path.join('..', 'backups')
         self.merge_source = 'Full ID'
@@ -42,10 +43,17 @@ class LTCSerologyMaster:
     def load_LSM_file(self):
         #Note that the LSM file already has compact format, i.e.,
         #the headers are simple.
+
+        #Read the Excel file containing the data
         fname = 'LSM.xlsx'
         fname = os.path.join(self.dpath, fname)
-        #Read the Excel file containing the data
         self.df = pd.read_excel(fname)
+
+        #Read the Excel file containing the 'lookup_table_S_codes'
+        fname = 'lookup_table_S_codes.xlsx'
+        fname = os.path.join(self.dpath, fname)
+        self.serology_codes = pd.read_excel(fname)
+
         self.non_numeric_columns = self.ID_columns + [self.DOC]
         for column in self.df.columns:
             if column not in self.non_numeric_columns:
@@ -953,16 +961,31 @@ class LTCSerologyMaster:
         extract_time_and_dose = re.compile(txt)
         s = slice('ID','Date Collected')
         df = self.df.loc[:,s].copy()
+        extract_number = re.compile('[0-9]+')
 
         vac_dates_h = self.parent.LIS_obj.vaccine_date_cols
 
-        df['Vaccine #'] = np.nan
-        df['Vaccine date'] = np.nan
+        df['Short code'] = np.nan
+        df['Long code'] = np.nan
+        df['Dose #'] = np.nan
+        df['Dose date'] = np.nan
         df['Time post-dose (real)'] = np.nan
         df['Time post-dose (expected)'] = np.nan
-        df['|Delta T|'] = np.nan
+        df['|Delta T| (current)'] = np.nan
+        df['Recommended dose #'] = np.nan
+        df['Recommended dose date'] = np.nan
+        df['Time post-rec. dose'] = np.nan
+        df['Recommended Short code'] = np.nan
+        df['Time post-rec. dose (expected)'] = np.nan
+        df['|Delta T| (recalculated)'] = np.nan
+        df['Improvement in days'] = np.nan
+        df['Comment'] = np.nan
+        df['Recommendation exists?'] = np.nan
+        df['Warning'] = np.nan
 
-        for index_s, row_s in df.iterrows():
+        N = df.shape[0]
+
+        for index_s, row_s in pbar(df.iterrows(), total=N):
             full_ID = row_s['Full ID']
             ID = row_s['ID']
             obj = extract_letter.match(full_ID)
@@ -970,55 +993,113 @@ class LTCSerologyMaster:
                 letter = obj.group('time')
             else:
                 raise ValueError(full_ID)
-            ancode = self.lcode_to_ancode[letter]
-            print('===========================')
-            print(letter, '-->', ancode)
-            obj = extract_time_and_dose.search(ancode)
-            if obj:
-                tpost = obj.group('tpost')
-                tpost = int(tpost)
-                time_exp = obj.group('time_exp')
-                dose = obj.group('dose')
-                repeat = obj.group('repeat')
-                print(f'{tpost=}')
-                print(f'{time_exp=}')
-                print(f'{dose=}')
-                if repeat:
-                    print(f'{repeat=}')
-                mult_in_days = time_exp_to_mult_in_days[time_exp]
-                days_post_dose_expected = tpost * mult_in_days
+
+            #Get information for this sample
+            s = self.serology_codes['Letter code'] == letter
+            index_c = s[s].index[0]
+            ancode = self.serology_codes.loc[index_c, 'Alphanumeric code']
+            dose = self.serology_codes.loc[index_c, 'Dose']
+            if pd.notnull(dose):
+                #print('===========================')
+                #print(f'{full_ID=}')
+                #print(letter, '-->', ancode)
+                dose = int(dose)
+                temp = self.serology_codes.loc[index_c, 'Post-dose days']
+                days_post_dose_expected = int(temp)
+                repeat_value = self.serology_codes.loc[index_c, 'Repeat']
+                repeat_value = int(repeat_value)
                 doc = row_s[self.DOC]
-                print(f'{doc=}')
-                vac_date_h = 'Vaccine Date ' + dose
+                vac_date_h = 'Vaccine Date ' + str(dose)
                 s = self.parent.df['ID'] == ID
                 index_m = s[s].index[0]
                 vac_date = self.parent.df.loc[index_m, vac_date_h]
-                print(f'{vac_date=}')
                 days_post_dose_real = (doc - vac_date) / np.timedelta64(1,'D')
                 #print(f'{days_post_dose_t=}')
                 #print(f'{days_post_dose_e=}')
                 delta = np.abs(days_post_dose_real - days_post_dose_expected)
 
-                df.loc[index_s,'Vaccine #'] = int(dose)
-                df.loc[index_s,'Vaccine date'] = vac_date
+                df.loc[index_s,'Short code'] = letter
+                df.loc[index_s,'Long code'] = ancode
+                df.loc[index_s,'Dose #'] = dose
+                df.loc[index_s,'Dose date'] = vac_date
                 df.loc[index_s,'Time post-dose (real)'] = days_post_dose_real
                 df.loc[index_s,'Time post-dose (expected)'] = days_post_dose_expected
-                df.loc[index_s,'|Delta T|'] = delta
+                df.loc[index_s,'|Delta T| (current)'] = delta
 
+                #Optimal candidate
                 vac_dates = self.parent.df.loc[index_m, vac_dates_h]
                 s = vac_dates.notnull()
+
+                if not s.any():
+                    df.loc[index_s,'Comment'] = 'No vaccination'
+                    df.loc[index_s,'Warning'] = True
+                    continue
+
                 vac_dates = vac_dates[s]
                 delta_dates = doc - vac_dates
                 delta_dates = delta_dates.dt.days
-                print(delta_dates)
+                #print(delta_dates)
                 delta_dates = delta_dates[delta_dates.gt(0)]
-                print(delta_dates)
-                recommendation = delta_dates.sort_values().index[0]
-                return
+                #print(delta_dates)
+                sorted_deltas = delta_dates.sort_values()
+                rec_dose = sorted_deltas.index[0]
+                calculated_diff = int(sorted_deltas.iloc[0])
+                obj = extract_number.search(rec_dose)
+                if obj:
+                    rec_dose = int(obj.group(0))
+                else:
+                    raise ValueError('Unable to extract dose number')
 
-        print(df)
+                df.loc[index_s, 'Recommended dose #']  = rec_dose
+
+                rec_vac_date_h = 'Vaccine Date ' + str(rec_dose)
+                rec_vac_date = self.parent.df.loc[index_m, rec_vac_date_h]
+                df.loc[index_s, 'Recommended dose date']  = rec_vac_date
+
+                df.loc[index_s, 'Time post-rec. dose'] = calculated_diff
+                #print(f'{rec_dose=}')
+                #print(f'{repeat_value=}')
+
+                if dose != rec_dose:
+                    df.loc[index_s,'Comment'] = 'Potentially wrong dose #'
+
+                if rec_dose < 3:
+                    df.loc[index_s,'Warning'] = True
+                    continue
+
+                s =  self.serology_codes['Dose'] == rec_dose
+                s &= self.serology_codes['Repeat'] == repeat_value
+                available_post_days = self.serology_codes.loc[s,'Post-dose days']
+                deltas = np.abs(available_post_days - calculated_diff)
+                deltas = deltas.sort_values()
+                index_opt = deltas.index[0]
+                #print(deltas)
+                #print(index_opt)
+                rec_letter = self.serology_codes.loc[index_opt, 'Letter code']
+                df.loc[index_s,'Recommended Short code'] = rec_letter
+                expected_time = self.serology_codes.loc[index_opt, 'Post-dose days']
+                expected_time = int(expected_time)
+                df.loc[index_s, 'Time post-rec. dose (expected)'] = expected_time
+                delta = np.abs(expected_time - calculated_diff)
+                df.loc[index_s,'|Delta T| (recalculated)'] = delta
+
+                a = df.loc[index_s,'|Delta T| (current)']
+                b = df.loc[index_s,'|Delta T| (recalculated)']
+                df.loc[index_s,'Improvement in days'] = a-b
+
+                if rec_letter != letter:
+                    df.loc[index_s,'Warning'] = True
+                    if dose == rec_dose:
+                        df.loc[index_s,'Comment'] = 'Potentially better letter code'
+                    new_full_ID = ID + '-' + rec_letter
+                    s = self.df['Full ID'] == new_full_ID
+                    if s.any():
+                        df.loc[index_s,'Recommendation exists?'] = True
+
+
+        #print(df)
         folder = 'Megan_feb_24_2023'
-        fname = 'serology_label_verification_feb_24_2023.xlsx'
+        fname = 'serology_label_verification_feb_25_2023.xlsx'
         fname = os.path.join(self.parent.requests_path, folder, fname)
         df.to_excel(fname, index=False)
 
