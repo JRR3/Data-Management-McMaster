@@ -602,11 +602,13 @@ class MasterParticipantData:
         #Use this function for updates using 
         #the one-column format.
         fname  = 'updates.xlsx'
-        folder = 'Tara_feb_03_2023'
+        folder = 'Tara_feb_27_2023'
         df_up = self.load_single_column_df_for_update(fname, folder)
         print(df_up)
         #Pre-update
         status_pre = self.compute_data_density(self.parent.df)
+        #Recalculate the age of all participants.
+        self.compute_age_from_dob(self.parent.df)
         #Intermediate step
         #=======================================================
         #This is reserved for special requests

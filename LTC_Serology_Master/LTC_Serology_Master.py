@@ -976,6 +976,7 @@ class LTCSerologyMaster:
         df['Recommended dose date'] = np.nan
         df['Time post-rec. dose'] = np.nan
         df['Recommended Short code'] = np.nan
+        df['Recommended Long code'] = np.nan
         df['Time post-rec. dose (expected)'] = np.nan
         df['|Delta T| (recalculated)'] = np.nan
         df['Improvement in days'] = np.nan
@@ -1076,7 +1077,9 @@ class LTCSerologyMaster:
                 #print(deltas)
                 #print(index_opt)
                 rec_letter = self.serology_codes.loc[index_opt, 'Letter code']
+                rec_ancode = self.serology_codes.loc[index_opt, 'Alphanumeric code']
                 df.loc[index_s,'Recommended Short code'] = rec_letter
+                df.loc[index_s,'Recommended Long code'] = rec_ancode
                 expected_time = self.serology_codes.loc[index_opt, 'Post-dose days']
                 expected_time = int(expected_time)
                 df.loc[index_s, 'Time post-rec. dose (expected)'] = expected_time
@@ -1099,7 +1102,7 @@ class LTCSerologyMaster:
 
         #print(df)
         folder = 'Megan_feb_24_2023'
-        fname = 'serology_label_verification_feb_25_2023.xlsx'
+        fname = 'serology_label_verification_feb_27_2023.xlsx'
         fname = os.path.join(self.parent.requests_path, folder, fname)
         df.to_excel(fname, index=False)
 

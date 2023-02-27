@@ -1906,3 +1906,101 @@ class Reporter:
         ax.set_ylabel('')
         fig.savefig(fname, bbox_inches='tight', pad_inches=0)
         plt.close('all')
+
+    def generate_poster_data_sheraton(self):
+        #Mar 23 2023
+        #Generate the dataset to replicate Ahmad's 
+        #results for the poste.
+        L = []
+        ub_date = datetime.datetime(2022,9,13)
+        lb_date = datetime.datetime(2022,7,1)
+        ub_doe = ub_date
+        lb_dor = lb_date
+        vac_dates_h = self.parent.LIS_obj.vaccine_date_cols
+        vac_types_h = self.parent.LIS_obj.vaccine_type_cols
+        inf_dates_h = self.parent.LIS_obj.positive_date_cols
+        counter = 0
+
+        self.parent.df['Event'] = np.nan
+        self.parent.df['Time to event'] = np.nan
+
+        N = self.parent.df.shape[0]
+        iterator = pbar(self.parent.df.iterrows(), total=N)
+        for index_m, row_m in iterator:
+
+            ID = row_m['ID']
+            #Exclude anyone that entered the study on/after Sept 13 2022
+            doe = row_m['Enrollment Date']
+            if pd.notnull(doe):
+                if ub_doe <= doe:
+                    continue
+            dor = row_m['Date Removed from Study']
+
+            #Exclude anyone that was discharged/dead before July 01 2022
+            if pd.notnull(dor):
+                if dor < lb_dor:
+                    continue
+
+            vac_dates = row_m[vac_dates_h]
+            vac_types = row_m[vac_types_h]
+
+            #Exclude anyone that does not have 4 doses
+            if vac_dates.count() < 4:
+                continue
+
+            vac_dates = vac_dates.iloc[:4]
+            vac_types = vac_types.iloc[:4]
+
+            #Exclude anyone that does not have 4 doses of mRNA vaccine
+            if not vac_types.isin(['Moderna','Pfizer']).all():
+                continue
+
+            vac_date_4 = vac_dates[-1]
+            #Exclude anyone that does not have 4 doses by July 01 2022
+            if lb_date < vac_date_4:
+                continue
+
+            inf_dates = row_m[inf_dates_h]
+            had_the_event = False
+            if 0 < inf_dates.count():
+                s = inf_dates.notnull()
+                inf_dates = inf_dates[s]
+                #Infection window =  Between July 1st and Sept 13 2022
+                s1 = lb_date <= inf_dates
+                s2 = inf_dates <= ub_date
+                s = s1 & s2
+                inf_dates = inf_dates[s]
+                if 0 < len(inf_dates):
+                    #We have an event.
+                    had_the_event = True
+                    inf_date = inf_dates.iloc[0]
+                    delta = inf_date - vac_date_4
+                    delta = delta.days
+                    if delta < 0:
+                        raise ValueError('Unexpected vac date #4')
+                    #Exclude anyone that developed
+                    #the outcome within 7 days of 4th vaccine dose
+                    if delta <= 7:
+                        continue
+            if not had_the_event:
+                #No infection within the given window.
+                delta = ub_date - vac_date_4
+                delta = delta.days
+                if delta < 0:
+                    raise ValueError('Unexpected vac date #4')
+
+            counter += 1
+            self.parent.df.loc[index_m, 'Event'] = had_the_event
+            self.parent.df.loc[index_m, 'Time to event'] = delta
+            L.append(index_m)
+
+        print(f'{counter=}')
+        cols = ['ID','Event', 'Time to event']
+        df = self.parent.df.loc[L,:]
+        #print(df)
+        folder= 'Sheraton_mar_23_2023'
+        fname = 'list_of_participants_for_covid_ltc_003.xlsx'
+        fname = os.path.join(self.parent.requests_path, folder, fname)
+        df.to_excel(fname, index=False)
+
+

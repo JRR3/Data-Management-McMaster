@@ -1758,6 +1758,24 @@ class Merger:
 
 
 
+    def taras_request_feb_27_2023(self):
+        #Merge Zain's file with the MPD file.
+        fname = 'zains_data.xlsx'
+        folder= 'Tara_feb_27_2023'
+        fname = os.path.join(self.requests_path, folder, fname)
+        df_z = pd.read_excel(fname)
+        if df_z.value_counts().gt(1).any():
+            raise ValueError('Repeats')
+        df_z = df_z[['ID', 'Frailty Scale']]
+        df_z['Frailty Scale'] = df_z['Frailty Scale'].str.replace('CFS','')
+        df_z['Frailty Scale'] = df_z['Frailty Scale'].str.replace(' ','')
+        df_z['Frailty Scale'] = df_z['Frailty Scale'].astype(float)
+        df_z = pd.merge(self.df, df_z, on='ID', how='outer')
+        df_z['Frailty Scale_x'] = df_z['Frailty Scale_y']
+        df_z.drop(columns='Frailty Scale_y', inplace=True)
+        df_z.rename(columns={'Frailty Scale_x':'Frailty Scale'}, inplace=True)
+        self.print_column_and_datatype(df_z)
+        self.df = df_z.copy()
 
 
 
@@ -1872,4 +1890,10 @@ obj = Merger()
 
 #Feb 24 2023
 #obj.REP_obj.dawns_request_feb_24_2023()
-obj.LSM_obj.check_vaccine_labels()
+#obj.LSM_obj.check_vaccine_labels()
+
+#Feb 27 2023
+#obj.taras_request_feb_27_2023()
+#obj.MPD_obj.single_column_update()
+#obj.write_the_M_file_to_excel()
+obj.REP_obj.generate_poster_data_sheraton()
