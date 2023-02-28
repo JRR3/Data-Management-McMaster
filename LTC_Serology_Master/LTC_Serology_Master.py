@@ -865,13 +865,26 @@ class LTCSerologyMaster:
         bio_t = nuc_G_t
 
         DOC = self.DOC
+        L = []
+        plot_data = False
 
-        before_boundary = {'Nuc_pos':[], 'Nuc_neg':[]}
-        after_boundary = {'Nuc_pos':[], 'Nuc_neg':[]}
+        #before_boundary = {'Nuc_pos':[], 'Nuc_neg':[]}
+        #after_boundary = {'Nuc_pos':[], 'Nuc_neg':[]}
+
+        #self.df['Delta t'] = np.nan
+        #self.df['Is relevant?'] = np.nan
+        #self.df['Before or after'] = np.nan
+        #self.df['Nuc status'] = np.nan
+        relevant_m = ['ID', 'Age', 'Sex', 'Frailty scale']
+        extra_1 = ['Delta t', 'After Jan 1 2022?', 'Is Nuc(+)?']
+        extra_2 = ['DOC(1)', nuc_G+'(1)', 'DOC(2)', nuc_G+'(2)', 'Inf. date']
+        labels = relevant_m + extra_1 + extra_2
 
         N = self.parent.df.shape[0]
         for index_m, row_m in pbar(self.parent.df.iterrows(), total=N):
+
             inf_dates = row_m[inf_date_h]
+
             if inf_dates.count() == 0:
                 #No infections, carry on.
                 continue
@@ -883,67 +896,103 @@ class LTCSerologyMaster:
             s = self.df['ID'] == ID
             df_s = self.df[s]
 
+            #How many samples for a given individual?
             n_bio_values = df_s[bio].count()
+
             if n_bio_values < 2:
-                #No serology, carry on.
+                #We need at least 2 samples.
                 continue
             #print(ID)
             s = df_s[bio].notnull()
             df_s = df_s[s].sort_values(DOC)
-            iterator = df_s.iterrows()
+            n_samples = df_s.shape[0]
 
-            for (i1, r1), (i2, r2) in zip(iterator, iterator):
+            #Iterate over CONSECUTIVE samples, two at a time.
+            #iterator = df_s.iterrows()
+            #for (i1, r1), (i2, r2) in zip(iterator, iterator)
+            for k in range(n_samples-1):
 
-                d1 = r1[DOC]
-                d2 = r2[DOC]
+                index_1 = df_s.index[k]
+                index_2 = df_s.index[k+1]
 
-                v1 = r1[bio]
-                v2 = r2[bio]
+                #Dates
+                d1 = df_s.loc[index_1, DOC]
+                d2 = df_s.loc[index_2, DOC]
 
+                #Values
+                v1 = df_s.loc[index_1, bio]
+                v2 = df_s.loc[index_2, bio]
+
+                if pd.isnull(v1) or pd.isnull(v2):
+                    #Go to next pair of CONSECUTIVE samples.
+                    continue
+
+                #Iterate over infection dates.
                 for col_name, inf_date in inf_dates.items():
 
                     if d1 <= inf_date and inf_date <= d2:
                         #We have an infection in between.
+                        #Time between the infection and the
+                        #second collection point.
                         dt = (d2 - inf_date) / np.timedelta64(1,'D')
+                        #self.df.loc[index_m, 'Is relevant?'] = True
+                        #self.df.loc[index_m, 'Delta t'] = dt
 
-                        if v1 < bio_t and bio_t < v2:
+                        if v1 < v2 and bio_t < v2:
                             #We crossed
-                            nuc_status = 'Nuc_pos'
+                            nuc_status = 1
+                            #self.df.loc[index_m, 'Nuc status'] = 'Positive'
                         else:
-                            nuc_status = 'Nuc_neg'
+                            nuc_status = 0
+                            #self.df.loc[index_m, 'Nuc status'] = 'Negative'
 
-                        fig, ax = plt.subplots()
-                        ax.plot([d1,d2],[v1,v2],'bo-')
-                        ax.axvline(inf_date, color='red', linewidth=3)
-                        ax.axhline(bio_t, color='grey', linewidth=3)
-                        ax.set_ylabel(bio)
-                        ax.xaxis.set_major_formatter(date_format)
+                        if plot_data:
+                            fig, ax = plt.subplots()
+                            ax.plot([d1,d2],[v1,v2],'bo-')
+                            ax.axvline(inf_date, color='red', linewidth=3)
+                            ax.axhline(bio_t, color='grey', linewidth=3)
+                            ax.set_ylabel(bio)
+                            ax.xaxis.set_major_formatter(date_format)
 
                         if d2 <= boundary_date:
-                            bd_status = 'before'
-                            before_boundary[nuc_status].append(ID)
+                            #bd_status = 'before'
+                            bd_status = 0
+                            #before_boundary[nuc_status].append(ID)
                         else:
-                            bd_status = 'after'
-                            after_boundary[nuc_status].append(ID)
+                            #bd_status = 'after'
+                            bd_status = 1
+                            #after_boundary[nuc_status].append(ID)
 
-                        txt = '(' + bd_status + ')  '
-                        txt += ID
-                        txt += '    $\Delta t=$' + str(int(dt)) + ' days'
-                        ax.set_title(txt)
+                        #['Delta t', 'Before or after', 'Nuc status']
+                        info = row_m[relevant_m].values.tolist()
 
-                        fname = ID + '.png'
+                        extra = [dt, bd_status, nuc_status]
+                        info += extra
 
-                        folder = os.path.join(self.parent.requests_path,
-                                main_folder,
-                                bd_status,
-                                nuc_status)
+                        extra = [d1, v1, d2, v2, inf_date]
+                        info += extra
 
-                        if not os.path.exists(folder):
-                            os.makedirs(folder)
+                        L.append(info)
 
-                        fname = os.path.join(folder, fname)
-                        fig.savefig(fname)
-                        plt.close('all')
+                        if plot_data:
+                            txt = '(' + bd_status + ')  '
+                            txt += ID
+                            txt += '    $\Delta t=$' + str(int(dt)) + ' days'
+                            ax.set_title(txt)
+
+                            fname = ID + '.png'
+
+                            folder = os.path.join(self.parent.requests_path,
+                                    main_folder,
+                                    bd_status,
+                                    nuc_status)
+
+                            if not os.path.exists(folder):
+                                os.makedirs(folder)
+
+                            fname = os.path.join(folder, fname)
+                            fig.savefig(fname)
+                            plt.close('all')
 
 
 
@@ -951,6 +1000,12 @@ class LTCSerologyMaster:
                         break
 
         #print('Before', boundary_date)
+        df = pd.DataFrame(L, columns = labels)
+        fname = 'nuc_dataset_feb_28_2023.xlsx'
+        fname = os.path.join(self.parent.requests_path,
+                main_folder,
+                fname)
+        df.to_excel(fname)
 
     def check_vaccine_labels(self):
         txt = '(?P<site>[0-9]{2})[-](?P<user>[0-9]{7})-(?P<time>[a-zA-Z0-9]+)'

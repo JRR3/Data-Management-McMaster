@@ -1896,4 +1896,7 @@ obj = Merger()
 #obj.taras_request_feb_27_2023()
 #obj.MPD_obj.single_column_update()
 #obj.write_the_M_file_to_excel()
-obj.REP_obj.generate_poster_data_sheraton()
+#obj.REP_obj.generate_poster_data_sheraton()
+
+#Feb 28 2023
+obj.LSM_obj.nucleocapsid_stats()
