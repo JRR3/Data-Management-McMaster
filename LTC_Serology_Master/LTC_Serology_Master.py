@@ -9,6 +9,7 @@ import shutil
 import matplotlib as mpl
 mpl.rcParams['figure.dpi']=300
 import matplotlib.pyplot as plt
+import seaborn as sns
 from tqdm import tqdm as pbar
 
 
@@ -876,7 +877,7 @@ class LTCSerologyMaster:
         #self.df['Before or after'] = np.nan
         #self.df['Nuc status'] = np.nan
         relevant_m = ['ID', 'Age', 'Sex', 'Frailty scale']
-        extra_1 = ['Delta t', 'After Jan 1 2022?', 'Is Nuc(+)?']
+        extra_1 = ['Delta t', 'After Jan 1 2022?', 'Nuc status']
         extra_2 = ['DOC(1)', nuc_G+'(1)', 'DOC(2)', nuc_G+'(2)', 'Inf. date']
         labels = relevant_m + extra_1 + extra_2
 
@@ -941,9 +942,11 @@ class LTCSerologyMaster:
                         if v1 < v2 and bio_t < v2:
                             #We crossed
                             nuc_status = 1
+                            nuc_str = 'Positive'
                             #self.df.loc[index_m, 'Nuc status'] = 'Positive'
                         else:
                             nuc_status = 0
+                            nuc_str = 'Negative'
                             #self.df.loc[index_m, 'Nuc status'] = 'Negative'
 
                         if plot_data:
@@ -962,11 +965,13 @@ class LTCSerologyMaster:
                             #bd_status = 'after'
                             bd_status = 1
                             #after_boundary[nuc_status].append(ID)
+                        bd_str = 'After Jan-01-22' if bd_status else 'Before Jan-01-22'
 
                         #['Delta t', 'Before or after', 'Nuc status']
                         info = row_m[relevant_m].values.tolist()
 
-                        extra = [dt, bd_status, nuc_status]
+                        #extra = [dt, bd_status, nuc_status]
+                        extra = [dt, bd_str, nuc_str]
                         info += extra
 
                         extra = [d1, v1, d2, v2, inf_date]
@@ -975,17 +980,18 @@ class LTCSerologyMaster:
                         L.append(info)
 
                         if plot_data:
-                            txt = '(' + bd_status + ')  '
+                            txt = '(' + bd_str + ')  '
                             txt += ID
                             txt += '    $\Delta t=$' + str(int(dt)) + ' days'
                             ax.set_title(txt)
 
                             fname = ID + '.png'
 
+                            nuc_str = 'Nuc Pos' if nuc_status else 'Nuc Neg'
                             folder = os.path.join(self.parent.requests_path,
                                     main_folder,
-                                    bd_status,
-                                    nuc_status)
+                                    bd_str,
+                                    nuc_str)
 
                             if not os.path.exists(folder):
                                 os.makedirs(folder)
@@ -1001,7 +1007,51 @@ class LTCSerologyMaster:
 
         #print('Before', boundary_date)
         df = pd.DataFrame(L, columns = labels)
-        fname = 'nuc_dataset_feb_28_2023.xlsx'
+        #df['Sex'] = df['Sex'] == 'Female'
+        #df['Sex'] = df['Sex'].astype(float)
+        #df.rename(columns={'Sex':'Is female?'}, inplace=True)
+        bd_status = 'After Jan 1 2022?'
+        df = df.groupby(bd_status)
+        df = df.get_group('After Jan-01-22')
+        df.drop(columns=bd_status, inplace=True)
+        #['Delta t', 'After Jan 1 2022?', 'Is Nuc(+)?']
+        #self.parent.print_column_and_datatype(df)
+        nuc_status = 'Nuc status'
+        L = ['Age', 'Sex']
+        use_bar = {'Age':False, 'Sex':True}
+        for var in L:
+            fig, ax = plt.subplots()
+            if use_bar[var]:
+                p = 'Proportion'
+                s = df[nuc_status].groupby(df['Sex']).value_counts(normalize=True)
+                print(s)
+                s = s.rename(p)
+                print(s)
+                s = s.reset_index()
+                print(s)
+                #sns.histplot(x=nuc_status, hue=var, stat='percent', data=df, ax = ax)
+                #sns.histplot(x=nuc_status, hue=var, stat='count', discrete=True, data=df, ax = ax)
+                #ax.bar_label(ax.containers[0])
+                sns.barplot(ax = ax,
+                        x=nuc_status, y=p,
+                        data=s,
+                        hue = var)
+            else:
+                sns.violinplot(x=nuc_status, y=var, data=df, ax = ax, cut=0)
+            summary_folder = 'summary'
+            fname = var.replace('?','')
+            fname += '.png'
+            fname = os.path.join(self.parent.requests_path,
+                    main_folder,
+                    summary_folder,
+                    fname)
+            fig.savefig(fname)
+            plt.close('all')
+        return
+
+        df = df.groupby(nuc_status)
+        df = df.describe()
+        fname = 'nuc_dataset_mar_01_2023.xlsx'
         fname = os.path.join(self.parent.requests_path,
                 main_folder,
                 fname)
