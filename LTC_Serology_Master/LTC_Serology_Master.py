@@ -860,7 +860,7 @@ class LTCSerologyMaster:
         nuc_G = 'Nuc-IgG-100'
         nuc_G_t = 0.547779865867836
         date_format = mpl.dates.DateFormatter('%b-%y')
-        main_folder = 'Andrew_feb_23_2023'
+        main_folder = 'Andrew_mar_02_2023'
 
         bio = nuc_G
         bio_t = nuc_G_t
@@ -1017,25 +1017,22 @@ class LTCSerologyMaster:
         #['Delta t', 'After Jan 1 2022?', 'Is Nuc(+)?']
         #self.parent.print_column_and_datatype(df)
         nuc_status = 'Nuc status'
-        L = ['Age', 'Sex']
-        use_bar = {'Age':False, 'Sex':True}
+        L = ['Age', 'Sex', 'Delta t', 'Frailty scale']
+        use_bar = {'Age':False, 'Sex':True,
+                   'Delta t':False, 'Frailty scale':False}
         for var in L:
             fig, ax = plt.subplots()
             if use_bar[var]:
-                p = 'Proportion'
-                s = df[nuc_status].groupby(df['Sex']).value_counts(normalize=True)
-                print(s)
-                s = s.rename(p)
-                print(s)
+                prop = 'Proportion'
+                s = df[var].groupby(df[nuc_status]).value_counts(normalize=True)
+                s = s.rename(prop)
                 s = s.reset_index()
-                print(s)
-                #sns.histplot(x=nuc_status, hue=var, stat='percent', data=df, ax = ax)
-                #sns.histplot(x=nuc_status, hue=var, stat='count', discrete=True, data=df, ax = ax)
-                #ax.bar_label(ax.containers[0])
                 sns.barplot(ax = ax,
-                        x=nuc_status, y=p,
+                        x=nuc_status, y=prop,
                         data=s,
                         hue = var)
+                for container in ax.containers:
+                        ax.bar_label(container)
             else:
                 sns.violinplot(x=nuc_status, y=var, data=df, ax = ax, cut=0)
             summary_folder = 'summary'
@@ -1047,11 +1044,10 @@ class LTCSerologyMaster:
                     fname)
             fig.savefig(fname)
             plt.close('all')
-        return
 
         df = df.groupby(nuc_status)
-        df = df.describe()
-        fname = 'nuc_dataset_mar_01_2023.xlsx'
+        df = df.describe(include='all')
+        fname = 'nuc_dataset_all.xlsx'
         fname = os.path.join(self.parent.requests_path,
                 main_folder,
                 fname)
