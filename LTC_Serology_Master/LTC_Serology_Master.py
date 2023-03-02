@@ -11,6 +11,9 @@ mpl.rcParams['figure.dpi']=300
 import matplotlib.pyplot as plt
 import seaborn as sns
 from tqdm import tqdm as pbar
+import statsmodels.formula.api as smf
+from sklearn.linear_model import LogisticRegression as sk_LR
+from sklearn.metrics import classification_report as sk_report
 
 
 # <b> Section: Master_Participant_Data </b>
@@ -853,21 +856,26 @@ class LTCSerologyMaster:
                 print(vc)
                 print('============')
 
-    def nucleocapsid_stats(self):
+    def generate_nucleocapsid_dataframe_and_plots(self):
         #Feb 23 2023
+        #Mar 02 2023
         inf_date_h = self.parent.LIS_obj.positive_date_cols
         boundary_date  = datetime.datetime(2022,1,1)
         nuc_G = 'Nuc-IgG-100'
         nuc_G_t = 0.547779865867836
         date_format = mpl.dates.DateFormatter('%b-%y')
-        main_folder = 'Andrew_mar_02_2023'
+        main_folder = 'Andrew_feb_23_2023'
+        #main_folder = 'Andrew_mar_02_2023'
 
         bio = nuc_G
         bio_t = nuc_G_t
 
         DOC = self.DOC
         L = []
-        plot_data = False
+        visited = {}
+
+        plot_data = True
+        plot_summary = True
 
         #before_boundary = {'Nuc_pos':[], 'Nuc_neg':[]}
         #after_boundary = {'Nuc_pos':[], 'Nuc_neg':[]}
@@ -877,8 +885,10 @@ class LTCSerologyMaster:
         #self.df['Before or after'] = np.nan
         #self.df['Nuc status'] = np.nan
         relevant_m = ['ID', 'Age', 'Sex', 'Frailty scale']
-        extra_1 = ['Delta t', 'After Jan 1 2022?', 'Nuc status']
-        extra_2 = ['DOC(1)', nuc_G+'(1)', 'DOC(2)', nuc_G+'(2)', 'Inf. date']
+        extra_1 = ['Delta t', 'Before/After', 'Nuc status']
+        extra_2 = ['DOC(1)', nuc_G+'(1)',
+                'DOC(2)', nuc_G+'(2)',
+                'Inf. date', 'ID Repeats']
         labels = relevant_m + extra_1 + extra_2
 
         N = self.parent.df.shape[0]
@@ -964,6 +974,11 @@ class LTCSerologyMaster:
                         else:
                             #bd_status = 'after'
                             bd_status = 1
+
+                            #Set visited status
+                            old_value = visited.get(ID,0)
+                            v_status = old_value + 1
+                            visited[ID] = v_status
                             #after_boundary[nuc_status].append(ID)
                         bd_str = 'After Jan-01-22' if bd_status else 'Before Jan-01-22'
 
@@ -974,18 +989,19 @@ class LTCSerologyMaster:
                         extra = [dt, bd_str, nuc_str]
                         info += extra
 
-                        extra = [d1, v1, d2, v2, inf_date]
+                        extra = [d1, v1, d2, v2, inf_date, v_status]
                         info += extra
 
                         L.append(info)
 
                         if plot_data:
                             txt = '(' + bd_str + ')  '
-                            txt += ID
+                            v_str = str(v_status)
+                            txt += ID + '_' + v_str
                             txt += '    $\Delta t=$' + str(int(dt)) + ' days'
                             ax.set_title(txt)
 
-                            fname = ID + '.png'
+                            fname = ID + '_' + v_str + '.png'
 
                             nuc_str = 'Nuc Pos' if nuc_status else 'Nuc Neg'
                             folder = os.path.join(self.parent.requests_path,
@@ -1010,14 +1026,18 @@ class LTCSerologyMaster:
         #df['Sex'] = df['Sex'] == 'Female'
         #df['Sex'] = df['Sex'].astype(float)
         #df.rename(columns={'Sex':'Is female?'}, inplace=True)
-        bd_status = 'After Jan 1 2022?'
+        bd_status = 'Before/After'
         df = df.groupby(bd_status)
         df = df.get_group('After Jan-01-22')
         df.drop(columns=bd_status, inplace=True)
         #['Delta t', 'After Jan 1 2022?', 'Is Nuc(+)?']
         #self.parent.print_column_and_datatype(df)
         nuc_status = 'Nuc status'
-        L = ['Age', 'Sex', 'Delta t', 'Frailty scale']
+
+        if plot_summary:
+            L = ['Age', 'Sex', 'Delta t', 'Frailty scale']
+        else:
+            L = []
         use_bar = {'Age':False, 'Sex':True,
                    'Delta t':False, 'Frailty scale':False}
         for var in L:
@@ -1045,13 +1065,18 @@ class LTCSerologyMaster:
             fig.savefig(fname)
             plt.close('all')
 
-        df = df.groupby(nuc_status)
-        df = df.describe(include='all')
-        fname = 'nuc_dataset_all.xlsx'
+        df[nuc_status] = df[nuc_status].apply(lambda x: 1 if x=='Positive' else 0)
+
+        s = df['ID'].value_counts()
+        print(s[s.gt(1)])
+
+        #df = df.groupby(nuc_status)
+        #df = df.describe()
+        fname = 'nuc_dataset_mar_02_2023.xlsx'
         fname = os.path.join(self.parent.requests_path,
                 main_folder,
                 fname)
-        df.to_excel(fname)
+        df.to_excel(fname, index=False)
 
     def check_vaccine_labels(self):
         txt = '(?P<site>[0-9]{2})[-](?P<user>[0-9]{7})-(?P<time>[a-zA-Z0-9]+)'
@@ -1208,5 +1233,56 @@ class LTCSerologyMaster:
         df.to_excel(fname, index=False)
 
 
+    def nucleocapsid_stats(self):
+        folder = 'Andrew_feb_23_2023'
+        fname = 'nuc_dataset_mar_02_2023.xlsx'
+        fname = os.path.join(self.parent.requests_path, folder, fname)
+        df = pd.read_excel(fname)
+        df.dropna(inplace=True)
+
+        mean_frailty = df['Frailty'].mean()
+        mean_age = df['Age'].mean()
+        print(f'{mean_frailty=}')
+        print(f'{mean_age=}')
+        df['Frailty'] = df['Frailty'] - mean_frailty
+        df['Age'] = df['Age'] - mean_age
+        #print(df)
+        #self.parent.print_column_and_datatype(df)
+
+        Sex = "C(Sex, Treatment(reference='Male'))"
+        Sex = "Sex"
+        txt = "Nuc_status ~ Age +" + Sex + "+ Delta_t"
+        txt = "Nuc_status ~ Age +" + Sex + "+ Delta_t + Frailty"
+
+        lm1 = smf.logit(txt, data=df).fit()
+        print(lm1.summary())
+        sex = pd.get_dummies(df['Sex'], drop_first=True)
+        df = pd.concat([df, sex], axis=1)
+        X = df[['Age', 'Male', 'Delta_t', 'Frailty']].copy()
+        Y = df['Nuc_status']
+        lm2 = sk_LR()
+        lm2.fit(X,Y)
+        predictions = lm2.predict(X)
+        print(predictions)
+        print(Y)
+        c_report = sk_report(Y,predictions)
+        print(c_report)
+        print(lm2.coef_.flatten())
+        coeff = lm2.coef_.flatten()
+        coeff = np.exp(coeff)-1
+        fig,ax = plt.subplots()
+        ax.bar(X.columns,coeff,color='b')
+        ax.set_ylabel('Odds ratios - 1')
+        for k,c in enumerate(coeff):
+            v = c
+            if c < 0:
+                v = 0
+            ax.text(k, v, '{:.2f}'.format(c),
+                    ha='center', fontsize=16)
+
+        fname = 'coeff.png'
+        fname = os.path.join(self.parent.requests_path,
+                folder, 'summary', fname)
+        fig.savefig(fname)
 
 
