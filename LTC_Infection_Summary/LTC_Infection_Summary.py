@@ -994,3 +994,34 @@ class LTCInfectionSummary:
             folder = 'one_column_files'
             fname = os.path.join(self.parent.requests_path, folder, fname)
             df.to_excel(fname, index = False)
+
+    def generate_list_of_missing_vaccine_types(self):
+        #Iterate over the DF
+        vtc = self.vaccine_type_cols
+        vdc = self.vaccine_date_cols
+        L = []
+        for index_m, row_m in self.parent.df.iterrows():
+            ID = row_m['ID']
+            v_dates = row_m[vdc]
+            if v_dates.count() == 0:
+                continue
+            s = v_dates.notnull()
+            v_dates = v_dates[s]
+            for index_v, date_v in v_dates.items():
+                v_type_h = index_v.replace('Date', 'Type')
+                v_type = row_m[v_type_h]
+                if pd.notnull(v_type):
+                    pass
+                else:
+                    date = date_v.strftime('%d-%b-%y')
+                    p = (ID, index_v, date)
+                    print(p)
+                    L.append(p)
+                #print(index_v, v_type_h)
+            print('==================')
+        df = pd.DataFrame(L, columns=['ID','Missing Type for', 'Date'])
+        folder = 'Ahmad_mar_03_2023'
+        fname = 'missing_vaccine_type.xlsx'
+        fname = os.path.join(self.parent.requests_path, folder, fname)
+        df.to_excel(fname, index=False)
+

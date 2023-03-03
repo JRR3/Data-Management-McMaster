@@ -318,7 +318,7 @@ class Merger:
         else:
             #None
             fname = 'updates.xlsx'
-        folder = 'Jessica_feb_17_2023'
+        folder = 'Jessica_mar_03_2023'
         fname = os.path.join('..','requests',folder, fname)
         book = pd.read_excel(fname, sheet_name=None)
         print(f'LSM is looking into the {folder=}')
@@ -458,7 +458,7 @@ class Merger:
         #Infection_column file into one Excel workbook.
         #Feb 03 2023
         fname  = 'tri_merge.xlsx'
-        folder = 'Jessica_feb_21_2023'
+        folder = 'Jessica_mar_03_2023'
         fname = os.path.join('..','requests',folder, fname)
         master_avec_serology = pd.merge(self.LSM_obj.df,
                 self.df, on='ID', how='outer')
@@ -1900,4 +1900,16 @@ obj = Merger()
 
 #Feb 28 2023
 #Mar 02 2023
-obj.LSM_obj.nucleocapsid_stats()
+#obj.LSM_obj.nucleocapsid_stats()
+
+#Mar 03 2023
+#obj.MPD_obj.single_column_update()
+#obj.write_the_M_file_to_excel()
+#obj.SID_obj.find_repeated_dates_in_megans_file()
+#obj.SID_obj.find_repeated_dates_in_the_M_file()
+#obj.LIS_obj.generate_list_of_missing_vaccine_types()
+#obj.update_LSM()
+#obj.LSM_obj.write_LSM_to_excel()
+#obj.LSM_obj.find_repeated_dates()
+#obj.SID_obj.find_repeated_dates_in_the_M_file()
+obj.generate_the_tri_sheet_file()

@@ -110,11 +110,6 @@ class SampleInventoryData:
 
 
 
-    def print_col_names_and_types(self):
-        for name, dtype in zip(self.df.columns, self.df.dtypes):
-            print(name, ':', dtype)
-
-
     def generate_excel_file(self):
         fname = 'Sample_Inventory_Data_X.xlsx'
         fname = os.path.join(self.dpath, fname)
@@ -351,4 +346,65 @@ class SampleInventoryData:
 
         self.parent.MPD_obj.monotonic_increment_check(status_pre, status_post)
 
+    def find_repeated_dates_in_the_M_file(self):
+        blood_slice = slice('Blood Draw:NoVac1 - NV1', 'Blood Draw:Repeat - JR')
+        for index, row in self.parent.df.iterrows():
+            ID = row['ID']
+            dates = row[blood_slice]
+            if dates.count() == 0:
+                continue
+            vc = dates.value_counts()
+            s  = vc.gt(1)
+            if s.any():
+                vc = vc[s]
+                print(ID)
+                print(vc)
+                print('===========')
+
+    def find_repeated_dates_in_megans_file(self):
+        folder = 'Megan_mar_03_2023'
+        fname = 'sid_clean.xlsx'
+        fname = os.path.join(self.parent.requests_path, folder, fname)
+        if os.path.exists(fname):
+            df_up = pd.read_excel(fname)
+            for col in df_up.columns:
+                if col == 'ID':
+                    continue
+                df_up[col] = pd.to_datetime(df_up[col],
+                        dayfirst=True, infer_datetime_format=True)
+        else:
+            fname = 'sid.xlsx'
+            fname = os.path.join(self.parent.requests_path, folder, fname)
+            df_up = pd.read_excel(fname,
+                    skiprows=[0,1,2],
+                    usecols='A,W:BF',
+                    sheet_name='All Sites - AutoFill')
+            self.format_megans_update(df_up)
+            fname = 'sid_clean.xlsx'
+            fname = os.path.join(self.parent.requests_path, folder, fname)
+            df_up.to_excel(fname, index=False)
+            return
+
+        #print(df_up)
+        #self.parent.print_column_and_datatype(df_up)
+        L = []
+        for index_up, row_up in df_up.iterrows():
+            ID = row_up['ID']
+            dates = row_up.iloc[1:]
+            if dates.count() == 0:
+                continue
+            vc = dates.value_counts()
+            s  = vc.gt(1)
+            if s.any():
+                vc = vc[s]
+                #print(vc)
+                #print(ID)
+                date = vc.index[0]
+                date_str = date.strftime('%d-%b-%y')
+                L.append((ID,date_str))
+                print('==============')
+        df = pd.DataFrame(L, columns=['ID','Date'])
+        fname = 'repeated_dates.xlsx'
+        fname = os.path.join(self.parent.requests_path, folder, fname)
+        df.to_excel(fname, index=False)
 

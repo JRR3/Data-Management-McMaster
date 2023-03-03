@@ -847,14 +847,20 @@ class LTCSerologyMaster:
 
     def find_repeated_dates(self):
         #Jessica's request Feb 21 2023
+        #This functions identifies two samples with the same collection date.
+        print('Are there samples with the same collection date?')
         df_s = self.df.groupby('ID')
+        flag_warning = False
         for ID, df_g in df_s:
             vc = df_g['Date Collected'].value_counts()
             if vc.gt(1).any():
+                flag_warning = True
                 vc = vc[vc.gt(1)]
                 print(ID)
                 print(vc)
                 print('============')
+        if not flag_warning:
+            print('We are SAFE.')
 
     def generate_nucleocapsid_dataframe_and_plots(self):
         #Feb 23 2023
