@@ -1912,4 +1912,8 @@ obj = Merger()
 #obj.LSM_obj.write_LSM_to_excel()
 #obj.LSM_obj.find_repeated_dates()
 #obj.SID_obj.find_repeated_dates_in_the_M_file()
-obj.generate_the_tri_sheet_file()
+#obj.generate_the_tri_sheet_file()
+
+#Mar 06 2023
+obj.REP_obj.generate_poster_data_sheraton()
+obj.REP_obj.survival_analysis_sheraton()

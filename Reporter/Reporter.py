@@ -1912,17 +1912,31 @@ class Reporter:
         #Generate the dataset to replicate Ahmad's 
         #results for the poste.
         L = []
+
+        #The end of the study (EOS) date
         ub_date = datetime.datetime(2022,9,13)
+
+        #The starting date for Omicron BA.5
         lb_date = datetime.datetime(2022,7,1)
+
         ub_doe = ub_date
         lb_dor = lb_date
         vac_dates_h = self.parent.LIS_obj.vaccine_date_cols
         vac_types_h = self.parent.LIS_obj.vaccine_type_cols
         inf_dates_h = self.parent.LIS_obj.positive_date_cols
+        inf_waves_h = self.parent.LIS_obj.wave_of_inf_cols
         counter = 0
 
-        self.parent.df['Event'] = np.nan
-        self.parent.df['Time to event'] = np.nan
+        EVT = 'Event'
+        self.parent.df[EVT] = np.nan
+        TTE = 'TimeToEvent'
+        self.parent.df[TTE] = np.nan
+        EOS = 'Removed before the end'
+        self.parent.df[EOS] = False
+        ILV = 'InfectionLevel'
+        self.parent.df[ILV] = np.nan
+        VLV = 'VaccineLevel'
+        self.parent.df[VLV] = np.nan
 
         N = self.parent.df.shape[0]
         iterator = pbar(self.parent.df.iterrows(), total=N)
@@ -1955,6 +1969,19 @@ class Reporter:
             if not vac_types.isin(['Moderna','Pfizer']).all():
                 continue
 
+            if vac_types.isin(['Pfizer']).all():
+                #All Pfizer?
+                #self.parent.df.loc[index_m, VLV] = 'A'
+                self.parent.df.loc[index_m, VLV] = 'PfizerAll'
+            elif vac_types.isin(['Moderna']).all():
+                #All Moderna?
+                #self.parent.df.loc[index_m, VLV] = 'B'
+                self.parent.df.loc[index_m, VLV] = 'ModernaAll'
+            else:
+                #Combination
+                #self.parent.df.loc[index_m, VLV] = 'C'
+                self.parent.df.loc[index_m, VLV] = 'Mixed'
+
             vac_date_4 = vac_dates[-1]
             #Exclude anyone that does not have 4 doses by July 01 2022
             if lb_date < vac_date_4:
@@ -1962,9 +1989,15 @@ class Reporter:
 
             inf_dates = row_m[inf_dates_h]
             had_the_event = False
-            if 0 < inf_dates.count():
-                s = inf_dates.notnull()
-                inf_dates = inf_dates[s]
+
+            if 0 == inf_dates.count():
+                #Never infected ==> Infection level A
+                #self.parent.df.loc[index_m, ILV] = 'A'
+                self.parent.df.loc[index_m, ILV] = 'NoInfections'
+            else:
+                #s = inf_dates.notnull()
+                #inf_dates = inf_dates[s]
+
                 #Infection window =  Between July 1st and Sept 13 2022
                 s1 = lb_date <= inf_dates
                 s2 = inf_dates <= ub_date
@@ -1982,25 +2015,99 @@ class Reporter:
                     #the outcome within 7 days of 4th vaccine dose
                     if delta <= 7:
                         continue
+
+                #We are going to define the ILEV (infection level)
+                omicron_start_date = datetime.datetime(2021,12,15)
+                omicron_end_date   = datetime.datetime(2022,7,1)
+                inf_dates = row_m[inf_dates_h]
+
+                #Do we have infections before the Omicron BA.5 period?
+                s = inf_dates < lb_date
+                n_inf_before_O5 = s.sum()
+
+                if n_inf_before_O5 == 0:
+                    #Never infected ==> Infection level A
+                    #self.parent.df.loc[index_m, ILV] = 'A'
+                    self.parent.df.loc[index_m, ILV] = 'NoInfections'
+                else:
+                    pre_omicron_inf   = inf_dates < omicron_start_date
+                    n_pre_omicron_inf = pre_omicron_inf.sum()
+
+                    s1 = omicron_start_date <= inf_dates
+                    s2 = inf_dates < omicron_end_date
+                    omicron_inf = s1 & s2
+                    n_omicron_inf = omicron_inf.sum()
+
+                    if 1 < n_pre_omicron_inf + n_omicron_inf:
+                        #Multiple infections ==> Infection level D
+                        #self.parent.df.loc[index_m, ILV] = 'D'
+                        self.parent.df.loc[index_m, ILV] = 'Multiple'
+                    elif n_pre_omicron_inf == 1:
+                        #Exactly One pre-omicron ==> Infection level B
+                        self.parent.df.loc[index_m, ILV] = 'OnePreOmicron'
+                    else: 
+                        #Exactly One omicron ==> Infection level C
+                        self.parent.df.loc[index_m, ILV] = 'OneOmicron'
+                        if n_omicron_inf != 1:
+                            raise ValueError('Unexpected value for Omicron')
+
             if not had_the_event:
                 #No infection within the given window.
                 delta = ub_date - vac_date_4
                 delta = delta.days
                 if delta < 0:
                     raise ValueError('Unexpected vac date #4')
+                if pd.notnull(dor):
+                    if dor < ub_date:
+                        #Removed before the end of the study
+                        delta = dor - vac_date_4
+                        delta = delta.days
+                        self.parent.df.loc[index_m, EOS] = True
+
+            #Vaccination type information
+            vac_types = row_m[vac_types_h]
 
             counter += 1
-            self.parent.df.loc[index_m, 'Event'] = had_the_event
-            self.parent.df.loc[index_m, 'Time to event'] = delta
+            self.parent.df.loc[index_m, EVT] = had_the_event
+            self.parent.df.loc[index_m, TTE] = delta
             L.append(index_m)
 
         print(f'{counter=}')
-        cols = ['ID','Event', 'Time to event']
-        df = self.parent.df.loc[L,:]
+        cols = ['ID','Age', 'Sex', EVT, TTE, EOS, ILV, VLV]
+        df = self.parent.df.loc[L,cols].copy()
+        print(len(df))
+        df.dropna(inplace=True)
+        print(len(df))
+
+        intervals = [0, 130, 150, 160, 260]
+        labels = ['130', '150', '160', '260']
+        bins = pd.cut(df[TTE], intervals, labels=labels)
+        df['TimeLevel'] = bins
+
         #print(df)
         folder= 'Sheraton_mar_23_2023'
         fname = 'list_of_participants_for_covid_ltc_003.xlsx'
         fname = os.path.join(self.parent.requests_path, folder, fname)
         df.to_excel(fname, index=False)
 
+    def survival_analysis_sheraton(self):
+        #Mar 23 2023
+        folder= 'Sheraton_mar_23_2023'
+        fname = 'list_of_participants_for_covid_ltc_003.xlsx'
+        fname = os.path.join(self.parent.requests_path, folder, fname)
+        df = pd.read_excel(fname)
+        EVT = 'Event'
+        TTE = 'TimeToEvent'
+        EOS = 'Removed before the end'
+        ILV = 'InfectionLevel'
+        VLV = 'VaccineLevel'
+        TLV = 'TimeLevel'
+        SEX = 'Sex'
+        cols = [EVT, SEX, ILV, VLV, TLV]
+        X = pd.get_dummies(df[cols])
+
+        fname = 'design_matrix.xlsx'
+        fname = os.path.join(self.parent.requests_path, folder, fname)
+        X.to_excel(fname)
+        #cols = ['ID','Age', EVT, TTE, EOS, ILV, VLV]
 
