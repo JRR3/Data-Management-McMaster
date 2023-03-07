@@ -6,15 +6,16 @@ import pandas as pd
 #import plotly.express as pxp
 import os
 import re
-import PIL
+#import PIL
 from tqdm import tqdm as pbar
-import networkx as nx
+#import networkx as nx
 import matplotlib as mpl
 mpl.rcParams['figure.dpi'] = 300
 #mpl.rcParams['font.family'] = 'monospace'
 import matplotlib.pyplot as plt
 import datetime
 import seaborn as sns
+from lifelines import CoxPHFitter
 # <b> Section: Reporter </b>
 # This class takes care of all the visualization
 # tasks related to the M file.
@@ -1931,12 +1932,13 @@ class Reporter:
         self.parent.df[EVT] = np.nan
         TTE = 'TimeToEvent'
         self.parent.df[TTE] = np.nan
-        EOS = 'Removed before the end'
+        EOS = 'RemovedBeforeStudyFinished'
         self.parent.df[EOS] = False
         ILV = 'InfectionLevel'
         self.parent.df[ILV] = np.nan
         VLV = 'VaccineLevel'
         self.parent.df[VLV] = np.nan
+        TLV = 'TimeLevel'
 
         N = self.parent.df.shape[0]
         iterator = pbar(self.parent.df.iterrows(), total=N)
@@ -2075,14 +2077,18 @@ class Reporter:
         print(f'{counter=}')
         cols = ['ID','Age', 'Sex', EVT, TTE, EOS, ILV, VLV]
         df = self.parent.df.loc[L,cols].copy()
-        print(len(df))
-        df.dropna(inplace=True)
-        print(len(df))
+        #print(len(df))
+        #df.dropna(inplace=True)
+        #print(len(df))
 
         intervals = [0, 130, 150, 160, 260]
-        labels = ['130', '150', '160', '260']
+
+        labels = ['From0To130', 'From130To150', 'From150To160', 'From160To260']
         bins = pd.cut(df[TTE], intervals, labels=labels)
-        df['TimeLevel'] = bins
+
+        #bins = pd.cut(df[TTE], intervals)
+
+        df[TLV] = bins
 
         #print(df)
         folder= 'Sheraton_mar_23_2023'
@@ -2090,24 +2096,73 @@ class Reporter:
         fname = os.path.join(self.parent.requests_path, folder, fname)
         df.to_excel(fname, index=False)
 
-    def survival_analysis_sheraton(self):
+    def create_design_matrix_sheraton(self):
         #Mar 23 2023
         folder= 'Sheraton_mar_23_2023'
         fname = 'list_of_participants_for_covid_ltc_003.xlsx'
         fname = os.path.join(self.parent.requests_path, folder, fname)
         df = pd.read_excel(fname)
         EVT = 'Event'
+        AGE = 'Age'
         TTE = 'TimeToEvent'
-        EOS = 'Removed before the end'
+        EOS = 'RemovedBeforeStudyFinished'
         ILV = 'InfectionLevel'
         VLV = 'VaccineLevel'
         TLV = 'TimeLevel'
         SEX = 'Sex'
-        cols = [EVT, SEX, ILV, VLV, TLV]
+
+        df[EVT] = df[EVT].apply(lambda x: 1 if x else 0)
+
+        cols = [SEX, ILV, VLV, TLV]
         X = pd.get_dummies(df[cols])
+        cols_to_remove = ['Sex_Male',
+                'InfectionLevel_NoInfections',
+                'VaccineLevel_PfizerAll',
+                'TimeLevel_From0To130']
+        X.drop(columns = cols_to_remove, inplace=True)
+        Z = df[[EVT,AGE,TTE]]
+        M = pd.concat([Z,X], axis=1)
 
         fname = 'design_matrix.xlsx'
         fname = os.path.join(self.parent.requests_path, folder, fname)
-        X.to_excel(fname)
+        M.to_excel(fname, index=False)
         #cols = ['ID','Age', EVT, TTE, EOS, ILV, VLV]
 
+    def survival_analysis_sheraton(self):
+        folder= 'Sheraton_mar_23_2023'
+        fname = 'design_matrix.xlsx'
+        fname = os.path.join(self.parent.requests_path, folder, fname)
+        df = pd.read_excel(fname)
+
+        EVT = 'Event'
+        AGE = 'Age'
+        TTE = 'TimeToEvent'
+        EOS = 'RemovedBeforeStudyFinished'
+        ILV = 'InfectionLevel'
+        VLV = 'VaccineLevel'
+        TLV = 'TimeLevel'
+        SEX = 'Sex'
+
+        cph = CoxPHFitter()
+
+        cph.fit(df, TTE, EVT)
+        S = cph.summary
+        cph.print_summary(model='LTC003')
+        cph.check_assumptions(df)
+
+        fig,ax = plt.subplots()
+        X = S['exp(coef)']
+        X = X.iloc[:-3]
+        ax.bar(X.index,X,color='b')
+        ax.set_ylabel('Hazard ratio')
+        for k,c in enumerate(X):
+            v = c
+            if c < 0:
+                v = 0
+            ax.text(k, v, '{:.2f}'.format(c),
+                    ha='center', fontsize=16)
+
+        fname = 'coeff.png'
+        fname = os.path.join(self.parent.requests_path, folder, fname)
+        ax.tick_params(axis='x', rotation=90)
+        fig.savefig(fname, bbox_inches='tight', pad_inches=0)
