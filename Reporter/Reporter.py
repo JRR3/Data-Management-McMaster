@@ -1913,6 +1913,10 @@ class Reporter:
         #Generate the dataset to replicate Ahmad's 
         #results for the poste.
         L = []
+        folder= 'Sheraton_mar_23_2023'
+        fname = 'not_in_Ours.xlsx'
+        fname = os.path.join(self.parent.requests_path, folder, fname)
+        df_a  = pd.read_excel(fname)
 
         #The end of the study (EOS) date
         ub_date = datetime.datetime(2022,9,13)
@@ -1922,6 +1926,11 @@ class Reporter:
 
         ub_doe = ub_date
         lb_dor = lb_date
+
+        #When did the quantification of the risk start?
+        study_start_date = lb_date
+        study_end_date = ub_date
+
         vac_dates_h = self.parent.LIS_obj.vaccine_date_cols
         vac_types_h = self.parent.LIS_obj.vaccine_type_cols
         inf_dates_h = self.parent.LIS_obj.positive_date_cols
@@ -1930,8 +1939,10 @@ class Reporter:
 
         EVT = 'Event'
         self.parent.df[EVT] = np.nan
-        TTE = 'TimeToEvent'
-        self.parent.df[TTE] = np.nan
+        TSTE = 'TimeFromStartToEnd'
+        self.parent.df[TSTE] = np.nan
+        TVTS = 'TimeFromVac4ToStart'
+        self.parent.df[TVTS] = np.nan
         EOS = 'RemovedBeforeStudyFinished'
         self.parent.df[EOS] = False
         ILV = 'InfectionLevel'
@@ -1939,17 +1950,34 @@ class Reporter:
         VLV = 'VaccineLevel'
         self.parent.df[VLV] = np.nan
         TLV = 'TimeLevel'
+        self.parent.df[TLV] = np.nan
+        DOEOE = 'DateOfEndOrEvent'
+        self.parent.df[DOEOE] = np.nan
 
         N = self.parent.df.shape[0]
         iterator = pbar(self.parent.df.iterrows(), total=N)
         for index_m, row_m in iterator:
 
             ID = row_m['ID']
+
+            site = row_m['Site']
+            #Exclude anyone from sites 20 or 61.
+            if site in [20,61]:
+                continue
+
             #Exclude anyone that entered the study on/after Sept 13 2022
             doe = row_m['Enrollment Date']
             if pd.notnull(doe):
                 if ub_doe <= doe:
-                    continue
+                    is_in_df_a = df_a['ID'] == ID
+                    #If this participant is in Ahmad's file
+                    #then the enrollment day is not really a 
+                    #problem since we have authorization
+                    #to use the history of the patient
+                    if is_in_df_a.any():
+                        pass
+                    else:
+                        continue
             dor = row_m['Date Removed from Study']
 
             #Exclude anyone that was discharged/dead before July 01 2022
@@ -1989,10 +2017,18 @@ class Reporter:
             if lb_date < vac_date_4:
                 continue
 
+            #Another covariate -> Time from vaccination 
+            #to the start of the study
+            delta_start_vac4 = study_start_date - vac_date_4
+            delta_start_vac4 = delta_start_vac4.days
+            if delta_start_vac4 < 0:
+                raise ValueError('Negative delta start vac4')
+            self.parent.df.loc[index_m, TVTS] = delta_start_vac4
+
             inf_dates = row_m[inf_dates_h]
             had_the_event = False
 
-            if 0 == inf_dates.count():
+            if inf_dates.count() == 0:
                 #Never infected ==> Infection level A
                 #self.parent.df.loc[index_m, ILV] = 'A'
                 self.parent.df.loc[index_m, ILV] = 'NoInfections'
@@ -2009,13 +2045,26 @@ class Reporter:
                     #We have an event.
                     had_the_event = True
                     inf_date = inf_dates.iloc[0]
-                    delta = inf_date - vac_date_4
-                    delta = delta.days
-                    if delta < 0:
+
+                    if pd.notnull(dor) and dor < inf_date:
+                        raise ValueError('Removed before infection')
+
+                    self.parent.df.loc[index_m, DOEOE] = inf_date
+
+                    delta_inf_start = inf_date - study_start_date
+                    delta_inf_vac4 = inf_date - vac_date_4
+
+                    delta_inf_start = delta_inf_start.days
+                    delta_inf_vac4 = delta_inf_vac4.days
+
+                    self.parent.df.loc[index_m, EVT] = had_the_event
+                    self.parent.df.loc[index_m, TSTE] = delta_inf_start
+
+                    if delta_inf_start < 0 or delta_inf_vac4 < 0:
                         raise ValueError('Unexpected vac date #4')
                     #Exclude anyone that developed
                     #the outcome within 7 days of 4th vaccine dose
-                    if delta <= 7:
+                    if delta_inf_vac4 <= 7:
                         continue
 
                 #We are going to define the ILEV (infection level)
@@ -2055,46 +2104,92 @@ class Reporter:
 
             if not had_the_event:
                 #No infection within the given window.
-                delta = ub_date - vac_date_4
-                delta = delta.days
-                if delta < 0:
-                    raise ValueError('Unexpected vac date #4')
+                #had_the_event = False
+                delta_end_start = study_end_date - study_start_date
+                delta_end_start = delta_end_start.days
+                self.parent.df.loc[index_m, DOEOE] = study_end_date
+                if delta_end_start < 0:
+                    raise ValueError('Unexpected delta end minus start')
                 if pd.notnull(dor):
-                    if dor < ub_date:
+                    if dor < study_end_date:
                         #Removed before the end of the study
-                        delta = dor - vac_date_4
-                        delta = delta.days
+                        delta_end_start = dor - study_start_date
+                        delta_end_start = delta_end_start.days
                         self.parent.df.loc[index_m, EOS] = True
+                        self.parent.df.loc[index_m, DOEOE] = dor
 
-            #Vaccination type information
-            vac_types = row_m[vac_types_h]
+                self.parent.df.loc[index_m, EVT] = False
+                self.parent.df.loc[index_m, TSTE] = delta_end_start
+
 
             counter += 1
-            self.parent.df.loc[index_m, EVT] = had_the_event
-            self.parent.df.loc[index_m, TTE] = delta
             L.append(index_m)
 
         print(f'{counter=}')
-        cols = ['ID','Age', 'Sex', EVT, TTE, EOS, ILV, VLV]
-        df = self.parent.df.loc[L,cols].copy()
+
+        STP = 'SiteType'
+        self.parent.df[STP] = 'LTC'
+        self.parent.df[STP] = self.parent.df[STP].where(self.parent.df['Site'] < 50, 'RH')
+
+        cols = ['ID', STP, 'Age', 'Sex', EVT, TSTE, EOS, ILV, VLV]
+
+        df = self.parent.df.loc[L,:].copy()
+        #df = self.parent.df.loc[L,cols].copy()
+
         #print(len(df))
         #df.dropna(inplace=True)
         #print(len(df))
 
         intervals = [0, 130, 150, 160, 260]
+        #intervals = [0, 65, 130, 195, 260]
 
-        labels = ['From0To130', 'From130To150', 'From150To160', 'From160To260']
-        bins = pd.cut(df[TTE], intervals, labels=labels)
+        labels = []
+        for k in range(len(intervals)-1):
+            a = intervals[k]
+            b = intervals[k+1]
+            txt = 'From' + str(a) + 'To' + str(b)
+            labels.append(txt)
 
-        #bins = pd.cut(df[TTE], intervals)
+        bins = pd.cut(df[TVTS], intervals, labels=labels)
+
+        #bins = pd.cut(df[TSTE], intervals)
 
         df[TLV] = bins
+
+        df[EVT] = df[EVT].apply(lambda x: 1 if x else 0)
+
+        s1 = slice('Wave of Inf 1','Blood Draw:Repeat - JR')
+        s2 = slice('Had a PCR+','Notes/Comments')
+        c1 = df.loc[:,s1].columns.to_list()
+        c2 = df.loc[:,s2].columns.to_list()
+        c = c1 + c2
+        df.drop(columns=c, inplace=True)
+        df[TSTE] += 1
+
 
         #print(df)
         folder= 'Sheraton_mar_23_2023'
         fname = 'list_of_participants_for_covid_ltc_003.xlsx'
         fname = os.path.join(self.parent.requests_path, folder, fname)
         df.to_excel(fname, index=False)
+
+    def add_outbreak_to_list(self):
+        #Mar 23 2023
+        folder= 'Sheraton_mar_23_2023'
+        fname = 'ahmad.xlsx'
+        fname = os.path.join(self.parent.requests_path, folder, fname)
+        df_a = pd.read_excel(fname)
+        df_a = df_a[['ID','outbreak_count']]
+
+        fname = 'list_of_participants_for_covid_ltc_003.xlsx'
+        fname = os.path.join(self.parent.requests_path, folder, fname)
+        df_m = pd.read_excel(fname)
+
+        df = pd.merge(df_m, df_a, how='inner', on='ID')
+        fname = 'LTC003_list.xlsx'
+        fname = os.path.join(self.parent.requests_path, folder, fname)
+        df.to_excel(fname)
+
 
     def create_design_matrix_sheraton(self):
         #Mar 23 2023
@@ -2104,29 +2199,32 @@ class Reporter:
         df = pd.read_excel(fname)
         EVT = 'Event'
         AGE = 'Age'
-        TTE = 'TimeToEvent'
+        TSTE = 'TimeFromStartToEnd'
         EOS = 'RemovedBeforeStudyFinished'
         ILV = 'InfectionLevel'
         VLV = 'VaccineLevel'
         TLV = 'TimeLevel'
         SEX = 'Sex'
+        STP = 'SiteType'
 
-        df[EVT] = df[EVT].apply(lambda x: 1 if x else 0)
+        #df[EVT] = df[EVT].apply(lambda x: 1 if x else 0)
 
-        cols = [SEX, ILV, VLV, TLV]
+        cols = [STP, SEX, ILV, VLV, TLV]
         X = pd.get_dummies(df[cols])
-        cols_to_remove = ['Sex_Male',
+        cols_to_remove = [
+                'SiteType_LTC',
+                'Sex_Male',
                 'InfectionLevel_NoInfections',
                 'VaccineLevel_PfizerAll',
-                'TimeLevel_From0To130']
+                'TimeLevel_From0To65']
         X.drop(columns = cols_to_remove, inplace=True)
-        Z = df[[EVT,AGE,TTE]]
+        Z = df[[EVT,AGE,TSTE]]
         M = pd.concat([Z,X], axis=1)
 
         fname = 'design_matrix.xlsx'
         fname = os.path.join(self.parent.requests_path, folder, fname)
         M.to_excel(fname, index=False)
-        #cols = ['ID','Age', EVT, TTE, EOS, ILV, VLV]
+        #cols = ['ID','Age', EVT, TSTE, EOS, ILV, VLV]
 
     def survival_analysis_sheraton(self):
         folder= 'Sheraton_mar_23_2023'
@@ -2134,35 +2232,90 @@ class Reporter:
         fname = os.path.join(self.parent.requests_path, folder, fname)
         df = pd.read_excel(fname)
 
+        remove_time_level = True
+
+
         EVT = 'Event'
         AGE = 'Age'
-        TTE = 'TimeToEvent'
+        TSTE = 'TimeFromStartToEnd'
         EOS = 'RemovedBeforeStudyFinished'
         ILV = 'InfectionLevel'
         VLV = 'VaccineLevel'
         TLV = 'TimeLevel'
         SEX = 'Sex'
+        STP = 'SiteType'
+
+        if remove_time_level:
+            R = []
+            for col in df.columns:
+                if col.startswith(TLV):
+                    R.append(col)
+            if 0 < len(R):
+                df.drop(columns=R, inplace=True)
 
         cph = CoxPHFitter()
 
-        cph.fit(df, TTE, EVT)
+        cph.fit(df, TSTE, EVT)
         S = cph.summary
         cph.print_summary(model='LTC003')
         cph.check_assumptions(df)
 
         fig,ax = plt.subplots()
         X = S['exp(coef)']
-        X = X.iloc[:-3]
-        ax.bar(X.index,X,color='b')
-        ax.set_ylabel('Hazard ratio')
+        if not remove_time_level:
+            X = X.iloc[:-3]
+        ax.barh(X.index,X,color='b')
+        ax.set_xlabel('Hazard ratio')
         for k,c in enumerate(X):
             v = c
             if c < 0:
                 v = 0
-            ax.text(k, v, '{:.2f}'.format(c),
-                    ha='center', fontsize=16)
+            ax.text(v, k, '{:.2f}'.format(c),
+                    ha='left', fontsize=16)
 
         fname = 'coeff.png'
         fname = os.path.join(self.parent.requests_path, folder, fname)
-        ax.tick_params(axis='x', rotation=90)
+        #ax.tick_params(axis='x', rotation=90)
         fig.savefig(fname, bbox_inches='tight', pad_inches=0)
+
+    def compare_tables_for_sheraton(self):
+
+        write_over_local_list = False
+        write_over_foreign_list = True
+
+        folder= 'Sheraton_mar_23_2023'
+        fname = 'list_of_participants_for_covid_ltc_003.xlsx'
+        fname = os.path.join(self.parent.requests_path, folder, fname)
+        df_m = pd.read_excel(fname)
+
+        fname = 'ahmad.xlsx'
+        fname = os.path.join(self.parent.requests_path, folder, fname)
+        df_a = pd.read_excel(fname)
+
+        if write_over_local_list:
+            w = df_m['ID'].isin(df_a['ID'])
+            df_m['InAhmads?'] = w 
+
+            fname = 'LTC003_list.xlsx'
+            fname = os.path.join(self.parent.requests_path, folder, fname)
+            df_m.to_excel(fname)
+
+        if write_over_foreign_list:
+            w = df_a['ID'].isin(df_m['ID'])
+            df_a['InTest?'] = w
+
+            missing = df_a.loc[~w,'ID']
+
+            fname = 'A_list.xlsx'
+            fname = os.path.join(self.parent.requests_path, folder, fname)
+            df_a.to_excel(fname)
+
+            s = self.parent.df['ID'].isin(missing)
+            df_t = self.parent.df[s]
+
+            fname = 'not_in_our_list.xlsx'
+            fname = os.path.join(self.parent.requests_path, folder, fname)
+            df_t.to_excel(fname)
+
+        #print(df_m)
+        #print(df_a)
