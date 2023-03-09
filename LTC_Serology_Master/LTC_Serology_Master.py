@@ -14,6 +14,7 @@ from tqdm import tqdm as pbar
 import statsmodels.formula.api as smf
 from sklearn.linear_model import LogisticRegression as sk_LR
 from sklearn.metrics import classification_report as sk_report
+from scipy.stats import mannwhitneyu as MW
 
 
 # <b> Section: Master_Participant_Data </b>
@@ -1246,22 +1247,88 @@ class LTCSerologyMaster:
         df = pd.read_excel(fname)
         df.dropna(inplace=True)
 
+        #Statistical analysis=======================
+        s = df['NucStatus'] == 1
+        print(s.value_counts())
+        print('=======Age==========')
+        a = df.loc[s,'Age']
+        b = df.loc[~s,'Age']
+        U,p = MW(a,b)
+        print(f'{U=}')
+        print(f'{p=}')
+
+        print('=======DeltaT==========')
+        a = df.loc[s,'DeltaT']
+        b = df.loc[~s,'DeltaT']
+        U,p = MW(a,b)
+        print(f'{U=}')
+        print(f'{p=}')
+        return
+
+
+
+
+        #Statistical analysis=======================
+
         mean_frailty = df['Frailty'].mean()
         mean_age = df['Age'].mean()
+        mean_DeltaT = df['DeltaT'].mean()
         print(f'{mean_frailty=}')
         print(f'{mean_age=}')
-        df['Frailty'] = df['Frailty'] - mean_frailty
-        df['Age'] = df['Age'] - mean_age
+        print(f'{mean_DeltaT=}')
+        #df['Frailty'] = df['Frailty'] - mean_frailty
+        df['Age'] -= mean_age
+        df['DeltaT'] -= mean_DeltaT
         #print(df)
         #self.parent.print_column_and_datatype(df)
+        #bins = pd.IntervalIndex.from_tuples([(1,6),(6,7),(7,9)])
+        bins = [1,6,7,9]
+        L = ['LessThan7','EqualTo7','GreaterThan7']
+        cat  = pd.cut(df['Frailty'], bins, labels = L)
+        #print(cat)
+        df['Frailty'] = cat
+        print(df['Frailty'])
 
+        Age = "Age"
         Sex = "C(Sex, Treatment(reference='Male'))"
-        Sex = "Sex"
-        txt = "Nuc_status ~ Age +" + Sex + "+ Delta_t"
-        txt = "Nuc_status ~ Age +" + Sex + "+ Delta_t + Frailty"
+        DeltaT = "DeltaT"
+        Frailty = "C(Frailty, Treatment(reference='LessThan7'))"
+        #txt = "Nuc_status ~ Age +" + Sex + "+ Delta_t"
+        txt = "NucStatus ~ "
+        txt += Age + " + "
+        txt += Sex + " + "
+        txt += DeltaT + " + "
+        txt += Frailty
+        print(txt)
 
         lm1 = smf.logit(txt, data=df).fit()
-        print(lm1.summary())
+        #print(lm1.summary())
+        coeff = lm1.params
+        coeff = np.exp(coeff[1:])
+        cint = lm1.conf_int(0.05)
+        cint = np.exp(cint[1:])
+        labels = ['Female/Male', 'F=7 / F<7', 'F>7 / F<7', 'Age', 'DeltaT']
+        fig,ax = plt.subplots()
+        ax.barh(labels,coeff,color='b')
+        s = 0.1
+        for k,c in enumerate(coeff):
+            v = c
+            if c < 0:
+                v = 0
+            ax.text(v, k, '{:.2f}'.format(c),
+                    ha='left', fontsize=16)
+            a = cint.iloc[k,0]
+            b = cint.iloc[k,1]
+            ax.plot([a,b],[k-s,k-s],'o-',linewidth=2)
+
+        ax.set_xlabel('Odds ratio')
+        fname = 'coeff.png'
+        fname = os.path.join(self.parent.requests_path,
+                folder, 'summary', fname)
+        fig.savefig(fname, bbox_inches='tight', pad_inches=0)
+        #print(lm1.summary().as_latex())
+        return
+
         sex = pd.get_dummies(df['Sex'], drop_first=True)
         df = pd.concat([df, sex], axis=1)
         X = df[['Age', 'Male', 'Delta_t', 'Frailty']].copy()
@@ -1277,7 +1344,7 @@ class LTCSerologyMaster:
         coeff = lm2.coef_.flatten()
         coeff = np.exp(coeff)-1
         fig,ax = plt.subplots()
-        ax.bar(X.columns,coeff,color='b')
+        ax.barh(X.columns,coeff,color='b')
         ax.set_ylabel('Odds ratios - 1')
         for k,c in enumerate(coeff):
             v = c
