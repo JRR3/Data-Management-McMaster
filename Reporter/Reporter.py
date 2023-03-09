@@ -2294,7 +2294,7 @@ class Reporter:
 
         if write_over_local_list:
             w = df_m['ID'].isin(df_a['ID'])
-            df_m['InAhmads?'] = w 
+            df_m['InAhmads?'] = w
 
             fname = 'LTC003_list.xlsx'
             fname = os.path.join(self.parent.requests_path, folder, fname)

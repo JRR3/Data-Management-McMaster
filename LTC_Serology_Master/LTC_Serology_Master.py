@@ -1263,12 +1263,35 @@ class LTCSerologyMaster:
         U,p = MW(a,b)
         print(f'{U=}')
         print(f'{p=}')
-        return
+
+
+        print('=======Frailty==========')
+        n = 200
+        df.dropna(inplace=True)
+        print(df.shape[0])
+        a1 = df.loc[s,'Frailty'] < 7
+        a1 = a1.sum()
+        a2 = df.loc[s,'Frailty'] == 7
+        a2 = a2.sum()
+        a3 = df.loc[s,'Frailty'] > 7
+        a3 = a3.sum()
+
+
+        b1 = df.loc[~s,'Frailty'] < 7
+        b1 = b1.sum()
+        b2 = df.loc[~s,'Frailty'] == 7
+        b2 = b2.sum()
+        b3 = df.loc[~s,'Frailty'] > 7
+        b3 = b3.sum()
+
+        print(a1,b1)
+        print(a2,b2)
+        print(a3,b3)
 
 
 
 
-        #Statistical analysis=======================
+        #END OF Statistical analysis=======================
 
         mean_frailty = df['Frailty'].mean()
         mean_age = df['Age'].mean()
