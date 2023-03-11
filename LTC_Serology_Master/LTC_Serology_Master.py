@@ -14,7 +14,8 @@ from tqdm import tqdm as pbar
 import statsmodels.formula.api as smf
 from sklearn.linear_model import LogisticRegression as sk_LR
 from sklearn.metrics import classification_report as sk_report
-from scipy.stats import mannwhitneyu as MW
+from scipy.stats import mannwhitneyu as MannWhitney
+from scipy.stats import chi2_contingency as chi_sq_test
 
 
 # <b> Section: Master_Participant_Data </b>
@@ -863,7 +864,138 @@ class LTCSerologyMaster:
         if not flag_warning:
             print('We are SAFE.')
 
-    def generate_nucleocapsid_dataframe_and_plots(self):
+    def generate_PCR_vs_Nuc_table_for_paired_samples(self):
+        #Andrew requested this table
+        #Note that PCR- samples are also considered.
+        inf_date_h = self.parent.LIS_obj.positive_date_cols
+        boundary_date  = datetime.datetime(2022,1,1)
+        nuc_G = 'Nuc-IgG-100'
+        nuc_G_t = 0.547779865867836
+        date_format = mpl.dates.DateFormatter('%b-%y')
+        main_folder = 'Andrew_feb_23_2023'
+
+        bio = nuc_G
+        bio_t = nuc_G_t
+
+        DOC = self.DOC
+        L = []
+        m = np.zeros((2,2))
+        df_t1 = pd.DataFrame(m, index=['PCR+','PCR-'], columns=['Nuc+','Nuc-'])
+        df_t2 = df_t1.copy()
+        time_to_frame = {'Before':df_t1, 'After':df_t2}
+
+        N = self.parent.df.shape[0]
+        #Iterate over the Master file.
+        for index_m, row_m in pbar(self.parent.df.iterrows(), total=N):
+
+            ID = row_m['ID']
+            s = self.df['ID'] == ID
+            df_s = self.df[s]
+
+            #How many samples for a given individual?
+            n_bio_values = df_s[bio].count()
+
+            if n_bio_values < 2:
+                #We need at least 2 samples.
+                continue
+            #print(ID)
+            s = df_s[bio].notnull()
+            df_s = df_s[s].sort_values(DOC)
+            n_samples = df_s.shape[0]
+
+            #Iterate over CONSECUTIVE samples, two at a time.
+            #iterator = df_s.iterrows()
+            #for (i1, r1), (i2, r2) in zip(iterator, iterator)
+            for k in range(n_samples-1):
+
+                index_1 = df_s.index[k]
+                index_2 = df_s.index[k+1]
+
+                #Dates
+                d1 = df_s.loc[index_1, DOC]
+                d2 = df_s.loc[index_2, DOC]
+
+                #Values
+                v1 = df_s.loc[index_1, bio]
+                v2 = df_s.loc[index_2, bio]
+
+                if pd.isnull(v1) or pd.isnull(v2):
+                    #Go to next pair of CONSECUTIVE samples.
+                    continue
+
+                pcr_status = 0
+                pcr_str = 'PCR-'
+
+                nuc_status = 0
+                nuc_str = 'Nuc-'
+
+                if d2 <= boundary_date:
+                    bd_str = 'Before'
+                    bd_status = 0
+                else:
+                    bd_str = 'After'
+                    bd_status = 1
+
+                inf_dates = row_m[inf_date_h]
+
+                if inf_dates.count() == 0:
+                    #No infections.
+
+                    #Empty dictionary
+                    inf_dates = {}
+
+                    #Regardless, check Nuc status.
+                    if v1 < v2 and bio_t < v2:
+                        #We crossed
+                        nuc_status = 1
+                        nuc_str = 'Nuc+'
+                else:
+                    #There are infections
+                    s = inf_dates.notnull()
+                    inf_dates = inf_dates[s]
+
+                #Iterate over infection dates.
+                for col_name, inf_date in inf_dates.items():
+
+                    if d1 <= inf_date and inf_date <= d2:
+                        #We have an infection in between.
+                        #Time between the infection and the
+                        #second collection point.
+                        pcr_status = 1
+                        pcr_str = 'PCR+'
+
+                        dt = (d2 - inf_date) / np.timedelta64(1,'D')
+                        #self.df.loc[index_m, 'Is relevant?'] = True
+                        #self.df.loc[index_m, 'Delta t'] = dt
+
+                        if v1 < v2 and bio_t < v2:
+                            #We crossed
+                            nuc_status = 1
+                            nuc_str = 'Nuc+'
+                        else:
+                            nuc_status = 0
+                            nuc_str = 'Nuc-'
+
+                        break
+
+                time_to_frame[bd_str].loc[pcr_str, nuc_str] += 1
+
+        print(time_to_frame['Before'])
+        print(time_to_frame['After'])
+
+    def generate_Nuc_with_PCR_data_frame_and_plots(self):
+        #Andrew requested this information on Feb 23 2023.
+        #This function is used to create a dataset of
+        #paired blood draw samples which contain an
+        #infection in between. 
+        #The dataset is divided into two groups. One is the
+        #"Before" group, having the second blood draw before
+        #Jan 1 2022 and the other is the "After" 
+        #group has the second blood
+        #draw after Jan 1 2022.
+        #Use the function nucleocapsid_stats()
+        #to create a logistic regression model.
+
         #Feb 23 2023
         #Mar 02 2023
         inf_date_h = self.parent.LIS_obj.positive_date_cols
@@ -1241,11 +1373,16 @@ class LTCSerologyMaster:
 
 
     def nucleocapsid_stats(self):
+        #Use logistic regression
         folder = 'Andrew_feb_23_2023'
         fname = 'nuc_dataset_mar_02_2023.xlsx'
         fname = os.path.join(self.parent.requests_path, folder, fname)
         df = pd.read_excel(fname)
-        df.dropna(inplace=True)
+
+        print_stats_summary = True
+        plot_odds_ratios    = False
+
+        #df.dropna(inplace=True)
 
         #Statistical analysis=======================
         s = df['NucStatus'] == 1
@@ -1253,21 +1390,41 @@ class LTCSerologyMaster:
         print('=======Age==========')
         a = df.loc[s,'Age']
         b = df.loc[~s,'Age']
-        U,p = MW(a,b)
+        U,p = MannWhitney(a,b)
         print(f'{U=}')
         print(f'{p=}')
 
         print('=======DeltaT==========')
         a = df.loc[s,'DeltaT']
         b = df.loc[~s,'DeltaT']
-        U,p = MW(a,b)
+        U,p = MannWhitney(a,b)
         print(f'{U=}')
         print(f'{p=}')
 
+        print('=======Sex==========')
+        print(df.shape[0])
+        a1 = df.loc[s,'Sex'] == 'Male'
+        a1 = a1.sum()
+        a2 = df.loc[s,'Sex'] == 'Female'
+        a2 = a2.sum()
+
+        b1 = df.loc[~s,'Sex'] == 'Male'
+        b1 = b1.sum()
+        b2 = df.loc[~s,'Sex'] == 'Female'
+        b2 = b2.sum()
+
+        m = np.array([[a1,b1], [a2, b2]])
+        idx = ['Male','Female']
+        col = ['Nuc+','Nuc-']
+        df_s = pd.DataFrame(m, index=idx, columns=col)
+        print(df_s)
+        chi_sq_stat, p_value, dofs, expected = chi_sq_test(df_s)
+        print(f'{chi_sq_stat=}')
+        print(f'{p_value=}')
+        print(f'{dofs=}')
 
         print('=======Frailty==========')
         n = 200
-        df.dropna(inplace=True)
         print(df.shape[0])
         a1 = df.loc[s,'Frailty'] < 7
         a1 = a1.sum()
@@ -1284,14 +1441,21 @@ class LTCSerologyMaster:
         b3 = df.loc[~s,'Frailty'] > 7
         b3 = b3.sum()
 
-        print(a1,b1)
-        print(a2,b2)
-        print(a3,b3)
-
-
-
+        m = np.array([[a1,b1], [a2, b2], [a3, b3]])
+        idx = ['F<7','F=7','F>7']
+        col = ['Nuc+','Nuc-']
+        df_f = pd.DataFrame(m, index=idx, columns=col)
+        print(df_f)
+        chi_sq_stat, p_value, dofs, expected = chi_sq_test(df_f)
+        print(f'{chi_sq_stat=}')
+        print(f'{p_value=}')
+        print(f'{dofs=}')
 
         #END OF Statistical analysis=======================
+
+
+        #Eliminate rows with missing data
+        df.dropna(inplace=True)
 
         mean_frailty = df['Frailty'].mean()
         mean_age = df['Age'].mean()
@@ -1310,13 +1474,12 @@ class LTCSerologyMaster:
         cat  = pd.cut(df['Frailty'], bins, labels = L)
         #print(cat)
         df['Frailty'] = cat
-        print(df['Frailty'])
+        #print(df['Frailty'])
 
         Age = "Age"
         Sex = "C(Sex, Treatment(reference='Male'))"
         DeltaT = "DeltaT"
         Frailty = "C(Frailty, Treatment(reference='LessThan7'))"
-        #txt = "Nuc_status ~ Age +" + Sex + "+ Delta_t"
         txt = "NucStatus ~ "
         txt += Age + " + "
         txt += Sex + " + "
@@ -1325,60 +1488,117 @@ class LTCSerologyMaster:
         print(txt)
 
         lm1 = smf.logit(txt, data=df).fit()
-        #print(lm1.summary())
-        coeff = lm1.params
-        coeff = np.exp(coeff[1:])
-        cint = lm1.conf_int(0.05)
-        cint = np.exp(cint[1:])
-        labels = ['Female/Male', 'F=7 / F<7', 'F>7 / F<7', 'Age', 'DeltaT']
-        fig,ax = plt.subplots()
-        ax.barh(labels,coeff,color='b')
-        s = 0.1
-        for k,c in enumerate(coeff):
-            v = c
-            if c < 0:
-                v = 0
-            ax.text(v, k, '{:.2f}'.format(c),
-                    ha='left', fontsize=16)
-            a = cint.iloc[k,0]
-            b = cint.iloc[k,1]
-            ax.plot([a,b],[k-s,k-s],'o-',linewidth=2)
 
-        ax.set_xlabel('Odds ratio')
-        fname = 'coeff.png'
-        fname = os.path.join(self.parent.requests_path,
-                folder, 'summary', fname)
-        fig.savefig(fname, bbox_inches='tight', pad_inches=0)
+
+        if print_stats_summary:
+            print(lm1.summary())
+
+
+        if plot_odds_ratios:
+            coeff = lm1.params
+            coeff = np.exp(coeff[1:])
+            cint = lm1.conf_int(0.05)
+            cint = np.exp(cint[1:])
+            labels = ['Female/Male', 'F=7 / F<7', 'F>7 / F<7', 'Age', 'DeltaT']
+            fig,ax = plt.subplots()
+            ax.barh(labels,coeff,color='b')
+            s = 0.1
+            for k,c in enumerate(coeff):
+                v = c
+                if c < 0:
+                    v = 0
+                ax.text(v, k, '{:.2f}'.format(c),
+                        ha='left', fontsize=16)
+                a = cint.iloc[k,0]
+                b = cint.iloc[k,1]
+                ax.plot([a,b],[k-s,k-s],'o-',linewidth=2)
+
+            ax.set_xlabel('Odds ratio')
+            fname = 'coeff.png'
+            fname = os.path.join(self.parent.requests_path,
+                    folder, 'summary', fname)
+            fig.savefig(fname, bbox_inches='tight', pad_inches=0)
+
+        #This is only necessary when we want to create the Latex tables.
         #print(lm1.summary().as_latex())
-        return
 
-        sex = pd.get_dummies(df['Sex'], drop_first=True)
-        df = pd.concat([df, sex], axis=1)
-        X = df[['Age', 'Male', 'Delta_t', 'Frailty']].copy()
-        Y = df['Nuc_status']
+
+        #Use another tool to corroborate the regression analysis.
+        sex = pd.get_dummies(df['Sex'], drop_first=False)
+        sex.drop(columns='Male', inplace=True)
+        #print(sex)
+        frailty = pd.get_dummies(df['Frailty'])
+        frailty.drop(columns='LessThan7', inplace=True)
+        #print(frailty)
+
+        df = pd.concat([df, sex, frailty], axis=1)
+        X = df[['Age', 'Female', 'DeltaT',
+                'EqualTo7', 'GreaterThan7']].copy()
+        Y = df['NucStatus'].copy()
+        #Y = df['NucStatus'].apply(lambda x: 'Pos' if x== 1 else 'Neg')
         lm2 = sk_LR()
         lm2.fit(X,Y)
+        print(f'{lm2.classes_=}')
         predictions = lm2.predict(X)
-        print(predictions)
-        print(Y)
+        p_correct   = Y == predictions
+        p_incorrect = ~p_correct
+        #Y_T = Y == 1
+        #Y_F = ~Y_T
+        in_Pos = predictions == 1
+        in_Neg = predictions == 0
+        out_Pos = in_Neg
+        out_Neg = in_Pos
+
+        in_Pos_T = in_Pos & p_correct
+        in_Pos_F = in_Pos & p_incorrect
+        out_Pos_T = out_Pos & p_correct
+        out_Pos_F = out_Pos & p_incorrect
+
+        in_Pos_T = in_Pos_T.sum()
+        in_Pos_F = in_Pos_F.sum()
+        out_Pos_T = out_Pos_T.sum()
+        out_Pos_F = out_Pos_F.sum()
+
+        in_Neg_T = in_Neg & p_correct
+        in_Neg_F = in_Neg & p_incorrect
+        out_Neg_T = out_Neg & p_correct
+        out_Neg_F = out_Neg & p_incorrect
+
+        in_Neg_T = in_Neg_T.sum()
+        in_Neg_F = in_Neg_F.sum()
+        out_Neg_T = out_Neg_T.sum()
+        out_Neg_F = out_Neg_F.sum()
+
+        print(f'{in_Pos_T=}')
+        print(f'{in_Neg_T=}')
+        print(f'{out_Pos_F=}')
+        print(f'{out_Neg_F=}')
+
+        prec_Pos = in_Pos_T / (in_Pos_T + in_Pos_F)
+        prec_Neg = in_Neg_T / (in_Neg_T + in_Neg_F)
+
+        rec_Pos = in_Pos_T / (in_Pos_T + out_Pos_F)
+        rec_Neg = in_Neg_T / (in_Neg_T + out_Neg_F)
+
+        print(f'{prec_Pos=}')
+        print(f'{prec_Neg=}')
+        print(f'{rec_Pos=}')
+        print(f'{rec_Neg=}')
+        return
+
+        prob = lm2.predict_proba(X)
+        temp = prob[:,1] > 0.5
+        delta = np.linalg.norm(predictions - temp)
+        #print(f'{predictions=}')
+        #print(f'{prob=}')
+        #print(f'{delta=}')
+        #print(f'{lm2.get_params()=}')
         c_report = sk_report(Y,predictions)
         print(c_report)
-        print(lm2.coef_.flatten())
-        coeff = lm2.coef_.flatten()
-        coeff = np.exp(coeff)-1
-        fig,ax = plt.subplots()
-        ax.barh(X.columns,coeff,color='b')
-        ax.set_ylabel('Odds ratios - 1')
-        for k,c in enumerate(coeff):
-            v = c
-            if c < 0:
-                v = 0
-            ax.text(k, v, '{:.2f}'.format(c),
-                    ha='center', fontsize=16)
-
-        fname = 'coeff.png'
-        fname = os.path.join(self.parent.requests_path,
-                folder, 'summary', fname)
-        fig.savefig(fname)
+        labels = ['Intercept'] + X.columns.to_list()
+        v = np.concatenate((lm2.intercept_, lm2.coef_.flatten()))
+        df_sk = pd.DataFrame(v.T, index=labels)
+        print(df_sk)
+        return
 
 

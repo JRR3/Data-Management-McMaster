@@ -1921,4 +1921,5 @@ obj = Merger()
 #obj.REP_obj.survival_analysis_sheraton()
 #obj.REP_obj.compare_tables_for_sheraton()
 
-obj.LSM_obj.nucleocapsid_stats()
+#obj.LSM_obj.nucleocapsid_stats()
+obj.LSM_obj.generate_PCR_vs_Nuc_table_for_paired_samples()
