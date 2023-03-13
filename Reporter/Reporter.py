@@ -16,6 +16,7 @@ import matplotlib.pyplot as plt
 import datetime
 import seaborn as sns
 from lifelines import CoxPHFitter
+from lifelines import KaplanMeierFitter as KMFitter
 # <b> Section: Reporter </b>
 # This class takes care of all the visualization
 # tasks related to the M file.
@@ -1911,8 +1912,12 @@ class Reporter:
     def generate_poster_data_sheraton(self):
         #Mar 23 2023
         #Generate the dataset to replicate Ahmad's 
-        #results for the poste.
+        #results for the poster.
         L = []
+        using_original_classification = False
+        using_only_one_classification = False
+        using_count_pre_omicron_classification = False
+        using_count_omicron_classification = True
         folder= 'Sheraton_mar_23_2023'
         fname = 'not_in_Ours.xlsx'
         fname = os.path.join(self.parent.requests_path, folder, fname)
@@ -1939,20 +1944,37 @@ class Reporter:
 
         EVT = 'Event'
         self.parent.df[EVT] = np.nan
+
         TSTE = 'TimeFromStartToEnd'
+        #This is the time-to-event
+        #The risk is measured from the
+        #beginning of the Omicron BA.5 period.
         self.parent.df[TSTE] = np.nan
+
         TVTS = 'TimeFromVac4ToStart'
+        #This is a covariate. Note that the
+        #risk period is disjoint from this period.
         self.parent.df[TVTS] = np.nan
+
         EOS = 'RemovedBeforeStudyFinished'
         self.parent.df[EOS] = False
+
         ILV = 'InfectionLevel'
         self.parent.df[ILV] = np.nan
+
         VLV = 'VaccineLevel'
         self.parent.df[VLV] = np.nan
+
         TLV = 'TimeLevel'
+        #This variable is used to convert the
+        #TimeFromVac4ToStart variable into
+        #a categorical variable.
         self.parent.df[TLV] = np.nan
+
         DOEOE = 'DateOfEndOrEvent'
         self.parent.df[DOEOE] = np.nan
+
+        combined = 0
 
         N = self.parent.df.shape[0]
         iterator = pbar(self.parent.df.iterrows(), total=N)
@@ -2089,18 +2111,53 @@ class Reporter:
                     omicron_inf = s1 & s2
                     n_omicron_inf = omicron_inf.sum()
 
-                    if 1 < n_pre_omicron_inf + n_omicron_inf:
-                        #Multiple infections ==> Infection level D
-                        #self.parent.df.loc[index_m, ILV] = 'D'
-                        self.parent.df.loc[index_m, ILV] = 'Multiple'
-                    elif n_pre_omicron_inf == 1:
-                        #Exactly One pre-omicron ==> Infection level B
-                        self.parent.df.loc[index_m, ILV] = 'OnePreOmicron'
-                    else: 
-                        #Exactly One omicron ==> Infection level C
-                        self.parent.df.loc[index_m, ILV] = 'OneOmicron'
-                        if n_omicron_inf != 1:
-                            raise ValueError('Unexpected value for Omicron')
+                    #print(f'{n_omicron_inf=}')
+                    #print(f'{n_pre_omicron_inf=}')
+
+                    if using_original_classification:
+                        if 1 < n_pre_omicron_inf + n_omicron_inf:
+                            #Multiple infections ==> Infection level D
+                            #self.parent.df.loc[index_m, ILV] = 'D'
+                            self.parent.df.loc[index_m, ILV] = 'Multiple'
+                        elif n_pre_omicron_inf == 1:
+                            #Exactly One pre-omicron ==> Infection level B
+                            self.parent.df.loc[index_m, ILV] = 'OnePreOmicron'
+                        else: 
+                            #Exactly One omicron ==> Infection level C
+                            self.parent.df.loc[index_m, ILV] = 'OneOmicron'
+                            if n_omicron_inf != 1:
+                                raise ValueError('Unexpected value for Omicron')
+
+                    elif using_only_one_classification:
+                        if 1 <= n_omicron_inf and 1 <= n_pre_omicron_inf:
+                            self.parent.df.loc[index_m, ILV] = 'Mixed'
+                        elif n_pre_omicron_inf == 0:
+                            self.parent.df.loc[index_m, ILV] = 'OnlyOmicron'
+                        else: 
+                            self.parent.df.loc[index_m, ILV] = 'OnlyPreOmicron'
+                            if n_omicron_inf != 0:
+                                raise ValueError('Unexpected value for Omicron')
+
+                    elif using_count_pre_omicron_classification:
+                        if 0 < n_omicron_inf:
+                            self.parent.df.loc[index_m, ILV] = 'HasOmicron'
+                        elif n_pre_omicron_inf == 1:
+                            self.parent.df.loc[index_m, ILV] = 'Only1PreOmicron'
+                        else: 
+                            self.parent.df.loc[index_m, ILV] = 'Only2PreOmicron'
+                            if n_pre_omicron_inf != 2:
+                                raise ValueError('Unexpected value for PreOmicron')
+
+                    elif using_count_omicron_classification:
+                        if 0 < n_pre_omicron_inf:
+                            self.parent.df.loc[index_m, ILV] = 'HasPreOmicron'
+                        elif n_omicron_inf == 1:
+                            self.parent.df.loc[index_m, ILV] = 'Only1Omicron'
+                        else: 
+                            self.parent.df.loc[index_m, ILV] = 'Only2Omicron'
+                            print(f'{had_the_event=}')
+                            if n_omicron_inf != 2:
+                                raise ValueError('Unexpected value for Omicron')
 
             if not had_the_event:
                 #No infection within the given window.
@@ -2140,7 +2197,34 @@ class Reporter:
         #df.dropna(inplace=True)
         #print(len(df))
 
-        intervals = [0, 130, 150, 160, 260]
+        #Add one day to avoid having a zero
+        #for the time-to-event.
+        #Recommended by Ahmad.
+        df[TSTE] += 1
+
+        #Add one day to avoid having a zero
+        #for the time-to-event.
+        #Recommended by Ahmad.
+        df[TVTS] += 1
+
+        s = df[TVTS].describe()
+        #print(s)
+        #The rows are:
+        #0 Count
+        #1 Mean
+        #2 STD
+        #3 Min
+        #4 25%
+        #5 50%
+        #6 75%
+        #7 Max
+        #We use the quartiles of the variable
+        #Time from Vaccination to the Start of
+        #the Study to create a categorical variable.
+        intervals = s[4:].astype(int).to_list()
+        intervals = [0] + intervals
+
+        #intervals = [0, 130, 150, 160, 260]
         #intervals = [0, 65, 130, 195, 260]
 
         labels = []
@@ -2164,7 +2248,8 @@ class Reporter:
         c2 = df.loc[:,s2].columns.to_list()
         c = c1 + c2
         df.drop(columns=c, inplace=True)
-        df[TSTE] += 1
+
+
 
 
         #print(df)
@@ -2179,7 +2264,12 @@ class Reporter:
         fname = 'ahmad.xlsx'
         fname = os.path.join(self.parent.requests_path, folder, fname)
         df_a = pd.read_excel(fname)
-        df_a = df_a[['ID','outbreak_count']]
+        df_a = df_a[['ID','outbreak_count']].copy()
+        #df_a.rename(columns={'outbreak_count':'Outbreaks'}, inplace=True)
+        df_a['Outbreaks'] = 'SixOrLess'
+        s = df_a['outbreak_count'] == '<=6'
+        df_a['Outbreaks'] = df_a['Outbreaks'].where(s, 'SevenOrMore')
+        df_a.drop(columns='outbreak_count', inplace=True)
 
         fname = 'list_of_participants_for_covid_ltc_003.xlsx'
         fname = os.path.join(self.parent.requests_path, folder, fname)
@@ -2194,7 +2284,8 @@ class Reporter:
     def create_design_matrix_sheraton(self):
         #Mar 23 2023
         folder= 'Sheraton_mar_23_2023'
-        fname = 'list_of_participants_for_covid_ltc_003.xlsx'
+        #fname = 'list_of_participants_for_covid_ltc_003.xlsx'
+        fname = 'LTC003_list.xlsx'
         fname = os.path.join(self.parent.requests_path, folder, fname)
         df = pd.read_excel(fname)
         EVT = 'Event'
@@ -2206,17 +2297,19 @@ class Reporter:
         TLV = 'TimeLevel'
         SEX = 'Sex'
         STP = 'SiteType'
+        OUT = 'Outbreaks'
 
         #df[EVT] = df[EVT].apply(lambda x: 1 if x else 0)
 
-        cols = [STP, SEX, ILV, VLV, TLV]
+        cols = [STP, SEX, ILV, VLV, TLV, OUT]
         X = pd.get_dummies(df[cols])
         cols_to_remove = [
                 'SiteType_LTC',
                 'Sex_Male',
                 'InfectionLevel_NoInfections',
                 'VaccineLevel_PfizerAll',
-                'TimeLevel_From0To65']
+                'TimeLevel_From0To131',
+                'Outbreaks_SixOrLess']
         X.drop(columns = cols_to_remove, inplace=True)
         Z = df[[EVT,AGE,TSTE]]
         M = pd.concat([Z,X], axis=1)
@@ -2232,7 +2325,19 @@ class Reporter:
         fname = os.path.join(self.parent.requests_path, folder, fname)
         df = pd.read_excel(fname)
 
-        remove_time_level = True
+
+        fname = 'survival_analysis_labels.xlsx'
+        fname = os.path.join(self.parent.requests_path, folder, fname)
+        df_labels = pd.read_excel(fname)
+        dc_old_to_new = {}
+
+        for _, row in df_labels.iterrows():
+            old = row['Old']
+            new = row['New']
+            dc_old_to_new[old]=new
+
+        plot_hazard_ratios= False
+        remove_time_level = False
 
 
         EVT = 'Event'
@@ -2244,6 +2349,23 @@ class Reporter:
         TLV = 'TimeLevel'
         SEX = 'Sex'
         STP = 'SiteType'
+        OUT = 'Outbreaks'
+
+        #s1 = df[TSTE] <= 23
+        #s2 = 0 <= df[TSTE]
+        #s  = s1 & s2
+        #df = df.loc[s]
+
+        #s1 = df[TSTE] <= 29
+        #s2 = 9 <= df[TSTE]
+        #s  = s1 & s2
+        #df = df.loc[s]
+
+        #s1 = df[TSTE] <= 76
+        #s2 = 30 <= df[TSTE]
+        #s  = s1 & s2
+        #df = df.loc[s]
+
 
         if remove_time_level:
             R = []
@@ -2255,25 +2377,69 @@ class Reporter:
 
         cph = CoxPHFitter()
 
-        cph.fit(df, TSTE, EVT)
+        if remove_time_level is False:
+            cph.fit(df, TSTE, EVT, strata=['TimeLevel_From155To163'])
+        else:
+            cph.fit(df, TSTE, EVT)
         S = cph.summary
+        S.rename(index=dc_old_to_new, inplace=True)
+        fname = 'survival_analysis_summary.xlsx'
+        fname = os.path.join(self.parent.requests_path, folder, fname)
+        S.to_excel(fname)
         cph.print_summary(model='LTC003')
+        #cph.print_summary(model='LTC003', style='latex')
         cph.check_assumptions(df)
 
-        fig,ax = plt.subplots()
-        X = S['exp(coef)']
-        if not remove_time_level:
-            X = X.iloc[:-3]
-        ax.barh(X.index,X,color='b')
-        ax.set_xlabel('Hazard ratio')
-        for k,c in enumerate(X):
-            v = c
-            if c < 0:
-                v = 0
-            ax.text(v, k, '{:.2f}'.format(c),
-                    ha='left', fontsize=16)
+        if plot_hazard_ratios:
+            fig,ax = plt.subplots()
+            X = S['exp(coef)']
+            p_values = S['p']
+            ax.barh(X.index,X,color='b')
+            ax.set_xlabel('Hazard ratio')
+            for k,c in enumerate(X):
+                y_pos = k
+                x_pos = c
+                p_value = p_values.iloc[k]
+                if c < 0:
+                    x_pos = 0
+                elif 5 < c:
+                    x_pos = 0.9*c
+                    y_pos *= 1.15
+                txt = '{:.2f}'.format(c)
+                if p_value < 0.05:
+                    txt += '*'
+                ax.text(x_pos, y_pos, txt, ha='left', fontsize=16)
 
-        fname = 'coeff.png'
+            fname = 'coeff_march_13_2023.png'
+            fname = os.path.join(self.parent.requests_path, folder, fname)
+            #ax.tick_params(axis='x', rotation=90)
+            fig.savefig(fname, bbox_inches='tight', pad_inches=0)
+
+
+    def plot_kaplan_meier_sheraton(self):
+
+        EVT = 'Event'
+        AGE = 'Age'
+        TSTE = 'TimeFromStartToEnd'
+        EOS = 'RemovedBeforeStudyFinished'
+        ILV = 'InfectionLevel'
+        VLV = 'VaccineLevel'
+        TLV = 'TimeLevel'
+        SEX = 'Sex'
+        STP = 'SiteType'
+        OUT = 'Outbreaks'
+
+        folder= 'Sheraton_mar_23_2023'
+        fname = 'LTC003_list.xlsx'
+        fname = os.path.join(self.parent.requests_path, folder, fname)
+        df = pd.read_excel(fname)
+        df_g = df.groupby('InfectionLevel')
+        fig,ax = plt.subplots()
+        km  = KMFitter()
+        for group, df in df_g:
+            km.fit(df[TSTE], df[EVT], label=group)
+            km.plot_survival_function(ax=ax)
+        fname = 'km_march_13_2023.png'
         fname = os.path.join(self.parent.requests_path, folder, fname)
         #ax.tick_params(axis='x', rotation=90)
         fig.savefig(fname, bbox_inches='tight', pad_inches=0)

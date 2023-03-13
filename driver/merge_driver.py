@@ -1921,5 +1921,13 @@ obj = Merger()
 #obj.REP_obj.survival_analysis_sheraton()
 #obj.REP_obj.compare_tables_for_sheraton()
 
+#Mar 10 2023
 #obj.LSM_obj.nucleocapsid_stats()
-obj.LSM_obj.generate_PCR_vs_Nuc_table_for_paired_samples()
+#obj.LSM_obj.generate_PCR_vs_Nuc_table_for_paired_samples()
+
+#Mar 13 2023
+obj.REP_obj.generate_poster_data_sheraton()
+obj.REP_obj.add_outbreak_to_list()
+#obj.REP_obj.plot_kaplan_meier_sheraton()
+obj.REP_obj.create_design_matrix_sheraton()
+obj.REP_obj.survival_analysis_sheraton()
