@@ -1914,10 +1914,10 @@ class Reporter:
         #Generate the dataset to replicate Ahmad's 
         #results for the poster.
         L = []
-        using_original_classification = False
+        using_original_classification = True
         using_only_one_classification = False
         using_count_pre_omicron_classification = False
-        using_count_omicron_classification = True
+        using_count_omicron_classification = False
         folder= 'Sheraton_mar_23_2023'
         fname = 'not_in_Ours.xlsx'
         fname = os.path.join(self.parent.requests_path, folder, fname)
@@ -2122,7 +2122,7 @@ class Reporter:
                         elif n_pre_omicron_inf == 1:
                             #Exactly One pre-omicron ==> Infection level B
                             self.parent.df.loc[index_m, ILV] = 'OnePreOmicron'
-                        else: 
+                        else:
                             #Exactly One omicron ==> Infection level C
                             self.parent.df.loc[index_m, ILV] = 'OneOmicron'
                             if n_omicron_inf != 1:
@@ -2133,7 +2133,7 @@ class Reporter:
                             self.parent.df.loc[index_m, ILV] = 'Mixed'
                         elif n_pre_omicron_inf == 0:
                             self.parent.df.loc[index_m, ILV] = 'OnlyOmicron'
-                        else: 
+                        else:
                             self.parent.df.loc[index_m, ILV] = 'OnlyPreOmicron'
                             if n_omicron_inf != 0:
                                 raise ValueError('Unexpected value for Omicron')
@@ -2143,21 +2143,39 @@ class Reporter:
                             self.parent.df.loc[index_m, ILV] = 'HasOmicron'
                         elif n_pre_omicron_inf == 1:
                             self.parent.df.loc[index_m, ILV] = 'Only1PreOmicron'
-                        else: 
+                        else:
                             self.parent.df.loc[index_m, ILV] = 'Only2PreOmicron'
                             if n_pre_omicron_inf != 2:
                                 raise ValueError('Unexpected value for PreOmicron')
 
                     elif using_count_omicron_classification:
+                        #print(f'{n_pre_omicron_inf=}, {n_omicron_inf=}')
+                        if n_pre_omicron_inf == 2 and n_omicron_inf == 1:
+                            print('2P+1O')
+                        if n_pre_omicron_inf == 1 and n_omicron_inf == 2:
+                            print('1P+2O')
+                        if n_pre_omicron_inf + n_omicron_inf > 2:
+                            print('>2')
                         if 0 < n_pre_omicron_inf:
                             self.parent.df.loc[index_m, ILV] = 'HasPreOmicron'
                         elif n_omicron_inf == 1:
                             self.parent.df.loc[index_m, ILV] = 'Only1Omicron'
-                        else: 
+                        else:
                             self.parent.df.loc[index_m, ILV] = 'Only2Omicron'
-                            print(f'{had_the_event=}')
+                            #print(f'{had_the_event=}')
                             if n_omicron_inf != 2:
                                 raise ValueError('Unexpected value for Omicron')
+
+                    #elif using_count_one_and_one_classification:
+                        #if n_pre_omicron_inf == 1 and n_omicron_inf == 1:
+                            #self.parent.df.loc[index_m, ILV] = 'Has1P1O'
+                        #elif n_pre_omicron_inf == 2 and n_omicron_inf == 1:
+                            #self.parent.df.loc[index_m, ILV] = 'Has2P1O'
+                        #else:
+                            #self.parent.df.loc[index_m, ILV] = 'Only2Omicron'
+                            ##print(f'{had_the_event=}')
+                            #if n_omicron_inf != 2:
+                                #raise ValueError('Unexpected value for Omicron')
 
             if not had_the_event:
                 #No infection within the given window.
@@ -2351,7 +2369,7 @@ class Reporter:
         STP = 'SiteType'
         OUT = 'Outbreaks'
 
-        #s1 = df[TSTE] <= 23
+        #s1 = df[TSTE] <= 8
         #s2 = 0 <= df[TSTE]
         #s  = s1 & s2
         #df = df.loc[s]
@@ -2434,15 +2452,56 @@ class Reporter:
         fname = os.path.join(self.parent.requests_path, folder, fname)
         df = pd.read_excel(fname)
         df_g = df.groupby('InfectionLevel')
-        fig,ax = plt.subplots()
         km  = KMFitter()
+
+        groups = ['NoInfections','Multiple','OnePreOmicron','OneOmicron']
+        colors = ['blue','green','gray','orange']
+        group_to_color = {}
+        for g,c in zip(groups,colors):
+            group_to_color[g] = c
+
+        ref_group = 'NoInfections'
+        df_ref = df_g.get_group(ref_group)
+
         for group, df in df_g:
+
+            if group == ref_group:
+                continue
+
+            fig,ax = plt.subplots()
+
+            km.fit(df_ref[TSTE], df_ref[EVT], label=ref_group)
+            km.plot_survival_function(ax=ax, color=group_to_color[ref_group])
+
             km.fit(df[TSTE], df[EVT], label=group)
-            km.plot_survival_function(ax=ax)
-        fname = 'km_march_13_2023.png'
+            km.plot_survival_function(ax=ax, color=group_to_color[group])
+
+            ax.set_ylim([0.3,1])
+            ax.set_xlabel('Time (days)')
+            ax.set_ylabel('S(t)')
+
+            fname = 'km_' + group + '.png'
+            fname = os.path.join(self.parent.requests_path, folder, fname)
+            #ax.tick_params(axis='x', rotation=90)
+            fig.savefig(fname, bbox_inches='tight', pad_inches=0)
+            plt.close('all')
+
+        fig,ax = plt.subplots()
+
+        for k, group in enumerate(groups):
+
+            df = df_g.get_group(group)
+            km.fit(df[TSTE], df[EVT], label=group)
+            km.plot_survival_function(ax=ax, color=colors[k])
+
+
+        fname = 'km_all.png'
         fname = os.path.join(self.parent.requests_path, folder, fname)
-        #ax.tick_params(axis='x', rotation=90)
+        ax.set_ylim([0.3,1])
+        ax.set_xlabel('Time (days)')
+        ax.set_ylabel('S(t)')
         fig.savefig(fname, bbox_inches='tight', pad_inches=0)
+        plt.close('all')
 
     def compare_tables_for_sheraton(self):
 
