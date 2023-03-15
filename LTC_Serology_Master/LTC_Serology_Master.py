@@ -864,6 +864,10 @@ class LTCSerologyMaster:
         if not flag_warning:
             print('We are SAFE.')
 
+    def compute_sensitivity_and_specificity(self):
+        pass
+
+
     def generate_PCR_vs_Nuc_table_for_paired_samples(self):
         #Andrew requested this table
         #Note that PCR- samples are also considered.

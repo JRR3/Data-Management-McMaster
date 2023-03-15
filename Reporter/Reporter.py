@@ -1914,6 +1914,7 @@ class Reporter:
         #Generate the dataset to replicate Ahmad's 
         #results for the poster.
         L = []
+        multi_omicron = []
         using_original_classification = True
         using_only_one_classification = False
         using_count_pre_omicron_classification = False
@@ -2111,6 +2112,8 @@ class Reporter:
                     omicron_inf = s1 & s2
                     n_omicron_inf = omicron_inf.sum()
 
+                    if n_omicron_inf == 2:
+                        multi_omicron.append(ID)
                     #print(f'{n_omicron_inf=}')
                     #print(f'{n_pre_omicron_inf=}')
 
@@ -2270,6 +2273,8 @@ class Reporter:
 
 
 
+        #for m in multi_omicron:
+            #print(m)
         #print(df)
         folder= 'Sheraton_mar_23_2023'
         fname = 'list_of_participants_for_covid_ltc_003.xlsx'
@@ -2432,6 +2437,66 @@ class Reporter:
             fname = os.path.join(self.parent.requests_path, folder, fname)
             #ax.tick_params(axis='x', rotation=90)
             fig.savefig(fname, bbox_inches='tight', pad_inches=0)
+
+    def plot_population_statistics_sheraton(self):
+
+        folder= 'Sheraton_mar_23_2023'
+        main_folder = folder
+        fname = 'LTC003_list.xlsx'
+        fname = os.path.join(self.parent.requests_path, folder, fname)
+        df = pd.read_excel(fname)
+
+        L = ['Age', 'Sex', 'InfectionLevel', 'VaccineLevel',
+                'SiteType','Outbreaks']
+        use_bar = {'Age':False, 'Sex':True,
+                'InfectionLevel':True, 'VaccineLevel':True,
+                'SiteType':True, 'Outbreaks':True}
+        event = 'Event'
+
+        for var in L:
+            fig, ax = plt.subplots()
+            if use_bar[var]:
+                prop = 'Proportion'
+                vc = df[var].groupby(df[event]).value_counts(normalize=False)
+                labels = vc.loc[0].index.to_list()
+                print(labels)
+                s = df[var].groupby(df[event]).value_counts(normalize=True)
+                s = s.rename(prop)
+                s = s.reset_index()
+                sns.barplot(ax = ax,
+                        x=event, y=prop,
+                        data=s,
+                        hue = var)
+                for cat_index, container in enumerate(ax.containers):
+                    for event_index, R in enumerate(container):
+                        #print(cat_index)
+                        #print(event_index)
+                        #print(R)
+                        h = R.get_height()
+                        w = R.get_width()/2
+                        xy = R.get_xy()
+                        h = round(h*100)/100
+                        R.set_height(h)
+                        #print(f'{event_index=}')
+                        #print(vc.loc[event_index].index[cat_index])
+                        count = vc.loc[(event_index, labels[cat_index])]
+                        #print(f'{count=}')
+                        hp = h/2
+                        if count < 5:
+                            hp += 0.05
+                        ax.text(xy[0]+w, hp, count, ha='center', fontsize=16)
+                    ax.bar_label(container)
+            else:
+                sns.violinplot(x=event, y=var, data=df, ax = ax, cut=0)
+            stats_folder = 'stats'
+            fname = var.replace('?','')
+            fname += '.png'
+            fname = os.path.join(self.parent.requests_path,
+                    main_folder,
+                    stats_folder,
+                    fname)
+            fig.savefig(fname)
+            plt.close('all')
 
 
     def plot_kaplan_meier_sheraton(self):
