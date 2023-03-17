@@ -864,17 +864,69 @@ class LTCSerologyMaster:
         if not flag_warning:
             print('We are SAFE.')
 
-    def compute_sensitivity_and_specificity(self):
-        pass
+    def compute_sensitivity_and_specificity(self,m):
+        TP = m[0,0]
+        TN = m[1,1]
+        FP = m[1,0]
+        FN = m[0,1]
+        SEN = TP/(TP + FN)
+        SPE = TN/(TN + FP)
+        PPV = TP/(TP + FP)
+        NPV = TN/(TN + FN)
+        T = (SEN,SPE,PPV,NPV)
+        return T
 
 
-    def generate_PCR_vs_Nuc_table_for_paired_samples(self):
+    def generate_SS_plot_for_Nuc(self):
+        use_pp = False
+        T = np.linspace(0.1,0.9,20)
+        bio_t = 0.547779865867836
+        #T = [0.1, 0.3, 0.5]
+        spe = []
+        sen = []
+        for t in T:
+            time_to_frame = self.generate_PCR_vs_Nuc_table_for_paired_samples(tau=t)
+            df1 = time_to_frame['Before']
+            df2 = time_to_frame['After']
+            m = df1.values + df2.values
+            c = self.compute_sensitivity_and_specificity(m)
+            if use_pp:
+                sen.append((t,c[2]))
+                spe.append((t,c[3]))
+            else:
+                sen.append((t,c[0]))
+                spe.append((t,c[1]))
+        sen = np.array(sen)
+        spe = np.array(spe)
+        fig, ax = plt.subplots()
+        if use_pp:
+            ax.plot(sen[:,0],sen[:,1],'b-', label='PPV')
+            ax.plot(spe[:,0],spe[:,1],'r-', label='NPV')
+            fname = 'PV_plots.png'
+        else:
+            ax.plot(sen[:,0],sen[:,1],'b-', label='Sensitivity')
+            ax.plot(spe[:,0],spe[:,1],'r-', label='Specificity')
+            fname = 'SS_plots.png'
+
+        ax.axvline(bio_t, color='black', linewidth=3, label='Current')
+        plt.legend(loc='best')
+        folder = 'Andrew_feb_23_2023'
+        fname = os.path.join(self.parent.requests_path,
+                folder, 'summary', fname)
+        fig.savefig(fname, bbox_inches='tight', pad_inches=0)
+
+
+
+    def generate_PCR_vs_Nuc_table_for_paired_samples(self, tau=None):
         #Andrew requested this table
         #Note that PCR- samples are also considered.
         inf_date_h = self.parent.LIS_obj.positive_date_cols
         boundary_date  = datetime.datetime(2022,1,1)
         nuc_G = 'Nuc-IgG-100'
-        nuc_G_t = 0.547779865867836
+        if tau:
+            nuc_G_t = tau
+        else:
+            nuc_G_t = 0.547779865867836
         date_format = mpl.dates.DateFormatter('%b-%y')
         main_folder = 'Andrew_feb_23_2023'
 
@@ -984,8 +1036,9 @@ class LTCSerologyMaster:
 
                 time_to_frame[bd_str].loc[pcr_str, nuc_str] += 1
 
-        print(time_to_frame['Before'])
-        print(time_to_frame['After'])
+        #print(time_to_frame['Before'])
+        #print(time_to_frame['After'])
+        return time_to_frame
 
     def generate_Nuc_with_PCR_data_frame_and_plots(self):
         #Andrew requested this information on Feb 23 2023.

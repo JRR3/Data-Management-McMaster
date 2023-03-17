@@ -1915,10 +1915,10 @@ class Reporter:
         #results for the poster.
         L = []
         multi_omicron = []
-        using_original_classification = True
+        using_original_classification = False
         using_only_one_classification = False
         using_count_pre_omicron_classification = False
-        using_count_omicron_classification = False
+        using_count_omicron_classification = True
         folder= 'Sheraton_mar_23_2023'
         fname = 'not_in_Ours.xlsx'
         fname = os.path.join(self.parent.requests_path, folder, fname)
@@ -2446,6 +2446,11 @@ class Reporter:
         fname = os.path.join(self.parent.requests_path, folder, fname)
         df = pd.read_excel(fname)
 
+        #u = df['Site'].unique()
+        #w = sum(u < 50)
+        #print(u)
+        #print(w)
+
         L = ['Age', 'Sex', 'InfectionLevel', 'VaccineLevel',
                 'SiteType','Outbreaks']
         use_bar = {'Age':False, 'Sex':True,
@@ -2460,6 +2465,7 @@ class Reporter:
                 vc = df[var].groupby(df[event]).value_counts(normalize=False)
                 labels = vc.loc[0].index.to_list()
                 print(labels)
+                print(vc)
                 s = df[var].groupby(df[event]).value_counts(normalize=True)
                 s = s.rename(prop)
                 s = s.reset_index()
@@ -2469,9 +2475,13 @@ class Reporter:
                         hue = var)
                 for cat_index, container in enumerate(ax.containers):
                     for event_index, R in enumerate(container):
+                        label = labels[cat_index]
+                        if label == 'Only2Omicron' and event_index == 1:
+                            continue
                         #print(cat_index)
                         #print(event_index)
                         #print(R)
+                        #print(labels[cat_index])
                         h = R.get_height()
                         w = R.get_width()/2
                         xy = R.get_xy()
@@ -2479,15 +2489,17 @@ class Reporter:
                         R.set_height(h)
                         #print(f'{event_index=}')
                         #print(vc.loc[event_index].index[cat_index])
-                        count = vc.loc[(event_index, labels[cat_index])]
+                        count = vc.loc[(event_index, label)]
                         #print(f'{count=}')
                         hp = h/2
+                        hp -= 0.025
                         if count < 5:
                             hp += 0.05
                         ax.text(xy[0]+w, hp, count, ha='center', fontsize=16)
                     ax.bar_label(container)
             else:
                 sns.violinplot(x=event, y=var, data=df, ax = ax, cut=0)
+                #ax.text(xy[0]+w, hp, count, ha='center', fontsize=16)
             stats_folder = 'stats'
             fname = var.replace('?','')
             fname += '.png'
@@ -2495,7 +2507,8 @@ class Reporter:
                     main_folder,
                     stats_folder,
                     fname)
-            fig.savefig(fname)
+            #fig.savefig(fname)
+            fig.savefig(fname, bbox_inches='tight', pad_inches=0)
             plt.close('all')
 
 

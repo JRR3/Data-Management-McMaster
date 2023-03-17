@@ -1934,3 +1934,5 @@ obj = Merger()
 
 #obj.LSM_obj.generate_PCR_vs_Nuc_table_for_paired_samples()
 obj.REP_obj.plot_population_statistics_sheraton()
+
+#obj.LSM_obj.generate_SS_plot_for_Nuc()
