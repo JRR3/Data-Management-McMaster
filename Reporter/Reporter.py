@@ -17,6 +17,8 @@ import datetime
 import seaborn as sns
 from lifelines import CoxPHFitter
 from lifelines import KaplanMeierFitter as KMFitter
+from scipy.stats import mannwhitneyu as MannWhitney
+from scipy.stats import chi2_contingency as chi_sq_test
 # <b> Section: Reporter </b>
 # This class takes care of all the visualization
 # tasks related to the M file.
@@ -2002,7 +2004,7 @@ class Reporter:
         inf_waves_h = self.parent.LIS_obj.wave_of_inf_cols
         counter = 0
 
-        EVT = 'Event'
+        EVT = 'Outcome'
         self.parent.df[EVT] = np.nan
 
         TSTE = 'TimeFromStartToEnd'
@@ -2113,7 +2115,7 @@ class Reporter:
             if inf_dates.count() == 0:
                 #Never infected ==> Infection level A
                 #self.parent.df.loc[index_m, ILV] = 'A'
-                self.parent.df.loc[index_m, ILV] = 'NoInfections'
+                self.parent.df.loc[index_m, ILV] = 'NoPriorInf'
             else:
                 #s = inf_dates.notnull()
                 #inf_dates = inf_dates[s]
@@ -2161,7 +2163,7 @@ class Reporter:
                 if n_inf_before_O5 == 0:
                     #Never infected ==> Infection level A
                     #self.parent.df.loc[index_m, ILV] = 'A'
-                    self.parent.df.loc[index_m, ILV] = 'NoInfections'
+                    self.parent.df.loc[index_m, ILV] = 'NoPriorInf'
                 else:
                     pre_omicron_inf   = inf_dates < omicron_start_date
                     n_pre_omicron_inf = pre_omicron_inf.sum()
@@ -2350,7 +2352,7 @@ class Reporter:
         #df_a.rename(columns={'outbreak_count':'Outbreaks'}, inplace=True)
         df_a['Outbreaks'] = 'SixOrLess'
         s = df_a['outbreak_count'] == '<=6'
-        df_a['Outbreaks'] = df_a['Outbreaks'].where(s, 'SevenOrMore')
+        df_a['Outbreaks'] = df_a['Outbreaks'].where(s, 'MoreThanSix')
         df_a.drop(columns='outbreak_count', inplace=True)
 
         fname = 'list_of_participants_for_covid_ltc_003.xlsx'
@@ -2370,7 +2372,7 @@ class Reporter:
         fname = 'LTC003_list.xlsx'
         fname = os.path.join(self.parent.requests_path, folder, fname)
         df = pd.read_excel(fname)
-        EVT = 'Event'
+        EVT = 'Outcome'
         AGE = 'Age'
         TSTE = 'TimeFromStartToEnd'
         EOS = 'RemovedBeforeStudyFinished'
@@ -2388,7 +2390,7 @@ class Reporter:
         cols_to_remove = [
                 'SiteType_LTC',
                 'Sex_Male',
-                'InfectionLevel_NoInfections',
+                'InfectionLevel_NoPriorInf',
                 'VaccineLevel_PfizerAll',
                 'TimeLevel_From0To131',
                 'Outbreaks_SixOrLess']
@@ -2422,7 +2424,7 @@ class Reporter:
         remove_time_level = False
 
 
-        EVT = 'Event'
+        EVT = 'Outcome'
         AGE = 'Age'
         TSTE = 'TimeFromStartToEnd'
         EOS = 'RemovedBeforeStudyFinished'
@@ -2488,6 +2490,7 @@ class Reporter:
                 y_pos = k
                 x_pos = c
                 p_value = p_values.iloc[k]
+                #print(f'{p_value=}')
                 if c < 0:
                     x_pos = 0
                 elif 5 < c:
@@ -2496,7 +2499,11 @@ class Reporter:
                 else:
                     x_pos = S['exp(coef) upper 95%'][k]
                 txt = '{:.2f}'.format(c)
-                if p_value < 0.05:
+                if p_value < 0.001:
+                    txt += '***'
+                elif p_value < 0.01:
+                    txt += '**'
+                elif p_value < 0.05:
                     txt += '*'
                 ax.text(x_pos, y_pos, txt, ha='left', fontsize=16)
 
@@ -2513,74 +2520,121 @@ class Reporter:
         fname = os.path.join(self.parent.requests_path, folder, fname)
         df = pd.read_excel(fname)
 
+        def map_interval_to_Q(x):
+            if x == 'From0To131':
+                return 'Q1'
+            elif x == 'From131To155':
+                return 'Q2'
+            elif x == 'From155To163':
+                return 'Q3'
+            elif x == 'From163To186':
+                return 'Q4'
+            else:
+                raise ValueError('Unexpected')
+
+        df['TimeLevel'] = df['TimeLevel'].apply(map_interval_to_Q)
+        TS4D = 'DaysFrom4thDoseToStart'
+        df.rename(columns={'TimeLevel':TS4D}, inplace=True)
+
         #u = df['Site'].unique()
         #w = sum(u < 50)
         #print(u)
         #print(w)
 
+        plot_stats = True
+
         L = ['Age', 'Sex', 'InfectionLevel', 'VaccineLevel',
-                'SiteType','Outbreaks']
+                'SiteType','Outbreaks', TS4D]
         use_bar = {'Age':False, 'Sex':True,
                 'InfectionLevel':True, 'VaccineLevel':True,
-                'SiteType':True, 'Outbreaks':True}
-        event = 'Event'
+                'SiteType':True, 'Outbreaks':True, TS4D:True}
+        event = 'Outcome'
 
         for var in L:
-            fig, ax = plt.subplots()
+            if plot_stats:
+                fig, ax = plt.subplots()
             if use_bar[var]:
                 prop = 'Proportion'
                 vc = df[var].groupby(df[event]).value_counts(normalize=False)
                 labels = vc.loc[0].index.to_list()
                 print(labels)
                 print(vc)
-                s = df[var].groupby(df[event]).value_counts(normalize=True)
-                s = s.rename(prop)
-                s = s.reset_index()
-                sns.barplot(ax = ax,
-                        x=event, y=prop,
-                        data=s,
-                        hue = var)
-                for cat_index, container in enumerate(ax.containers):
-                    for event_index, R in enumerate(container):
-                        label = labels[cat_index]
+                T = vc.unstack(level=0)
+                print(T.values)
+                chi_sq_stat, p_value, dofs, expected = chi_sq_test(T.values)
+                print(f'{chi_sq_stat=}')
+                print(f'{p_value=}')
+                print(f'{dofs=}')
+                S = df[var].groupby(df[event]).value_counts(normalize=True)
+                S = S.rename(prop)
+                S = S.reset_index()
 
-                        #Recall that people with 2 omicron only appear in the 
-                        #Event = 0 group.
-                        if label == 'Only2Omicron' and event_index == 1:
-                            continue
+                if plot_stats:
+                    sns.barplot(ax = ax,
+                            x=event, y=prop,
+                            data=S,
+                            hue = var)
+                    for cat_index, container in enumerate(ax.containers):
+                        for event_index, R in enumerate(container):
+                            label = labels[cat_index]
 
-                        #print(cat_index)
-                        #print(event_index)
-                        #print(R)
-                        #print(labels[cat_index])
-                        h = R.get_height()
-                        w = R.get_width()/2
-                        xy = R.get_xy()
-                        h = round(h*100)/100
-                        R.set_height(h)
+                            #Recall that people with 2 omicron only appear in the 
+                            #Outcome = 0 group.
+                            if label == 'Only2Omicron' and event_index == 1:
+                                continue
 
-                        #print(f'{event_index=}')
-                        #print(vc.loc[event_index].index[cat_index])
-                        count = vc.loc[(event_index, label)]
-                        #print(f'{count=}')
+                            #print(cat_index)
+                            #print(event_index)
+                            #print(R)
+                            #print(labels[cat_index])
+                            h = R.get_height()
+                            w = R.get_width()/2
+                            xy = R.get_xy()
+                            h = round(h*100)/100
+                            R.set_height(h)
 
-                        #Center the number label
-                        hp = h/2
+                            #print(f'{event_index=}')
+                            #print(vc.loc[event_index].index[cat_index])
+                            count = vc.loc[(event_index, label)]
+                            #print(f'{count=}')
 
-                        #To avoid clustering on the bottom.
-                        hp -= 0.025
+                            #Center the number label
+                            hp = h/2
 
-                        if count < 5:
-                            hp += 0.05
-                        ax.text(xy[0]+w, hp, count, ha='center', fontsize=16)
+                            #To avoid clustering on the bottom.
+                            hp -= 0.025
+
+                            if count < 5:
+                                hp += 0.05
+                                hp += 0.05
+                            ax.text(xy[0]+w, hp, count, ha='center', fontsize=16)
 
 
-                    #Note that the container was modified by setting
-                    #R.set_height(h)
-                    ax.bar_label(container)
+                        #Note that the container was modified by setting
+                        #R.set_height(h)
+                        ax.bar_label(container)
             else:
-                sns.violinplot(x=event, y=var, data=df, ax = ax, cut=0)
-                #ax.text(xy[0]+w, hp, count, ha='center', fontsize=16)
+                if plot_stats:
+                    s = df[event] == 1
+                    a = df.loc[s,var]
+                    b = df.loc[~s,var]
+                    U,p_value = MannWhitney(a,b)
+                    print('Mann-Whitney')
+                    print(f'{p_value=}')
+                    sns.violinplot(x=event, y=var, data=df, ax = ax, cut=0)
+                    ax.text(0.5, 90, 615, ha='center', fontsize=16)
+                    ax.text(0.7, 90, 133, ha='center', fontsize=16)
+
+            if p_value < 0.001:
+                p_label = 'p<0.001'
+            elif p_value < 0.01:
+                p_label = 'p<0.01'
+            elif p_value < 0.05:
+                p_label = 'p<0.05'
+            else:
+                p_label = 'p={:.2f}'.format(p_value)
+            print('============================')
+
             stats_folder = 'stats'
             fname = var.replace('?','')
             fname += '.png'
@@ -2588,14 +2642,16 @@ class Reporter:
                     main_folder,
                     stats_folder,
                     fname)
-            #fig.savefig(fname)
-            fig.savefig(fname, bbox_inches='tight', pad_inches=0)
-            plt.close('all')
+            if plot_stats:
+                p_label = '$' + p_label + '$'
+                plt.title(p_label, fontsize=18)
+                fig.savefig(fname, bbox_inches='tight', pad_inches=0)
+                plt.close('all')
 
 
     def plot_kaplan_meier_sheraton(self):
-
-        EVT = 'Event'
+        km_folder = 'km'
+        EVT = 'Outcome'
         AGE = 'Age'
         TSTE = 'TimeFromStartToEnd'
         EOS = 'RemovedBeforeStudyFinished'
@@ -2613,13 +2669,13 @@ class Reporter:
         df_g = df.groupby('InfectionLevel')
         km  = KMFitter()
 
-        groups = ['NoInfections','Multiple','OnePreOmicron','OneOmicron']
+        groups = ['NoPriorInf','Multiple','OnePreOmicron','OneOmicron']
         colors = ['blue','green','gray','orange']
         group_to_color = {}
         for g,c in zip(groups,colors):
             group_to_color[g] = c
 
-        ref_group = 'NoInfections'
+        ref_group = 'NoPriorInf'
         df_ref = df_g.get_group(ref_group)
 
         for group, df in df_g:
@@ -2637,10 +2693,9 @@ class Reporter:
 
             ax.set_ylim([0.3,1])
             ax.set_xlabel('Time (days)')
-            ax.set_ylabel('S(t)')
+            ax.set_ylabel('Survival(t)')
 
             fname = 'km_' + group + '.png'
-            km_folder = 'km'
             fname = os.path.join(self.parent.requests_path,
                                  folder, km_folder, fname)
             #ax.tick_params(axis='x', rotation=90)
@@ -2657,10 +2712,10 @@ class Reporter:
 
 
         fname = 'km_all.png'
-        fname = os.path.join(self.parent.requests_path, folder, fname)
+        fname = os.path.join(self.parent.requests_path, folder, km_folder, fname)
         ax.set_ylim([0.3,1])
         ax.set_xlabel('Time (days)')
-        ax.set_ylabel('S(t)')
+        ax.set_ylabel('Survival(t)')
         fig.savefig(fname, bbox_inches='tight', pad_inches=0)
         plt.close('all')
 
