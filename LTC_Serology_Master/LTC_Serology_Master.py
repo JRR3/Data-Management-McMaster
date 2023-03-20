@@ -864,7 +864,7 @@ class LTCSerologyMaster:
         if not flag_warning:
             print('We are SAFE.')
 
-    def compute_sensitivity_and_specificity(self,m):
+    def compute_recall_and_precision(self,m):
         TP = m[0,0]
         TN = m[1,1]
         FP = m[1,0]
@@ -877,43 +877,54 @@ class LTCSerologyMaster:
         return T
 
 
-    def generate_SS_plot_for_Nuc(self):
-        use_pp = False
+    def generate_SS_PV_plot_for_Nuc(self):
+        #Plot the sensitivity, specificity,
+        #positive predictive value and
+        #negative predictive value for the
+        #nucleocapsid data.
+        folder = 'Andrew_feb_23_2023'
         T = np.linspace(0.1,0.9,20)
+        #T = [0.1,0.5,0.9]
         bio_t = 0.547779865867836
-        #T = [0.1, 0.3, 0.5]
-        spe = []
-        sen = []
+        L = []
         for t in T:
             time_to_frame = self.generate_PCR_vs_Nuc_table_for_paired_samples(tau=t)
             df1 = time_to_frame['Before']
             df2 = time_to_frame['After']
             m = df1.values + df2.values
-            c = self.compute_sensitivity_and_specificity(m)
-            if use_pp:
-                sen.append((t,c[2]))
-                spe.append((t,c[3]))
-            else:
-                sen.append((t,c[0]))
-                spe.append((t,c[1]))
-        sen = np.array(sen)
-        spe = np.array(spe)
-        fig, ax = plt.subplots()
-        if use_pp:
-            ax.plot(sen[:,0],sen[:,1],'b-', label='PPV')
-            ax.plot(spe[:,0],spe[:,1],'r-', label='NPV')
-            fname = 'PV_plots.png'
-        else:
-            ax.plot(sen[:,0],sen[:,1],'b-', label='Sensitivity')
-            ax.plot(spe[:,0],spe[:,1],'r-', label='Specificity')
-            fname = 'SS_plots.png'
+            c = self.compute_recall_and_precision(m)
+            v = np.concatenate(([t],c))
+            L.append(v)
 
+        L = np.array(L)
+
+        #Sensitivity and specificity
+        fig, ax = plt.subplots()
+        ax.plot(L[:,0],L[:,1],'b-', label='Sensitivity')
+        ax.plot(L[:,0],L[:,2],'r-', label='Specificity')
         ax.axvline(bio_t, color='black', linewidth=3, label='Current')
+        ax.set_xlabel(r'Threshold ($\tau$)')
         plt.legend(loc='best')
-        folder = 'Andrew_feb_23_2023'
+        fname = 'SS_plots.png'
         fname = os.path.join(self.parent.requests_path,
-                folder, 'summary', fname)
+                             folder, 'summary', fname)
         fig.savefig(fname, bbox_inches='tight', pad_inches=0)
+        plt.close('all')
+
+        #Positive predictive value and negative
+        #predictive value
+        fig, ax = plt.subplots()
+        ax.plot(L[:,0],L[:,3],'b-', label='PPV')
+        ax.plot(L[:,0],L[:,4],'r-', label='NPV')
+        ax.axvline(bio_t, color='black', linewidth=3, label='Current')
+        ax.set_xlabel(r'Threshold ($\tau$)')
+        plt.legend(loc='best')
+        fname = 'PV_plots.png'
+        fname = os.path.join(self.parent.requests_path,
+                             folder, 'summary', fname)
+        fig.savefig(fname, bbox_inches='tight', pad_inches=0)
+        plt.close('all')
+
 
 
 

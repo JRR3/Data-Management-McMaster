@@ -1766,20 +1766,54 @@ class Reporter:
                     ax.text(x, y, txt, fontsize=8, color='k')
 
 
-    def draw_history(self):
+    def draw_inf_vac_history_from_serology_for_sheraton(self):
         #This function is used to plot the serology trajectory
         #of a given participant.
+
+        #The original version of this function was created to
+        #satisfy the request stipulated on the folder:
+        #main_folder = 'Tara_feb_21_2023'
+
+        main_folder = 'Sheraton_mar_23_2023'
         bio_list = ['Nuc-IgG-100']
-        main_folder = 'Tara_feb_21_2023'
-        fname = 'serology_thresholds.xlsx'
         date_format = mpl.dates.DateFormatter('%b-%y')
+        study_start_date = datetime.datetime(2022,7,1)
+        study_end_date = datetime.datetime(2022,9,13)
+
+        #The serology thresholds are stored in the
+        #following folder.
+        fname = 'serology_thresholds.xlsx'
         fname = os.path.join(self.parent.LSM_path, fname)
         df_t = pd.read_excel(fname)
+
+        #++To the function for the Sheraton project.
+        #List of those participants that had a double
+        #omicron infection (before BA.5).
+        fname = 'double_o.xlsx'
+        folder= 'Sheraton_mar_23_2023'
+        fname = os.path.join(self.parent.requests_path, folder, fname)
+        df_do = pd.read_excel(fname)
+
+        #Filter the Master data frame for the double o individuals.
+        s = self.parent.df['ID'].isin(df_do['ID'])
+        df_m = self.parent.df[s].copy()
+
+        #The serology thresholds are stored in the
+        #following folder.
+        fname = 'serology_thresholds.xlsx'
+        fname = os.path.join(self.parent.LSM_path, fname)
+        df_t = pd.read_excel(fname)
+
         inf_date_h = self.parent.LIS_obj.positive_date_cols
         vac_date_h = self.parent.LIS_obj.vaccine_date_cols
+
+        #The counter is simply used to 
+        #manually limit the number
+        #of iterations.
         counter = 0
-        for index_m, row_m in pbar(self.parent.df.iterrows(),
-                total=self.parent.df.shape[0]):
+
+        N = df_m.shape[0]
+        for index_m, row_m in pbar(df_m.iterrows(), total=N):
             counter += 1
             #if 2 < counter:
                 #break
@@ -1788,10 +1822,18 @@ class Reporter:
             if not s.any():
                 continue
             df_s = self.parent.LSM_obj.df[s]
+
             for bio in bio_list:
+
+                #This list will store the date of collection
+                #and the value of the biological parameter.
                 L = []
+
                 s = df_t['Ig'] == bio
                 threshold = df_t.loc[s,'Threshold'].iloc[0]
+                #Create a list of the value of
+                #the biological parameter and the 
+                #date of collection.
                 for index_s, row_s in df_s.iterrows():
                     bio_value = row_s[bio]
                     if pd.notnull(bio_value):
@@ -1820,14 +1862,24 @@ class Reporter:
                     #Infection time
                     flag_had_infections = False
                     inf_dates = row_m[inf_date_h]
+
                     if 0 < inf_dates.count():
                         flag_had_infections = True
                         s = inf_dates.notnull()
                         inf_dates = inf_dates[s]
+
                         flag_infection_within = False
-                        for _ , date in inf_dates.items():
-                            ax.axvline(date, color='red', linewidth=3)
-                            if df['Time'].min() <= date and date <= df['Time'].max():
+
+                        #Iterate over infection times.
+                        for _ , inf_date in inf_dates.items():
+                            ax.axvline(inf_date, color='red', linewidth=3)
+                            #If there was an infection between the 
+                            #earliest time of collection and the
+                            #latest time of collection, then we had
+                            #an infection within.
+                            c1 = df['Time'].min() <= inf_date
+                            c2 = inf_date <= df['Time'].max()
+                            if c1 and c2:
                                 flag_infection_within = True
 
                     #Vaccination time
@@ -1840,6 +1892,13 @@ class Reporter:
 
                     #Plot threshold line
                     ax.axhline(threshold, color='gray', linewidth=3)
+
+                    #Plot study start and end date lines
+                    ax.axvline(study_start_date, color='brown',
+                               linestyle='dashdot', linewidth=3)
+                    ax.axvline(study_end_date, color='brown',
+                               linestyle='dashdot', linewidth=3)
+
                     ax.xaxis.set_major_formatter(date_format)
                     ax.set_title(ID)
                     ax.set_ylabel(bio)
@@ -1872,7 +1931,7 @@ class Reporter:
                     if not os.path.exists(storage_folder):
                         os.makedirs(storage_folder)
                     fname = os.path.join(storage_folder, fname)
-                    fig.savefig(fname)
+                    fig.savefig(fname, bbox_inches='tight', pad_inches=0)
                     plt.close('all')
 
 
@@ -1915,10 +1974,10 @@ class Reporter:
         #results for the poster.
         L = []
         multi_omicron = []
-        using_original_classification = False
+        using_original_classification = True
         using_only_one_classification = False
         using_count_pre_omicron_classification = False
-        using_count_omicron_classification = True
+        using_count_omicron_classification = False
         folder= 'Sheraton_mar_23_2023'
         fname = 'not_in_Ours.xlsx'
         fname = os.path.join(self.parent.requests_path, folder, fname)
@@ -2359,7 +2418,7 @@ class Reporter:
             new = row['New']
             dc_old_to_new[old]=new
 
-        plot_hazard_ratios= False
+        plot_hazard_ratios= True
         remove_time_level = False
 
 
@@ -2416,8 +2475,14 @@ class Reporter:
         if plot_hazard_ratios:
             fig,ax = plt.subplots()
             X = S['exp(coef)']
+            lower_delta = X - S['exp(coef) lower 95%']
+            upper_delta = S['exp(coef) upper 95%'] - X
+            errors = pd.concat([lower_delta, upper_delta], axis=1)
+            errors = errors.values.T
+            #print(errors)
             p_values = S['p']
-            ax.barh(X.index,X,color='b')
+            ax.barh(X.index,X,color='b', xerr=errors,
+                    error_kw=dict(ecolor='red', lw=2,))
             ax.set_xlabel('Hazard ratio')
             for k,c in enumerate(X):
                 y_pos = k
@@ -2428,6 +2493,8 @@ class Reporter:
                 elif 5 < c:
                     x_pos = 0.9*c
                     y_pos *= 1.15
+                else:
+                    x_pos = S['exp(coef) upper 95%'][k]
                 txt = '{:.2f}'.format(c)
                 if p_value < 0.05:
                     txt += '*'
@@ -2476,8 +2543,12 @@ class Reporter:
                 for cat_index, container in enumerate(ax.containers):
                     for event_index, R in enumerate(container):
                         label = labels[cat_index]
+
+                        #Recall that people with 2 omicron only appear in the 
+                        #Event = 0 group.
                         if label == 'Only2Omicron' and event_index == 1:
                             continue
+
                         #print(cat_index)
                         #print(event_index)
                         #print(R)
@@ -2487,15 +2558,25 @@ class Reporter:
                         xy = R.get_xy()
                         h = round(h*100)/100
                         R.set_height(h)
+
                         #print(f'{event_index=}')
                         #print(vc.loc[event_index].index[cat_index])
                         count = vc.loc[(event_index, label)]
                         #print(f'{count=}')
+
+                        #Center the number label
                         hp = h/2
+
+                        #To avoid clustering on the bottom.
                         hp -= 0.025
+
                         if count < 5:
                             hp += 0.05
                         ax.text(xy[0]+w, hp, count, ha='center', fontsize=16)
+
+
+                    #Note that the container was modified by setting
+                    #R.set_height(h)
                     ax.bar_label(container)
             else:
                 sns.violinplot(x=event, y=var, data=df, ax = ax, cut=0)
@@ -2559,7 +2640,9 @@ class Reporter:
             ax.set_ylabel('S(t)')
 
             fname = 'km_' + group + '.png'
-            fname = os.path.join(self.parent.requests_path, folder, fname)
+            km_folder = 'km'
+            fname = os.path.join(self.parent.requests_path,
+                                 folder, km_folder, fname)
             #ax.tick_params(axis='x', rotation=90)
             fig.savefig(fname, bbox_inches='tight', pad_inches=0)
             plt.close('all')
@@ -2620,5 +2703,197 @@ class Reporter:
             fname = os.path.join(self.parent.requests_path, folder, fname)
             df_t.to_excel(fname)
 
-        #print(df_m)
-        #print(df_a)
+    def investigate_double_o_sheraton(self):
+        #UNUSED
+        fname = 'double_o.xlsx'
+        folder= 'Sheraton_mar_23_2023'
+        fname = os.path.join(self.parent.requests_path, folder, fname)
+        df = pd.read_excel(fname)
+        print(df)
+
+    def draw_cloud_history_from_serology_for_sheraton(self):
+        #This function is used to plot the serology trajectory
+        #of a given participant.
+
+        #The original version of this function was created to
+        #satisfy the request stipulated on the folder:
+        #main_folder = 'Tara_feb_21_2023'
+
+        main_folder = 'Sheraton_mar_23_2023'
+        bio_list = ['Nuc-IgG-100']
+        bio_list += ['RBD-IgG-100']
+        bio_list += ['Nuc-IgA-100']
+        bio_list += ['Spike-IgG-100']
+        bio_list += ['Wuhan (SB3)']
+        bio_list += ['Omicron (BA.1)']
+        date_format = mpl.dates.DateFormatter('%b-%y')
+        study_start_date = datetime.datetime(2022,7,1)
+        study_end_date = datetime.datetime(2022,9,13)
+
+        #The serology thresholds are stored in the
+        #following folder.
+        fname = 'serology_thresholds.xlsx'
+        fname = os.path.join(self.parent.LSM_path, fname)
+        df_t = pd.read_excel(fname)
+
+        #List of those participants that had a double
+        #omicron infection (before BA.5).
+        fname = 'double_o.xlsx'
+        folder= 'Sheraton_mar_23_2023'
+        fname = os.path.join(self.parent.requests_path, folder, fname)
+        df_do = pd.read_excel(fname)
+
+        #List of those participants that had a single
+        #omicron infection (before BA.5).
+        fname = 'single_o.xlsx'
+        folder= 'Sheraton_mar_23_2023'
+        fname = os.path.join(self.parent.requests_path, folder, fname)
+        df_so = pd.read_excel(fname)
+
+        #Filter the Master data frame for the double o individuals.
+        s_double = self.parent.df['ID'].isin(df_do['ID'])
+        s_single = self.parent.df['ID'].isin(df_so['ID'])
+
+        df_m = self.parent.df.copy()
+        df_m['D'] = s_double
+        df_m['S'] = s_single
+
+        #The serology thresholds are stored in the
+        #following folder.
+        fname = 'serology_thresholds.xlsx'
+        fname = os.path.join(self.parent.LSM_path, fname)
+        df_t = pd.read_excel(fname)
+
+        inf_date_h = self.parent.LIS_obj.positive_date_cols
+        vac_date_h = self.parent.LIS_obj.vaccine_date_cols
+
+        #The counter is simply used to 
+        #manually limit the number
+        #of iterations.
+        counter = 0
+
+        N = df_m.shape[0]
+
+
+        for bio in bio_list:
+
+            #One single plot
+            fig, ax = plt.subplots()
+
+            for index_m, row_m in pbar(df_m.iterrows(), total=N):
+                counter += 1
+                if row_m['D']:
+                    cloud_color='blue'
+                    inf_color='yellow'
+                    inf_style='solid'
+                elif row_m['S']:
+                    cloud_color='red'
+                    inf_color='cyan'
+                    inf_style='solid'
+                else:
+                    continue
+
+                #if 2 < counter:
+                    #break
+                ID = row_m['ID']
+                s = self.parent.LSM_obj.df['ID'] == ID
+                if not s.any():
+                    continue
+                df_s = self.parent.LSM_obj.df[s]
+
+                #This list will store the date of collection
+                #and the value of the biological parameter.
+                L = []
+
+                s = df_t['Ig'] == bio
+                threshold = df_t.loc[s,'Threshold'].iloc[0]
+                #Create a list of the value of
+                #the biological parameter and the 
+                #date of collection.
+                for index_s, row_s in df_s.iterrows():
+                    bio_value = row_s[bio]
+                    if pd.notnull(bio_value):
+                        doc = row_s['Date Collected']
+                        L.append((doc, bio_value))
+                #At least two points
+                if 1 < len(L):
+
+                    #Create DF.
+                    df = pd.DataFrame(L, columns=['Time',bio])
+
+                    #Was the threshold crossed?
+                    flag_crossed_threhold = False
+                    if df[bio].min() < threshold and threshold < df[bio].max():
+                        flag_crossed_threhold = True
+                    else:
+                        #Did not cross.
+                        flag_below = False
+                        if df[bio].min() < threshold:
+                            flag_below = True
+
+                    #Serology time
+                    df.plot(ax=ax, x='Time',
+                            linestyle='None',
+                            y=bio, marker='o',
+                            alpha = 0.6,
+                            color=cloud_color)
+
+                    #Infection time
+                    flag_had_infections = False
+                    inf_dates = row_m[inf_date_h]
+
+                    if 0 < inf_dates.count():
+                        flag_had_infections = True
+                        s = inf_dates.notnull()
+                        inf_dates = inf_dates[s]
+
+                        flag_infection_within = False
+
+                        #Iterate over infection times.
+                        for _ , inf_date in inf_dates.items():
+                            ax.axvline(inf_date, color=inf_color,
+                                       linestyle=inf_style, linewidth=1)
+                            #If there was an infection between the 
+                            #earliest time of collection and the
+                            #latest time of collection, then we had
+                            #an infection within.
+                            c1 = df['Time'].min() <= inf_date
+                            c2 = inf_date <= df['Time'].max()
+                            if c1 and c2:
+                                flag_infection_within = True
+
+                    #Vaccination time
+                    vac_dates = row_m[vac_date_h]
+                    if 0 < vac_dates.count():
+                        s = vac_dates.notnull()
+                        vac_dates = vac_dates[s]
+                        for k,(_ , date) in enumerate(vac_dates.items()):
+                            if k == -3:
+                                ax.axvline(date, color='black', linestyle='-', linewidth=1)
+
+
+
+            #Plot threshold line
+            ax.axhline(threshold, color='gray', linewidth=3)
+
+            #Plot study start and end date lines
+            ax.axvline(study_start_date, color='brown',
+                       linestyle='dashdot', linewidth=3)
+            ax.axvline(study_end_date, color='brown',
+                       linestyle='dashdot', linewidth=3)
+
+            ax.xaxis.set_major_formatter(date_format)
+            ax.set_ylabel(bio)
+            ax.get_legend().remove()
+            bio = bio.replace('.','_')
+            bio = bio.replace(' ','_')
+            fname = 'cloud_' + bio + '.png'
+            stats_folder = 'stats'
+            storage_folder = os.path.join(self.requests_path,
+                                          main_folder,
+                                          stats_folder)
+            if not os.path.exists(storage_folder):
+                os.makedirs(storage_folder)
+            fname = os.path.join(storage_folder, fname)
+            fig.savefig(fname, bbox_inches='tight', pad_inches=0)
+            plt.close('all')

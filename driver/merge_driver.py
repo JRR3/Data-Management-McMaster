@@ -1878,12 +1878,12 @@ obj = Merger()
 
 #obj.generate_the_tri_sheet_file()
 #Feb 21 2023
-#obj.REP_obj.draw_history()
+#obj.REP_obj.draw_inf_vac_history_from_serology()
 #obj.LSM_obj.find_repeated_dates()
 #obj.generate_the_tri_sheet_file()
 
 #Feb 21 2023
-#obj.REP_obj.draw_history()
+#obj.REP_obj.draw_inf_vac_history_from_serology()
 
 #Feb 23 2023
 #obj.LSM_obj.nucleocapsid_stats()
@@ -1925,14 +1925,20 @@ obj = Merger()
 #obj.LSM_obj.nucleocapsid_stats()
 #obj.LSM_obj.generate_PCR_vs_Nuc_table_for_paired_samples()
 
-#Mar 13 2023
+#Mar 13-16 2023
 #obj.REP_obj.generate_poster_data_sheraton()
 #obj.REP_obj.add_outbreak_to_list()
 #obj.REP_obj.plot_kaplan_meier_sheraton()
 #obj.REP_obj.create_design_matrix_sheraton()
-#obj.REP_obj.survival_analysis_sheraton()
+obj.REP_obj.survival_analysis_sheraton()
 
 #obj.LSM_obj.generate_PCR_vs_Nuc_table_for_paired_samples()
-obj.REP_obj.plot_population_statistics_sheraton()
+#obj.REP_obj.plot_population_statistics_sheraton()
 
-#obj.LSM_obj.generate_SS_plot_for_Nuc()
+#March 17 2023
+#obj.LSM_obj.generate_SS_PV_plot_for_Nuc()
+#obj.REP_obj.plot_population_statistics_sheraton()
+#obj.REP_obj.investigate_double_o_sheraton()
+##Sheraton
+#obj.REP_obj.draw_inf_vac_history_from_serology_for_sheraton()
+#obj.REP_obj.draw_cloud_history_from_serology_for_sheraton()
