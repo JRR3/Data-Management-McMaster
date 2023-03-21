@@ -17,6 +17,7 @@ import datetime
 import seaborn as sns
 from lifelines import CoxPHFitter
 from lifelines import KaplanMeierFitter as KMFitter
+from lifelines.statistics import logrank_test as LRT
 from scipy.stats import mannwhitneyu as MannWhitney
 from scipy.stats import chi2_contingency as chi_sq_test
 # <b> Section: Reporter </b>
@@ -1976,10 +1977,10 @@ class Reporter:
         #results for the poster.
         L = []
         multi_omicron = []
-        using_original_classification = True
+        using_original_classification = False
         using_only_one_classification = False
         using_count_pre_omicron_classification = False
-        using_count_omicron_classification = False
+        using_count_omicron_classification = True
         folder= 'Sheraton_mar_23_2023'
         fname = 'not_in_Ours.xlsx'
         fname = os.path.join(self.parent.requests_path, folder, fname)
@@ -2666,22 +2667,33 @@ class Reporter:
         fname = 'LTC003_list.xlsx'
         fname = os.path.join(self.parent.requests_path, folder, fname)
         df = pd.read_excel(fname)
+
+
         df_g = df.groupby('InfectionLevel')
         km  = KMFitter()
 
         groups = ['NoPriorInf','Multiple','OnePreOmicron','OneOmicron']
         colors = ['blue','green','gray','orange']
         group_to_color = {}
+
         for g,c in zip(groups,colors):
             group_to_color[g] = c
 
         ref_group = 'NoPriorInf'
+        ref_group = 'OneOmicron'
         df_ref = df_g.get_group(ref_group)
+        s_ref_group = df['InfectionLevel'] == ref_group
 
         for group, df in df_g:
 
             if group == ref_group:
                 continue
+
+
+            print('Log_rank_test between ', group, ' and ', ref_group)
+            log_rank_test = LRT(df[TSTE],df_ref[TSTE], df[EVT], df_ref[EVT])
+            log_rank_test.print_summary()
+            print(log_rank_test.p_value)
 
             fig,ax = plt.subplots()
 
@@ -2701,6 +2713,7 @@ class Reporter:
             #ax.tick_params(axis='x', rotation=90)
             fig.savefig(fname, bbox_inches='tight', pad_inches=0)
             plt.close('all')
+            print('========================')
 
         fig,ax = plt.subplots()
 

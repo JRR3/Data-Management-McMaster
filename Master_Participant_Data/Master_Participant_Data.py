@@ -602,7 +602,7 @@ class MasterParticipantData:
         #Use this function for updates using 
         #the one-column format.
         fname  = 'updates.xlsx'
-        folder = 'Tara_mar_01_2023'
+        folder = 'Tara_mar_21_2023'
         df_up = self.load_single_column_df_for_update(fname, folder)
         print(df_up)
         #Pre-update

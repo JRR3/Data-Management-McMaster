@@ -158,11 +158,25 @@ class Merger:
 
 
     def load_the_M_file(self):
+        fname = 'column_types.xlsx'
+        fname = os.path.join(self.outputs_path, fname)
+        df_t = pd.read_excel(fname)
+        date_cols = []
+        name_to_type = {}
+        #Use the corresponding data types for each column.
+        for index, row in df_t.iterrows():
+            name = row['Name']
+            col_type = row['Type']
+            if col_type == 'date':
+                date_cols.append(name)
+            else:
+                name_to_type[name] = col_type
+
         #Load the Master file M
         print('Make sure that this is a clone of the encrypted version!')
         fname = self.M_fname
         fname = os.path.join(self.outputs_path, fname)
-        self.df = pd.read_excel(fname)
+        self.df = pd.read_excel(fname, dtype = name_to_type, parse_dates=date_cols)
         print('MPD_LIS_SID, aka the M file, has been loaded from Excel')
 
 
@@ -1926,11 +1940,11 @@ obj = Merger()
 #obj.LSM_obj.generate_PCR_vs_Nuc_table_for_paired_samples()
 
 #Mar 13-16 2023
-#obj.REP_obj.generate_poster_data_sheraton()
-#obj.REP_obj.add_outbreak_to_list()
+obj.REP_obj.generate_poster_data_sheraton()
+obj.REP_obj.add_outbreak_to_list()
 #obj.REP_obj.plot_kaplan_meier_sheraton()
-#obj.REP_obj.create_design_matrix_sheraton()
-#obj.REP_obj.survival_analysis_sheraton()
+obj.REP_obj.create_design_matrix_sheraton()
+obj.REP_obj.survival_analysis_sheraton()
 
 #obj.LSM_obj.generate_PCR_vs_Nuc_table_for_paired_samples()
 #obj.REP_obj.plot_population_statistics_sheraton()
@@ -1943,5 +1957,9 @@ obj = Merger()
 #obj.REP_obj.draw_inf_vac_history_from_serology_for_sheraton()
 #obj.REP_obj.draw_cloud_history_from_serology_for_sheraton()
 
-#March 20 2023
-obj.REP_obj.plot_population_statistics_sheraton()
+#March 20-21 2023
+#obj.REP_obj.plot_population_statistics_sheraton()
+
+#March 21 2023
+#obj.MPD_obj.single_column_update()
+#obj.print_column_and_datatype(obj.df)
