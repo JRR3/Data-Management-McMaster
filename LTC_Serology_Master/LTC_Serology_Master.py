@@ -1434,8 +1434,8 @@ class LTCSerologyMaster:
 
 
         #print(df)
-        folder = 'Megan_feb_24_2023'
-        fname = 'serology_label_verification_feb_27_2023.xlsx'
+        folder = 'Jessica_mar_22_2023'
+        fname = 'serology_label_verification_mar_22_2023.xlsx'
         fname = os.path.join(self.parent.requests_path, folder, fname)
         df.to_excel(fname, index=False)
 
@@ -1669,4 +1669,44 @@ class LTCSerologyMaster:
         print(df_sk)
         return
 
+
+    def add_full_long_ID(self):
+        txt = '(?P<site>[0-9]{2})[-](?P<user>[0-9]{7})-(?P<time>[a-zA-Z0-9]+)'
+        rexp = re.compile(txt)
+        for index, row in self.df.iterrows():
+            full_ID = row['Full ID']
+            obj = rexp.match(full_ID)
+            if obj:
+                site = obj.group('site')
+                user = obj.group('user')
+                time = obj.group('time')
+                ancode = self.lcode_to_ancode[time]
+                long_id = site + '-' + user + '-' + ancode
+                self.df.loc[index,'Full Long ID'] = long_id
+            else:
+                raise ValueError('Unexpected Full ID')
+        print(self.df)
+
+    def add_under_investigation(self):
+        fname = 'serology_label_verification_mar_22_2023.xlsx'
+        folder= 'Jessica_mar_22_2023'
+        fname = os.path.join('..','requests',folder, fname)
+        df_w  = pd.read_excel(fname)
+        s = df_w['Warning'] == True
+        under_investigation = df_w.loc[s,'Full ID']
+        s = self.df['Full ID'].isin(under_investigation)
+        self.df['Under Investigation'] = s
+        print(self.df)
+
+    def peace_of_mind_check(self):
+        #===============Serology=========================
+        print('Within Serology')
+        self.parent.LSM_obj.find_repeated_dates()
+        print('Checking for repeated IDs')
+
+        s =  self.df[self.merge_source].value_counts().gt(1)
+        if s.any():
+            raise ValueError('We have repeats in the Full ID.')
+        else:
+            print('SAFE, no repetitions for Full ID.')
 

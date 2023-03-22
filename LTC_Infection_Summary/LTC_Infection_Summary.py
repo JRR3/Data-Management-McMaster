@@ -925,8 +925,9 @@ class LTCInfectionSummary:
         if kind == 'Infection':
             selection = df['Method/Type'] != 'DBS'
             df = df[selection]
-        print(df)
+        #print(df)
         #======================================
+        #The rest is unnecessary.
         return df
         #======================================
         #Add the new columns to the df

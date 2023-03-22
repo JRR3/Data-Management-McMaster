@@ -82,16 +82,6 @@ class Merger:
         print('Merge class has been loaded.')
 
 
-    def full_run(self):
-        self.MPD_obj.full_run()
-        self.LIS_obj.full_run()
-        self.SID_obj.full_run()
-
-    def load_components_MPD_LTC_SID(self):
-        self.MPD_obj.load_main_frame()
-        self.LIS_obj.load_main_frame()
-        self.SID_obj.load_main_frame()
-
     def update_master_using_SID(self):
         #This function updates the merged file M with the
         #Sample Inventory Data file provided by Megan.
@@ -241,17 +231,14 @@ class Merger:
 
 
     def check_id_format(self, df, col):
+        #March 22 2023
         #Modified to be applicable to any df and given column.
-        #user_length_set = set()
-        #site_length_set = set()
+        print('>>>Checking the ID format')
         rexp = re.compile('(?P<site>[0-9]{2})[-](?P<user>[0-9]{7})')
         def is_id(txt):
             if isinstance(txt, str):
                 obj = rexp.match(txt)
                 if obj:
-                    #user_length_set.add(len(obj.group('user')))
-                    #site_length_set.add(len(obj.group('site')))
-                    #return True
                     pass
                 else:
                     print(txt)
@@ -259,12 +246,8 @@ class Merger:
             else:
                 raise ValueError(f'Unexpected type for {txt=}')
 
-        #selector = df[col].apply(is_id)
-        #if ~selector.all():
-            #print('Not all IDs are compliant.')
-        #else:
-            #print('All IDs have the format ##-#...#')
-            #print(f'{user_length_set=}, {site_length_set=}')
+        selector = df[col].apply(is_id)
+        print('All IDs have the expected format')
 
 
     def merge_M_with_LSM(self):
@@ -332,7 +315,7 @@ class Merger:
         else:
             #None
             fname = 'updates.xlsx'
-        folder = 'Jessica_mar_03_2023'
+        folder = 'Jessica_mar_22_2023'
         fname = os.path.join('..','requests',folder, fname)
         book = pd.read_excel(fname, sheet_name=None)
         print(f'LSM is looking into the {folder=}')
@@ -472,7 +455,7 @@ class Merger:
         #Infection_column file into one Excel workbook.
         #Feb 03 2023
         fname  = 'tri_merge.xlsx'
-        folder = 'Jessica_mar_03_2023'
+        folder = 'Jessica_mar_22_2023'
         fname = os.path.join('..','requests',folder, fname)
         master_avec_serology = pd.merge(self.LSM_obj.df,
                 self.df, on='ID', how='outer')
@@ -1940,11 +1923,11 @@ obj = Merger()
 #obj.LSM_obj.generate_PCR_vs_Nuc_table_for_paired_samples()
 
 #Mar 13-16 2023
-obj.REP_obj.generate_poster_data_sheraton()
-obj.REP_obj.add_outbreak_to_list()
+#obj.REP_obj.generate_poster_data_sheraton()
+#obj.REP_obj.add_outbreak_to_list()
 #obj.REP_obj.plot_kaplan_meier_sheraton()
-obj.REP_obj.create_design_matrix_sheraton()
-obj.REP_obj.survival_analysis_sheraton()
+#obj.REP_obj.create_design_matrix_sheraton()
+#obj.REP_obj.survival_analysis_sheraton()
 
 #obj.LSM_obj.generate_PCR_vs_Nuc_table_for_paired_samples()
 #obj.REP_obj.plot_population_statistics_sheraton()
@@ -1961,5 +1944,19 @@ obj.REP_obj.survival_analysis_sheraton()
 #obj.REP_obj.plot_population_statistics_sheraton()
 
 #March 21 2023
+#obj.MPD_obj.peace_of_mind_check()
 #obj.MPD_obj.single_column_update()
+#obj.write_the_M_file_to_excel()
 #obj.print_column_and_datatype(obj.df)
+#obj.update_LSM()
+#obj.LSM_obj.write_LSM_to_excel()
+
+
+#obj.LSM_obj.check_vaccine_labels()
+#obj.LSM_obj.add_full_long_ID()
+#obj.LSM_obj.add_under_investigation()
+#obj.LSM_obj.write_LSM_to_excel()
+
+#obj.MPD_obj.peace_of_mind_check()
+#obj.LSM_obj.peace_of_mind_check()
+obj.generate_the_tri_sheet_file()

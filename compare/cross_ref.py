@@ -3274,6 +3274,17 @@ class Comparator:
 
         self.df = self.df[original_columns].copy()
 
+    def full_run(self):
+        self.MPD_obj.full_run()
+        self.LIS_obj.full_run()
+        self.SID_obj.full_run()
+
+    def load_components_MPD_LTC_SID(self):
+        self.MPD_obj.load_main_frame()
+        self.LIS_obj.load_main_frame()
+        self.SID_obj.load_main_frame()
+
+
 #obj = Comparator()
 #obj.load_the_rainbow()
 

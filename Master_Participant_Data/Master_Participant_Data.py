@@ -74,7 +74,8 @@ class MasterParticipantData:
         #We drop rows containing NA in the "Sample ID" from the
         #file because sometimes there are additional comments
         #below the table that get interpreted as additional rows.
-        self.parent.df.dropna(subset=[self.merge_column], inplace=True)
+        #self.parent.df.dropna(subset=[self.merge_column], inplace=True)
+        print('>>>Making sure there are no repeats')
         value_count_gt_1 = self.parent.df[self.merge_column].value_counts().gt(1)
         if value_count_gt_1.any():
             print('We have repetitions in Master Participant Data')
@@ -714,3 +715,77 @@ class MasterParticipantData:
         print(f'Total post-data:{post_total}')
         print(f'% increment    :{p_increment}')
         self.delta_report = M
+
+    def peace_of_mind_check(self):
+        fname = 'column_types.xlsx'
+        fname = os.path.join(self.parent.outputs_path, fname)
+        df_t = pd.read_excel(fname)
+        #Columns that should not have spaces
+        print('>>>Making sure there are no unexpected spaces')
+        for index_t, row_t in df_t.iterrows():
+            col_name = row_t['Name']
+            spaces_allowed = row_t['Spaces allowed?']
+            if spaces_allowed == 'No':
+                O = self.parent.df[col_name]
+                T = self.parent.df[col_name].str.replace(' ','')
+                if O.equals(T):
+                    pass
+                else:
+                    print('There were spaces within', col_name)
+                    raise ValueError('Spaces are not allowed')
+                self.parent.df[col_name] = T
+        print('There are no unexpected spaces.')
+
+        self.check_for_repeats()
+
+        self.parent.check_id_format(self.parent.df, self.merge_column)
+
+        sex_allowed_values = ['Male', 'Female', np.nan]
+        S = self.parent.df['Sex'].isin(sex_allowed_values)
+        if not S.all():
+            print(self.parent.df.loc[~S,header])
+            raise ValueError('Sex column is not compliant.')
+        else:
+            print('Sex column is compliant.')
+
+        #self.removal_states = ['Deceased', 'Discharged', 'Moved',
+                               #'Declined', 'Withdrew', self.RC]
+        reason_allowed_values = self.removal_states.copy()
+        reason_allowed_values += ['Refused-Combative', 'Refused-Palliative']
+        reason_allowed_values += ['Refused-NoContact', 'Refused-HealthReasons']
+        reason_allowed_values += ['Invalid-Consent', np.nan]
+        S = self.parent.df['Reason'].isin(reason_allowed_values)
+        if not S.all():
+            print(self.parent.df.loc[~S,header])
+            raise ValueError('Reason column is not compliant.')
+        else:
+            print('Reason column is compliant.')
+
+
+
+        vacc_allowed_values = self.parent.LIS_obj.list_of_valid_vaccines
+        vacc_allowed_values += [np.nan]
+        h = 'Vaccine Type '
+        for k in range(1,5+1):
+            header = h + str(k)
+            S = self.parent.df[header].isin(vacc_allowed_values)
+            if not S.all():
+                print(header)
+                print(self.parent.df.loc[~S,header])
+                raise ValueError('Vaccine column is not compliant.')
+            else:
+                print(header, 'column is compliant.')
+
+        inf_allowed_values = ['PCR','RAT']
+        inf_allowed_values += [np.nan]
+        h = 'Infection Type '
+        for k in range(1,6+1):
+            header = h + str(k)
+            S = self.parent.df[header].isin(inf_allowed_values)
+            if not S.all():
+                print(header)
+                print(self.parent.df.loc[~S,header])
+                raise ValueError('Infection column is not compliant.')
+            else:
+                print(header, 'column is compliant.')
+
