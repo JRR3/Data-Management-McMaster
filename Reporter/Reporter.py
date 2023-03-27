@@ -1804,12 +1804,6 @@ class Reporter:
         s = self.parent.df['ID'].isin(df_do['ID'])
         df_m = self.parent.df[s].copy()
 
-        #The serology thresholds are stored in the
-        #following folder.
-        fname = 'serology_thresholds.xlsx'
-        fname = os.path.join(self.parent.LSM_path, fname)
-        df_t = pd.read_excel(fname)
-
         inf_date_h = self.parent.LIS_obj.positive_date_cols
         vac_date_h = self.parent.LIS_obj.vaccine_date_cols
 

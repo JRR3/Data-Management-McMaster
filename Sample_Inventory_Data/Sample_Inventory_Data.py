@@ -347,7 +347,9 @@ class SampleInventoryData:
         self.parent.MPD_obj.monotonic_increment_check(status_pre, status_post)
 
     def find_repeated_dates_in_the_M_file(self):
+        #March 27 2023
         blood_slice = slice('Blood Draw:NoVac1 - NV1', 'Blood Draw:Repeat - JR')
+        flag = False
         for index, row in self.parent.df.iterrows():
             ID = row['ID']
             dates = row[blood_slice]
@@ -356,10 +358,16 @@ class SampleInventoryData:
             vc = dates.value_counts()
             s  = vc.gt(1)
             if s.any():
+                flag = True
                 vc = vc[s]
                 print(ID)
                 print(vc)
                 print('===========')
+        if not flag:
+            print('SAFE with dates in the Sample Inventory File.')
+        else:
+            raise ValueError('Repeated dates in the SID.')
+
 
     def find_repeated_dates_in_megans_file(self):
         folder = 'Megan_mar_03_2023'

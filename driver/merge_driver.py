@@ -1786,118 +1786,6 @@ class Merger:
 
 
 obj = Merger()
-#Jan 25 2023
-#obj.update_LSM()
-#obj.LSM_obj.write_LSM_to_excel()
-#obj.update_master_using_SID()
-#obj.write_the_M_file_to_excel()
-#obj.SID_obj.migrate_dates_from_SID_to_LSM()
-#obj.LSM_obj.write_LSM_to_excel()
-#obj.merge_M_with_LSM()
-#Jan 26 2023
-#obj.LSM_obj.generate_L_format()
-#obj.jessica_req_jan_25_2023()
-#obj.taras_req_2_jan_26_2023()
-#Jan 27 2023
-#obj.taras_req_jan_27_2023()
-#Jan 30 2023
-#obj.MPD_obj.single_column_update()
-#obj.write_the_M_file_to_excel()
-#obj.update_LSM()
-#obj.LSM_obj.write_LSM_to_excel()
-#Feb 03-06 2023
-#obj.ahmad_req_feb_03_2023()
-#obj.write_the_M_file_to_excel()
-#obj.MPD_obj.single_column_update()
-#obj.write_the_M_file_to_excel()
-#obj.taras_req_feb_03_2023()
-#obj.LSM_obj.include_nucleocapsid_status()
-#obj.LSM_obj.write_LSM_to_excel()
-#obj.generate_the_tri_sheet_file()
-#obj.merge_M_with_LSM()
-#obj.REP_obj.track_serology_with_infections()
-#obj.lindsays_request_feb_06_2023()
-#obj.write_the_M_file_to_excel()
-#obj.generate_the_tri_sheet_file()
-
-#Feb 07 2023
-#obj.REP_obj.track_serology_with_infections()
-#obj.extract_ID_from_sv_file()
-#obj.create_raw_files_for_template()
-
-#obj.update_master_using_SID()
-#obj.write_the_M_file_to_excel()
-
-#obj.LSM_obj.include_nucleocapsid_status()
-#obj.SID_obj.migrate_dates_from_SID_to_LSM()
-#obj.LSM_obj.write_LSM_to_excel()
-
-#obj.update_LSM()
-#obj.LSM_obj.write_LSM_to_excel()
-
-#obj.generate_the_tri_sheet_file()
-#obj.REP_obj.track_serology_with_infections()
-#obj.ahmads_request_feb_07_2023()
-
-#Feb 09 2023
-#Feb 10 2023
-#obj.create_raw_files_for_template()
-
-#Feb 13 2023
-#obj.REP_obj.plot_infections_on_bars()
-#obj.REP_obj.plot_infections_on_map()
-
-#Feb 14 2023
-#obj.taras_request_feb_14_2023()
-#obj.write_the_M_file_to_excel()
-
-#obj.update_LSM()
-#obj.LSM_obj.write_LSM_to_excel()
-
-#obj.REP_obj.plot_infections_on_map()
-
-#Feb 16 2023
-#obj.create_raw_files_for_template()
-#obj.extract_ID_from_sv_file()
-#obj.LIS_obj.order_infections_and_vaccines()
-#obj.write_the_M_file_to_excel()
-#obj.taras_request_feb_16_2023()
-#obj.write_the_M_file_to_excel()
-
-#Feb 17 2023
-#obj.create_raw_files_for_template()
-#obj.taras_request_feb_17_2023()
-#obj.LIS_obj.order_infections_and_vaccines()
-#obj.write_the_M_file_to_excel()
-
-#obj.update_LSM()
-#obj.LSM_obj.write_LSM_to_excel()
-
-#obj.generate_the_tri_sheet_file()
-#Feb 21 2023
-#obj.REP_obj.draw_inf_vac_history_from_serology()
-#obj.LSM_obj.find_repeated_dates()
-#obj.generate_the_tri_sheet_file()
-
-#Feb 21 2023
-#obj.REP_obj.draw_inf_vac_history_from_serology()
-
-#Feb 23 2023
-#obj.LSM_obj.nucleocapsid_stats()
-
-#Feb 24 2023
-#obj.REP_obj.dawns_request_feb_24_2023()
-#obj.LSM_obj.check_vaccine_labels()
-
-#Feb 27 2023
-#obj.taras_request_feb_27_2023()
-#obj.MPD_obj.single_column_update()
-#obj.write_the_M_file_to_excel()
-#obj.REP_obj.generate_poster_data_sheraton()
-
-#Feb 28 2023
-#Mar 02 2023
-#obj.LSM_obj.nucleocapsid_stats()
 
 #Mar 03 2023
 #obj.MPD_obj.single_column_update()
@@ -1965,5 +1853,12 @@ obj = Merger()
 #obj.REP_obj.add_outbreak_to_list()
 #obj.REP_obj.plot_kaplan_meier_sheraton()
 #obj.REP_obj.create_design_matrix_sheraton()
-obj.REP_obj.survival_analysis_sheraton()
-obj.REP_obj.compute_concordance_for_sheraton()
+#obj.REP_obj.survival_analysis_sheraton()
+#obj.REP_obj.compute_concordance_for_sheraton()
+
+#obj.MPD_obj.peace_of_mind_check()
+#obj.LSM_obj.peace_of_mind_check()
+
+#March 27 2023
+#obj.LSM_obj.generate_PCR_vs_Nuc_table_for_paired_samples()
+obj.LSM_obj.generate_nuc_history_plus_spike_for_nazy()

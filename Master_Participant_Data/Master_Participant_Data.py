@@ -733,12 +733,18 @@ class MasterParticipantData:
                 else:
                     print('There were spaces within', col_name)
                     raise ValueError('Spaces are not allowed')
+                #Correct if allowed.
                 self.parent.df[col_name] = T
         print('There are no unexpected spaces.')
 
+        #ID format?
+        self.parent.check_id_format(self.parent.df, self.merge_column)
+
+        #Repeated IDs?
         self.check_for_repeats()
 
-        self.parent.check_id_format(self.parent.df, self.merge_column)
+        #Sample Inventory Dates?
+        self.parent.SID_obj.find_repeated_dates_in_the_M_file()
 
         sex_allowed_values = ['Male', 'Female', np.nan]
         S = self.parent.df['Sex'].isin(sex_allowed_values)

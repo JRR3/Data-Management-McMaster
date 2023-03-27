@@ -931,6 +931,8 @@ class LTCSerologyMaster:
     def generate_PCR_vs_Nuc_table_for_paired_samples(self, tau=None):
         #Andrew requested this table
         #Note that PCR- samples are also considered.
+        #We also store the IDs of those participants that produced
+        #false negatives (PCR+, NUC-).
         inf_date_h = self.parent.LIS_obj.positive_date_cols
         boundary_date  = datetime.datetime(2022,1,1)
         nuc_G = 'Nuc-IgG-100'
@@ -938,6 +940,7 @@ class LTCSerologyMaster:
             nuc_G_t = tau
         else:
             nuc_G_t = 0.547779865867836
+            print('Using default tau=',nuc_G_t)
         date_format = mpl.dates.DateFormatter('%b-%y')
         main_folder = 'Andrew_feb_23_2023'
 
@@ -950,6 +953,7 @@ class LTCSerologyMaster:
         df_t1 = pd.DataFrame(m, index=['PCR+','PCR-'], columns=['Nuc+','Nuc-'])
         df_t2 = df_t1.copy()
         time_to_frame = {'Before':df_t1, 'After':df_t2}
+        id_to_n_obs = {}
 
         N = self.parent.df.shape[0]
         #Iterate over the Master file.
@@ -1042,6 +1046,8 @@ class LTCSerologyMaster:
                         else:
                             nuc_status = 0
                             nuc_str = 'Nuc-'
+                            n_obs = id_to_n_obs.get(ID,0)
+                            id_to_n_obs[ID] = n_obs + 1
 
                         break
 
@@ -1049,6 +1055,14 @@ class LTCSerologyMaster:
 
         #print(time_to_frame['Before'])
         #print(time_to_frame['After'])
+        df = pd.DataFrame.from_dict(id_to_n_obs, orient='index')
+        folder = 'Andrew_feb_23_2023'
+        folder2= 'false_negatives'
+        fname = 'false_negatives.xlsx'
+        fname = os.path.join(self.parent.requests_path,
+                folder, folder2, fname)
+        df.to_excel(fname, index=True)
+
         return time_to_frame
 
     def generate_Nuc_with_PCR_data_frame_and_plots(self):
@@ -1710,3 +1724,215 @@ class LTCSerologyMaster:
         else:
             print('SAFE, no repetitions for Full ID.')
 
+
+
+
+    def generate_nuc_history_plus_spike_for_nazy(self):
+        #This function is used to plot the serology trajectory
+        #of a given participant.
+
+        #The original version of this function was created to
+        #satisfy the request stipulated on the folder:
+        #main_folder = 'Tara_feb_21_2023'
+
+        #This function is based on the function:
+        #draw_inf_vac_history_from_serology_for_sheraton()
+
+        #This function uses the data produced by the 
+        #generate_PCR_vs_Nuc_table_for_paired_samples() function.
+        #We plot the history of participants using Nucleocapsid 
+        #and Spike data.
+
+        folder = 'Andrew_feb_23_2023'
+        folder2= 'false_negatives'
+        folder3= 'img'
+        fname = 'false_negatives.xlsx'
+        fname = os.path.join(self.parent.requests_path,
+                folder, folder2, fname)
+        df_false_negatives = pd.read_excel(fname)
+
+        nuc_G = 'Nuc-IgG-100'
+
+        bio_list = ['Nuc-IgG-100', 'RBD-IgG-100',
+                'Spike-IgG-100', 'Spike-IgG-500',
+                'Spike-IgG-1000', 'Spike-IgG-2000',
+                'Spike-IgG-5000', 'RBD-IgG-400',
+                'RBD-IgG-800']
+        colors = ['blue', 'orange',
+                'green', 'cyan',
+                'pink', 'red',
+                'purple', 'black',
+                'gold',]
+        bio_to_color = {}
+        bio_to_count = {}
+        bio_to_marker = {}
+        for x,y in zip(bio_list, colors):
+            bio_to_color[x] = y
+            bio_to_count[x] = 0
+            bio_to_marker[x] = 'o'
+        bio_to_marker['RBD-IgG-400'] = 'x'
+        date_format = mpl.dates.DateFormatter('%b-%y')
+
+        #The serology thresholds are stored in the
+        #following folder.
+        fname = 'serology_thresholds.xlsx'
+        fname = os.path.join(self.parent.LSM_path, fname)
+        df_t = pd.read_excel(fname)
+        s = df_t['Ig'] == 'Nuc-IgG-100'
+        nuc_G_t = df_t.loc[s,'Threshold'].iloc[0]
+
+        #Filter the Master data frame for the double o individuals.
+        s = self.parent.df['ID'].isin(df_false_negatives['ID'])
+        df_m = self.parent.df[s].copy()
+
+        inf_date_h = self.parent.LIS_obj.positive_date_cols
+        vac_date_h = self.parent.LIS_obj.vaccine_date_cols
+
+        #The counter is simply used to 
+        #manually limit the number
+        #of iterations.
+        counter = 0
+
+        N = df_m.shape[0]
+        for index_m, row_m in pbar(df_m.iterrows(), total=N):
+            counter += 1
+            #if 2 < counter:
+                #break
+            ID = row_m['ID']
+            s = self.parent.LSM_obj.df['ID'] == ID
+            if not s.any():
+                continue
+            df_s = self.parent.LSM_obj.df[s]
+
+            fig, ax = plt.subplots()
+
+            #Vaccination time
+            vac_dates = row_m[vac_date_h]
+            if 0 < vac_dates.count():
+                s = vac_dates.notnull()
+                vac_dates = vac_dates[s]
+                for _ , date in vac_dates.items():
+                    ax.axvline(date, color='black', linestyle='--', linewidth=2)
+
+            problematic_infections = set()
+            explained_infections = set()
+
+            #Infection dates
+            flag_had_infections = False
+            inf_dates = row_m[inf_date_h]
+
+            #Infection information
+            if 0 < inf_dates.count():
+                flag_had_infections = True
+                s = inf_dates.notnull()
+                inf_dates = inf_dates[s]
+
+                #Iterate over infection times.
+                for _ , inf_date in inf_dates.items():
+                    ax.axvline(inf_date, color='red', linewidth=3)
+
+            for bio in bio_list:
+
+                #This list will store the date of collection
+                #and the value of the biological parameter.
+                L = []
+
+                s = df_t['Ig'] == bio
+                bio_t = df_t.loc[s,'Threshold'].iloc[0]
+
+                #Create a list of the value of
+                #the biological parameter and the 
+                #date of collection.
+                for index_s, row_s in df_s.iterrows():
+                    bio_value = row_s[bio]
+                    if pd.notnull(bio_value):
+                        doc = row_s['Date Collected']
+                        L.append((doc, bio_value))
+
+                #At least one point to plot
+                if len(L) < 1:
+                    continue
+
+                bio_to_count[bio] += 1
+
+                #Create DF
+                df = pd.DataFrame(L, columns=['Time',bio])
+                df = df.sort_values('Time')
+                n_samples = df.shape[0]
+
+                #Serology time
+                c = bio_to_color[bio]
+                m = bio_to_marker[bio]
+                df.plot(ax=ax, x='Time', y=bio,
+                        kind='line', marker=m,
+                        color=c, label=bio)
+
+                #At least two points
+                if n_samples < 2:
+                    continue
+
+                #Iterate over CONSECUTIVE samples, two at a time.
+                for k in range(n_samples-1):
+
+                    index_1 = df.index[k]
+                    index_2 = df.index[k+1]
+
+                    #Dates
+                    d1 = df.loc[index_1, 'Time']
+                    d2 = df.loc[index_2, 'Time']
+
+                    #Values
+                    v1 = df.loc[index_1, bio]
+                    v2 = df.loc[index_2, bio]
+
+                    #Iterate over infection dates.
+                    for col_name, inf_date in inf_dates.items():
+
+                        if d1 <= inf_date and inf_date <= d2:
+                            #We have an infection in between.
+                            #Time between the infection and the
+                            #second collection point.
+                            pcr_status = 1
+                            pcr_str = 'PCR+'
+
+                            dt = (d2 - inf_date) / np.timedelta64(1,'D')
+                            #self.df.loc[index_m, 'Is relevant?'] = True
+                            #self.df.loc[index_m, 'Delta t'] = dt
+
+                            if v1 < v2 and bio_t < v2:
+                                #We crossed
+                                status = 'Positive'
+                                explained_infections.add(inf_date)
+                            else:
+                                status = 'Negative'
+
+                                if bio == nuc_G:
+                                    problematic_infections.add(inf_date)
+
+                            break
+
+
+
+            delta = problematic_infections.difference(explained_infections)
+            if len(delta) == 0:
+                status = 'solved'
+            else:
+                status = 'unresolved'
+            #Plot threshold line
+            ax.axhline(nuc_G_t, color='gray', linewidth=3)
+
+            ax.xaxis.set_major_formatter(date_format)
+            ax.set_ylabel('OD')
+            ax.set_ylim([0,3.5])
+            #ax.get_legend().remove()
+            txt = ID
+            txt += ', #Prob=' + str(len(problematic_infections))
+            txt += ', #Expl=' + str(len(explained_infections))
+            ax.set_title(txt)
+            fname = ID + '.png'
+            fname = os.path.join(self.parent.requests_path,
+                    folder, folder2, folder3, status, fname)
+            fig.savefig(fname, bbox_inches='tight', pad_inches=0)
+            plt.close('all')
+
+        print(bio_to_count)
