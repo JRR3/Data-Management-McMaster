@@ -1959,4 +1959,11 @@ obj = Merger()
 
 #obj.MPD_obj.peace_of_mind_check()
 #obj.LSM_obj.peace_of_mind_check()
-obj.generate_the_tri_sheet_file()
+#obj.generate_the_tri_sheet_file()
+
+#obj.REP_obj.generate_poster_data_sheraton()
+#obj.REP_obj.add_outbreak_to_list()
+#obj.REP_obj.plot_kaplan_meier_sheraton()
+#obj.REP_obj.create_design_matrix_sheraton()
+obj.REP_obj.survival_analysis_sheraton()
+obj.REP_obj.compute_concordance_for_sheraton()

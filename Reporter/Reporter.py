@@ -34,6 +34,9 @@ class Reporter:
         self.requests_path = os.path.join('..', 'requests')
         self.outputs_path = os.path.join('..', 'outputs')
 
+        #Cox Proportional Hazard Model
+        self.cph = None
+
 
         if parent:
             self.parent = parent
@@ -1977,10 +1980,10 @@ class Reporter:
         #results for the poster.
         L = []
         multi_omicron = []
-        using_original_classification = False
+        using_original_classification = True
         using_only_one_classification = False
         using_count_pre_omicron_classification = False
-        using_count_omicron_classification = True
+        using_count_omicron_classification = False
         folder= 'Sheraton_mar_23_2023'
         fname = 'not_in_Ours.xlsx'
         fname = os.path.join(self.parent.requests_path, folder, fname)
@@ -2460,20 +2463,20 @@ class Reporter:
             if 0 < len(R):
                 df.drop(columns=R, inplace=True)
 
-        cph = CoxPHFitter()
+        self.cph = CoxPHFitter()
 
         if remove_time_level is False:
-            cph.fit(df, TSTE, EVT, strata=['TimeLevel_From155To163'])
+            self.cph.fit(df, TSTE, EVT, strata=['TimeLevel_From155To163'])
         else:
-            cph.fit(df, TSTE, EVT)
-        S = cph.summary
+            self.cph.fit(df, TSTE, EVT)
+        S = self.cph.summary
         S.rename(index=dc_old_to_new, inplace=True)
         fname = 'survival_analysis_summary.xlsx'
         fname = os.path.join(self.parent.requests_path, folder, fname)
         S.to_excel(fname)
-        cph.print_summary(model='LTC003')
-        #cph.print_summary(model='LTC003', style='latex')
-        cph.check_assumptions(df)
+        self.cph.print_summary(model='LTC003')
+        #self.cph.print_summary(model='LTC003', style='latex')
+        self.cph.check_assumptions(df)
 
         if plot_hazard_ratios:
             fig,ax = plt.subplots()
@@ -2965,3 +2968,51 @@ class Reporter:
             fname = os.path.join(storage_folder, fname)
             fig.savefig(fname, bbox_inches='tight', pad_inches=0)
             plt.close('all')
+
+
+    def compute_concordance_for_sheraton(self):
+
+        EVT = 'Outcome'
+        AGE = 'Age'
+        TSTE = 'TimeFromStartToEnd'
+        EOS = 'RemovedBeforeStudyFinished'
+        ILV = 'InfectionLevel'
+        VLV = 'VaccineLevel'
+        TLV = 'TimeLevel'
+        SEX = 'Sex'
+        STP = 'SiteType'
+        OUT = 'Outbreaks'
+        HZR = 'Hazard'
+
+        folder= 'Sheraton_mar_23_2023'
+        fname = 'design_matrix.xlsx'
+        fname = os.path.join(self.parent.requests_path, folder, fname)
+        df = pd.read_excel(fname)
+        print("==================")
+        print(self.cph.params_)
+        #print(self.cph.baseline_hazard_)
+        hazard = self.cph.predict_partial_hazard(df)
+        df[HZR] = hazard
+        df = df.sort_values(TSTE)
+        df = df.reset_index()
+        n_rows = df.shape[0]
+        comparable = set()
+        concordant = set()
+        for k in range(n_rows):
+            t1 = df.loc[k,TSTE]
+            e1 = df.loc[k,EVT]
+            h1 = df.loc[k,HZR]
+            for i in range(k+1,n_rows):
+                t2 = df.loc[i,TSTE]
+                h2 = df.loc[i,HZR]
+                if t1 < t2 and e1 == 1:
+                    comparable.add((k,i))
+                    if h2 < h1:
+                        concordant.add((k,i))
+        n_comp = len(comparable)
+        n_conc = len(concordant)
+        print('# of comparable:', n_comp)
+        print('# of concordant:', n_conc)
+        R = n_conc / n_comp
+        print('concordance idx:', R)
+
