@@ -943,6 +943,8 @@ class LTCSerologyMaster:
             print('Using default tau=',nuc_G_t)
         date_format = mpl.dates.DateFormatter('%b-%y')
         main_folder = 'Andrew_feb_23_2023'
+        store_false_negatives = False
+        analyze_time_since_infection = True
 
         bio = nuc_G
         bio_t = nuc_G_t
@@ -953,7 +955,13 @@ class LTCSerologyMaster:
         df_t1 = pd.DataFrame(m, index=['PCR+','PCR-'], columns=['Nuc+','Nuc-'])
         df_t2 = df_t1.copy()
         time_to_frame = {'Before':df_t1, 'After':df_t2}
+        #Dictionary to store the false negatives.
         id_to_n_obs = {}
+
+        leq_21 = []
+        gt_21_leq_90 = []
+        gt_21_leq_180 = []
+        gt_180 = []
 
         N = self.parent.df.shape[0]
         #Iterate over the Master file.
@@ -1036,8 +1044,7 @@ class LTCSerologyMaster:
                         pcr_str = 'PCR+'
 
                         dt = (d2 - inf_date) / np.timedelta64(1,'D')
-                        #self.df.loc[index_m, 'Is relevant?'] = True
-                        #self.df.loc[index_m, 'Delta t'] = dt
+
 
                         if v1 < v2 and bio_t < v2:
                             #We crossed
@@ -1049,19 +1056,56 @@ class LTCSerologyMaster:
                             n_obs = id_to_n_obs.get(ID,0)
                             id_to_n_obs[ID] = n_obs + 1
 
+                        #leq_21 = []
+                        #gt_21_leq_90 = []
+                        #gt_21_leq_180 = []
+                        #gt_180 = []
+
+                        #Classify according to the time from infection
+                        if dt <= 21:
+                            leq_21.append((dt,nuc_status))
+                        else:
+                            if dt <= 180:
+                                gt_21_leq_180.append((dt,nuc_status))
+                                if dt <= 90:
+                                    gt_21_leq_90.append((dt,nuc_status))
+                            else:
+                                gt_180.append((dt,nuc_status))
+
+                        #Exit the loop since we already have an infection
                         break
 
                 time_to_frame[bd_str].loc[pcr_str, nuc_str] += 1
 
         #print(time_to_frame['Before'])
         #print(time_to_frame['After'])
-        df = pd.DataFrame.from_dict(id_to_n_obs, orient='index')
-        folder = 'Andrew_feb_23_2023'
-        folder2= 'false_negatives'
-        fname = 'false_negatives.xlsx'
-        fname = os.path.join(self.parent.requests_path,
-                folder, folder2, fname)
-        df.to_excel(fname, index=True)
+
+        if store_false_negatives:
+            df = pd.DataFrame.from_dict(id_to_n_obs, orient='index')
+            folder = 'Andrew_feb_23_2023'
+            folder2= 'false_negatives'
+            fname = 'false_negatives.xlsx'
+            fname = os.path.join(self.parent.requests_path,
+                    folder, folder2, fname)
+            df.to_excel(fname, index=True)
+
+        if analyze_time_since_infection:
+            #leq_21 = []
+            #gt_21_leq_90 = []
+            #gt_21_leq_180 = []
+            #gt_180 = []
+            L = [leq_21, gt_21_leq_90, gt_21_leq_180, gt_180]
+            folder = 'Andrew_feb_23_2023'
+            folder2= 'time_classification'
+            for k,cat in enumerate(L):
+                df = pd.DataFrame(cat, columns=['dt','status'])
+                fname = 'T' + str(k+1) + '.xlsx'
+                fname = os.path.join(self.parent.requests_path,
+                        folder, folder2, fname)
+                df.to_excel(fname, index=False)
+                plt.close('all')
+                fig, ax = plt.subplots()
+                sns.histplot(data=df, x = WBIAD, discrete=False, binwidth=4)
 
         return time_to_frame
 
@@ -1816,6 +1860,8 @@ class LTCSerologyMaster:
 
             problematic_infections = set()
             explained_infections = set()
+            partially_explained_infections = set()
+            covered_infections = set()
 
             #Infection dates
             flag_had_infections = False
@@ -1895,6 +1941,9 @@ class LTCSerologyMaster:
                             pcr_status = 1
                             pcr_str = 'PCR+'
 
+                            if bio != nuc_G:
+                                covered_infections.add(inf_date)
+
                             dt = (d2 - inf_date) / np.timedelta64(1,'D')
                             #self.df.loc[index_m, 'Is relevant?'] = True
                             #self.df.loc[index_m, 'Delta t'] = dt
@@ -1903,21 +1952,33 @@ class LTCSerologyMaster:
                                 #We crossed
                                 status = 'Positive'
                                 explained_infections.add(inf_date)
+                            elif bio_t < v1 and bio_t < v2 and bio != nuc_G:
+                                status = 'Partial'
+                                partially_explained_infections.add(inf_date)
                             else:
                                 status = 'Negative'
-
                                 if bio == nuc_G:
                                     problematic_infections.add(inf_date)
-
                             break
 
 
 
-            delta = problematic_infections.difference(explained_infections)
-            if len(delta) == 0:
+            prob_minus_exp = problematic_infections.difference(explained_infections)
+            prob_minus_exp_minus_part = prob_minus_exp.difference(partially_explained_infections)
+            substatus = None
+
+            if len(prob_minus_exp) == 0:
                 status = 'solved'
+            elif len(prob_minus_exp_minus_part) == 0:
+                status = 'partial'
             else:
                 status = 'unresolved'
+                uncovered = prob_minus_exp_minus_part.difference(covered_infections)
+                if len(uncovered) == 0:
+                    substatus = 'problematic'
+                else:
+                    substatus = 'missingData'
+
             #Plot threshold line
             ax.axhline(nuc_G_t, color='gray', linewidth=3)
 
@@ -1930,8 +1991,12 @@ class LTCSerologyMaster:
             txt += ', #Expl=' + str(len(explained_infections))
             ax.set_title(txt)
             fname = ID + '.png'
-            fname = os.path.join(self.parent.requests_path,
-                    folder, folder2, folder3, status, fname)
+            if substatus:
+                fname = os.path.join(self.parent.requests_path,
+                        folder, folder2, folder3, status, substatus, fname)
+            else:
+                fname = os.path.join(self.parent.requests_path,
+                        folder, folder2, folder3, status, fname)
             fig.savefig(fname, bbox_inches='tight', pad_inches=0)
             plt.close('all')
 

@@ -1861,4 +1861,5 @@ obj = Merger()
 
 #March 27 2023
 #obj.LSM_obj.generate_PCR_vs_Nuc_table_for_paired_samples()
-obj.LSM_obj.generate_nuc_history_plus_spike_for_nazy()
+#obj.LSM_obj.generate_nuc_history_plus_spike_for_nazy()
+obj.LSM_obj.generate_PCR_vs_Nuc_table_for_paired_samples()
