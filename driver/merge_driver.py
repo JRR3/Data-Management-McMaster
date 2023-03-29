@@ -315,7 +315,7 @@ class Merger:
         else:
             #None
             fname = 'updates.xlsx'
-        folder = 'Jessica_mar_22_2023'
+        folder = 'Jessica_mar_29_2023'
         fname = os.path.join('..','requests',folder, fname)
         book = pd.read_excel(fname, sheet_name=None)
         print(f'LSM is looking into the {folder=}')
@@ -455,7 +455,7 @@ class Merger:
         #Infection_column file into one Excel workbook.
         #Feb 03 2023
         fname  = 'tri_merge.xlsx'
-        folder = 'Jessica_mar_22_2023'
+        folder = 'Jessica_mar_29_2023'
         fname = os.path.join('..','requests',folder, fname)
         master_avec_serology = pd.merge(self.LSM_obj.df,
                 self.df, on='ID', how='outer')
@@ -1859,7 +1859,16 @@ obj = Merger()
 #obj.MPD_obj.peace_of_mind_check()
 #obj.LSM_obj.peace_of_mind_check()
 
-#March 27 2023
+#March 27-29 2023
 #obj.LSM_obj.generate_PCR_vs_Nuc_table_for_paired_samples()
 #obj.LSM_obj.generate_nuc_history_plus_spike_for_nazy()
-obj.LSM_obj.generate_PCR_vs_Nuc_table_for_paired_samples()
+#obj.LSM_obj.generate_PCR_vs_Nuc_table_for_paired_samples()
+#obj.LSM_obj.plots_for_time_since_infection_for_andrew()
+#obj.MPD_obj.single_column_update()
+#obj.write_the_M_file_to_excel()
+#obj.update_LSM()
+#obj.LSM_obj.write_LSM_to_excel()
+
+#obj.MPD_obj.peace_of_mind_check()
+#obj.LSM_obj.peace_of_mind_check()
+obj.generate_the_tri_sheet_file()

@@ -790,7 +790,8 @@ class LTCSerologyMaster:
                            '15mo3R', '3wk4', '3wk4R', '3mo4',
                            '3mo4R', '6mo4', '6mo4R', '9mo4',
                            '9mo4R', '12mo4', '12mo4R', '3wk5',
-                           '3wk5R', '3mo5', '3mo5R']
+                           '3wk5R', '3mo5', '3mo5R', 'NoVac1',
+                           'NoVac2']
         rexp = re.compile(txt)
         def process_id(txt):
             if isinstance(txt, str):
@@ -1103,11 +1104,47 @@ class LTCSerologyMaster:
                 fname = os.path.join(self.parent.requests_path,
                         folder, folder2, fname)
                 df.to_excel(fname, index=False)
-                plt.close('all')
-                fig, ax = plt.subplots()
-                sns.histplot(data=df, x = WBIAD, discrete=False, binwidth=4)
+                #plt.close('all')
+                #fig, ax = plt.subplots()
+                #sns.histplot(data=df, x = WBIAD, discrete=False, binwidth=4)
 
         return time_to_frame
+
+    def plots_for_time_since_infection_for_andrew(self):
+        #March 29 2023
+        folder = 'Andrew_feb_23_2023'
+        folder2= 'time_classification'
+        L = ['T1','T2','T3','T4']
+        labels = ['leq_21', 'gt_21_leq_90', 'gt_21_leq_180', 'gt_180']
+        ranges = [(-1,22), (21,91), (21,180), (179,236)]
+        for k,name in enumerate(L):
+            fname = name + '.xlsx'
+            fname = os.path.join(self.parent.requests_path,
+                    folder, folder2, fname)
+            df = pd.read_excel(fname)
+            plt.close('all')
+            fig, ax = plt.subplots()
+            sns.histplot(data=df, x = 'dt',
+                    element='step', discrete=False,
+                    shrink=1.0, hue='Nuc status',
+                    bins=8,
+                    binrange=ranges[k],)
+            fname = labels[k] + '.png'
+            fname = os.path.join(self.parent.requests_path,
+                    folder, folder2, fname)
+            ax.set_xlabel('$\Delta t$=Blood draw #2 - Inf. date (in Days)')
+            label = labels[k]
+            s = df['Nuc status'] == 0
+            a = df.loc[s,'dt']
+            b = df.loc[~s,'dt']
+            n_0 = len(a)
+            n_1 = len(b)
+            U,p = MannWhitney(a,b)
+            txt = 'p={:.3f}, +={:.2d}, -={:.2d}'.format(p, n_1, n_0)
+            txt = label + ', ' + txt
+            ax.set_title(txt)
+            fig.savefig(fname, bbox_inches='tight', pad_inches=0)
+
 
     def generate_Nuc_with_PCR_data_frame_and_plots(self):
         #Andrew requested this information on Feb 23 2023.
