@@ -456,6 +456,7 @@ class Merger:
         #Feb 03 2023
         fname  = 'tri_merge.xlsx'
         folder = 'Jessica_mar_29_2023'
+        folder = 'Tara_mar_31_2023'
         fname = os.path.join('..','requests',folder, fname)
         master_avec_serology = pd.merge(self.LSM_obj.df,
                 self.df, on='ID', how='outer')
