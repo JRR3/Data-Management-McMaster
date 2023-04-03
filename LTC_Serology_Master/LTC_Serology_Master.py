@@ -1116,6 +1116,10 @@ class LTCSerologyMaster:
         folder2= 'time_classification'
         L = ['T1','T2','T3','T4']
         labels = ['leq_21', 'gt_21_leq_90', 'gt_21_leq_180', 'gt_180']
+        titles = ['$\Delta t \leq 21$',
+                '$21 < \Delta t \leq 90$',
+                '$21 < \Delta t \leq 180$',
+                '$\Delta t \leq 90$']
         ranges = [(-1,22), (21,91), (21,180), (179,236)]
         for k,name in enumerate(L):
             fname = name + '.xlsx'
@@ -1125,25 +1129,29 @@ class LTCSerologyMaster:
             plt.close('all')
             fig, ax = plt.subplots()
             sns.histplot(data=df, x = 'dt',
-                    element='step', discrete=False,
+                    element='bars', discrete=False,
+                    multiple='stack',
                     shrink=1.0, hue='Nuc status',
-                    bins=8,
+                    binwidth=5,
                     binrange=ranges[k],)
             fname = labels[k] + '.png'
             fname = os.path.join(self.parent.requests_path,
                     folder, folder2, fname)
-            ax.set_xlabel('$\Delta t$=Blood draw #2 - Inf. date (in Days)')
-            label = labels[k]
+            ax.set_xlabel('$\Delta t$=Blood draw #2 (date) - Infection date (in Days)')
+            ax.set_ylabel('Stacked count')
+            title = titles[k]
             s = df['Nuc status'] == 0
             a = df.loc[s,'dt']
             b = df.loc[~s,'dt']
             n_0 = len(a)
             n_1 = len(b)
             U,p = MannWhitney(a,b)
-            txt = 'p={:.3f}, +={:.2d}, -={:.2d}'.format(p, n_1, n_0)
-            txt = label + ', ' + txt
+            txt = 'p={:.3f}, Nuc(0)={:2d}, Nuc(1)={:2d}'.format(p, n_0, n_1)
+            txt = title + ', ' + txt
             ax.set_title(txt)
             fig.savefig(fname, bbox_inches='tight', pad_inches=0)
+            df_g = df.groupby('Nuc status')
+            print(df_g.describe())
 
 
     def generate_Nuc_with_PCR_data_frame_and_plots(self):

@@ -1872,4 +1872,6 @@ obj = Merger()
 
 #obj.MPD_obj.peace_of_mind_check()
 #obj.LSM_obj.peace_of_mind_check()
-obj.generate_the_tri_sheet_file()
+#obj.generate_the_tri_sheet_file()
+
+obj.LSM_obj.plots_for_time_since_infection_for_andrew()
