@@ -1151,7 +1151,11 @@ class LTCSerologyMaster:
             ax.set_title(txt)
             fig.savefig(fname, bbox_inches='tight', pad_inches=0)
             df_g = df.groupby('Nuc status')
-            print(df_g.describe())
+            X = df_g.describe()
+            fname = labels[k] + '.xlsx'
+            fname = os.path.join(self.parent.requests_path,
+                    folder, folder2, fname)
+            X.to_excel(fname)
 
 
     def generate_Nuc_with_PCR_data_frame_and_plots(self):

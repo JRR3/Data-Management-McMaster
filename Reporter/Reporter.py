@@ -3010,3 +3010,29 @@ class Reporter:
         R = n_conc / n_comp
         print('concordance idx:', R)
 
+    def dawns_request_mar_04_2023(self):
+        #Dawn requested a graphic that illustrates the following.
+        #Out of all individuals that died from X in 2020, how many
+        #of those were aged 70 or more?
+        #X = {Cancer, Heart disease, chronic lower respiratory diseases}
+
+
+        folder = 'Dawn_mar_04_2023'
+        fname = 'death_table.xlsx'
+        fname = os.path.join(self.requests_path, folder, fname)
+        df = pd.read_excel(fname, sheet_name='Summary')
+        df['Percentage'] = np.round(df['Percentage'])
+        print(df)
+        fig, ax = plt.subplots()
+        colors = ['red','orange','green','blue']
+        sns.barplot(ax = ax,
+                x='Percentage',
+                y='Cause of death',
+                data = df,
+                palette=colors)
+        ax.bar_label(ax.containers[0])
+        fname = 'plot.png'
+        fname = os.path.join(self.requests_path, folder, fname)
+        ax.set_ylabel('')
+        fig.savefig(fname, bbox_inches='tight', pad_inches=0)
+        plt.close('all')
