@@ -3017,14 +3017,88 @@ class Reporter:
         #X = {Cancer, Heart disease, chronic lower respiratory diseases}
 
 
+        COD = 'Cause of death (ICD-10)'
+        DAT = 'REF_DATE'
+        AGE = 'Age at time of death'
+        CHR = 'Characteristics'
+        VAL = 'VALUE'
+        NOD = 'Number of deaths'
+
         folder = 'Dawn_mar_04_2023'
-        fname = 'death_table.xlsx'
+        fname = 'stats_canada.xlsx'
         fname = os.path.join(self.requests_path, folder, fname)
-        df = pd.read_excel(fname, sheet_name='Summary')
+        df_c = pd.read_excel(fname, sheet_name='COD')
+        print(df_c)
+
+        fname = 'stats_canada.xlsx'
+        fname = os.path.join(self.requests_path, folder, fname)
+        df = pd.read_excel(fname, sheet_name='data')
+        rexp = re.compile(' \[.*')
+        def get_code(txt):
+            obj = rexp.search(txt)
+            if obj:
+                x = obj.group(0)
+                y = txt.replace(x,'')
+                #print(y)
+                return y
+            else:
+                return txt
+
+        df[COD] = df[COD].apply(get_code)
+        age_groups = df[AGE].unique()
+        all_ages = age_groups[0]
+        age_groups_s = age_groups[1:]
+        df_g = df.groupby([DAT, AGE, CHR])
+
+        #q = df_g.loc[(2020,'Age at time of death, 65 to 69 years','Number of deaths'),'VALUE']
+        #g = df_g.get_group((2020,'Age at time of death, 65 to 69 years','Number of deaths'))
+        #print(g[[COD,VAL]])
+
+        #Cause of death to count
+        cod_to_count = {}
+        cod_to_total = {}
+        #Iterate over death causes
+        for index, row in df_c.iterrows():
+           cod = row[COD]
+           cod_to_count[cod] = 0
+           for age_group in age_groups_s:
+               #print(f'{age_group=}')
+               g = df_g.get_group((2020,age_group,NOD))
+               s = g[COD] == cod
+               v = g.loc[s, VAL].iloc[0]
+               cod_to_count[cod] += v
+           g = df_g.get_group((2020,all_ages,NOD))
+           s = g[COD] == cod
+           v = g.loc[s, VAL].iloc[0]
+           cod_to_total[cod] = v
+
+        df1 = pd.DataFrame.from_dict(cod_to_count, orient='index')
+        df2 = pd.DataFrame.from_dict(cod_to_total, orient='index')
+        m = pd.merge(df1,df2, left_index=True, right_index=True, how='outer')
+        m.rename(columns={'0_x':'Counts', '0_y':'Total'}, inplace=True)
+        m['Percentage'] = m['Counts'] / m['Total'] * 100
+        m = m.sort_values('Percentage', ascending=False)
+        print(m)
+        fname = 'summary_stats_canada.xlsx'
+        fname = os.path.join(self.requests_path, folder, fname)
+        #m.to_excel(fname)
+
+    def dawns_request_mar_05_2023(self):
+        #Dawn requested a graphic that illustrates the following.
+        #Out of all individuals that died from X in 2020, how many
+        #of those were aged 70 or more?
+        #X = {Cancer, Heart disease, chronic lower respiratory diseases}
+        folder = 'Dawn_mar_04_2023'
+        fname = 'summary_stats_canada.xlsx'
+        fname = os.path.join(self.requests_path, folder, fname)
+        df = pd.read_excel(fname, sheet_name = 'merged')
         df['Percentage'] = np.round(df['Percentage'])
-        print(df)
+
         fig, ax = plt.subplots()
-        colors = ['red','orange','green','blue']
+        colors = ['orange', 'red', 'green',
+                'gray', 'salmon', 'brown',
+                'blue', 'cyan', 'gold',
+                'purple']
         sns.barplot(ax = ax,
                 x='Percentage',
                 y='Cause of death',
