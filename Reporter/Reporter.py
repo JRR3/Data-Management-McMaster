@@ -3093,19 +3093,17 @@ class Reporter:
         fname = os.path.join(self.requests_path, folder, fname)
         df = pd.read_excel(fname, sheet_name = 'merged')
         df['Percentage'] = np.round(df['Percentage'])
+        df = df.sort_values('Percentage', ascending=False)
 
         fig, ax = plt.subplots()
-        colors = ['orange', 'red', 'green',
-                'gray', 'salmon', 'brown',
-                'blue', 'cyan', 'gold',
-                'purple']
+        colors = df['Color']
         sns.barplot(ax = ax,
                 x='Percentage',
                 y='Cause of death',
                 data = df,
                 palette=colors)
         ax.bar_label(ax.containers[0])
-        fname = 'plot.png'
+        fname = 'plot_sorted.png'
         fname = os.path.join(self.requests_path, folder, fname)
         ax.set_ylabel('')
         fig.savefig(fname, bbox_inches='tight', pad_inches=0)
