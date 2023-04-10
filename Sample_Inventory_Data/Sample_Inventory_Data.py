@@ -370,7 +370,7 @@ class SampleInventoryData:
 
 
     def find_repeated_dates_in_megans_file(self):
-        folder = 'Megan_mar_03_2023'
+        folder = 'Megan_apr_10_2023'
         fname = 'sid_clean.xlsx'
         fname = os.path.join(self.parent.requests_path, folder, fname)
         if os.path.exists(fname):

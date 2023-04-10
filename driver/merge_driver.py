@@ -1875,4 +1875,9 @@ obj = Merger()
 #obj.generate_the_tri_sheet_file()
 
 #obj.LSM_obj.plots_for_time_since_infection_for_andrew()
-obj.REP_obj.dawns_request_mar_05_2023()
+#obj.REP_obj.dawns_request_mar_05_2023()
+
+#obj.LSM_obj.generate_PCR_vs_Nuc_table_for_paired_samples()
+#obj.LSM_obj.generate_simple_nuc_history_plus_spike()
+#obj.SID_obj.find_repeated_dates_in_megans_file()
+obj.MPD_obj.do_we_have_cloned_individuals()

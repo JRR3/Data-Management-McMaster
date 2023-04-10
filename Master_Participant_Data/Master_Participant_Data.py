@@ -795,3 +795,22 @@ class MasterParticipantData:
             else:
                 print(header, 'column is compliant.')
 
+    def do_we_have_cloned_individuals(self):
+        vc_dob = self.parent.df['DOB'].value_counts()
+        s = vc_dob.gt(1)
+        vc_dob = vc_dob.loc[s]
+        VD1 = 'Vaccine Date 1'
+        for idx_dob in vc_dob.index:
+            s = self.parent.df['DOB'] == idx_dob
+            df_s1 = self.parent.df.loc[s,:]
+            vc_doe = df_s1[self.DOE].value_counts()
+            for idx_doe in vc_doe.index:
+                s = df_s1[self.DOE] == idx_doe
+                df_s2 = df_s1.loc[s,:]
+                vc_vd1 = df_s2[VD1].value_counts()
+                for idx_vd1 in vc_vd1.index:
+                    s = df_s2[VD1] == idx_vd1
+                    df_s3 = df_s2.loc[s,:]
+                    if 1 < len(df_s3):
+                        print(df_s3)
+
