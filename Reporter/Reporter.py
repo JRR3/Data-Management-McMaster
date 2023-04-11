@@ -3086,14 +3086,14 @@ class Reporter:
     def dawns_request_mar_05_2023(self):
         #Dawn requested a graphic that illustrates the following.
         #Out of all individuals that died from X in 2020, how many
-        #of those were aged 70 or more?
+        #of those were aged 65 or more?
         #X = {Cancer, Heart disease, chronic lower respiratory diseases}
         folder = 'Dawn_mar_04_2023'
         fname = 'summary_stats_canada.xlsx'
         fname = os.path.join(self.requests_path, folder, fname)
         df = pd.read_excel(fname, sheet_name = 'merged')
         df['Percentage'] = np.round(df['Percentage'])
-        df = df.sort_values('Percentage', ascending=False)
+        #df = df.sort_values('Percentage', ascending=False)
 
         fig, ax = plt.subplots()
         colors = df['Color']
@@ -3103,8 +3103,9 @@ class Reporter:
                 data = df,
                 palette=colors)
         ax.bar_label(ax.containers[0])
-        fname = 'plot_sorted.png'
+        fname = 'plot.svg'
         fname = os.path.join(self.requests_path, folder, fname)
+        print(fname)
         ax.set_ylabel('')
         fig.savefig(fname, bbox_inches='tight', pad_inches=0)
         plt.close('all')

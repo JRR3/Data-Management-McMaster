@@ -795,7 +795,10 @@ class MasterParticipantData:
             else:
                 print(header, 'column is compliant.')
 
-    def do_we_have_cloned_individuals(self):
+    def do_we_have_cloned_individuals_x(self):
+        #This function does the following:
+        #1) Identify the individuals that share the same DOB. 
+        #2) Identify the individuals that share the same DOB. 
         vc_dob = self.parent.df['DOB'].value_counts()
         s = vc_dob.gt(1)
         vc_dob = vc_dob.loc[s]
@@ -813,4 +816,27 @@ class MasterParticipantData:
                     df_s3 = df_s2.loc[s,:]
                     if 1 < len(df_s3):
                         print(df_s3)
+
+    def do_we_have_cloned_individuals(self):
+        #This function recursively compares subgroups
+        #of dataframes to identify potential duplicates.
+        v_date_cols = self.parent.LIS_obj.vaccine_date_cols
+        L = [self.DOB, self.DOE]
+        L += v_date_cols[:3]
+        self.find_subgroups_for_this_category(self.parent.df, L, 0)
+
+    def find_subgroups_for_this_category(self, df_s, cat_list, level):
+        #This function is the recursive call in the function
+        #do_we_have_cloned_individuals
+        if len(cat_list) == level:
+            print(df_s)
+        else:
+            cat = cat_list[level]
+            vc  = df_s[cat].value_counts()
+            s   = vc.gt(1)
+            vc  = vc.loc[s]
+            for idx in vc.index:
+                s = df_s[cat] == idx
+                df = df_s.loc[s]
+                self.find_subgroups_for_this_category(df, cat_list, level+1)
 
