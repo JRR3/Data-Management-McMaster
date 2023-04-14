@@ -5,6 +5,7 @@ import pandas as pd
 #pd.options.plotting.backend = 'plotly'
 #import plotly.express as pxp
 import os
+import csv
 import re
 #import PIL
 from tqdm import tqdm as pbar
@@ -3109,3 +3110,217 @@ class Reporter:
         ax.set_ylabel('')
         fig.savefig(fname, bbox_inches='tight', pad_inches=0)
         plt.close('all')
+
+    def generate_report_for_resident_questionnaire(self):
+        folder = 'Lindsay_apr_05_2023'
+        folder2 = 'test'
+
+        regexp_bracket = re.compile('\[(?P<value>.*)\]')
+
+        fname = 'column_types_for_resident_questionnaire.xlsx'
+        fname = os.path.join(self.requests_path, folder, folder2, fname)
+        df_t = pd.read_excel(fname, dtype=str)
+        date_cols = []
+        name_to_type = {}
+
+        #Use the corresponding data types for each column.
+        for index, row in df_t.iterrows():
+            name = row['Name']
+            col_type = row['Type']
+            if col_type == 'date':
+                date_cols.append(name)
+            else:
+                name_to_type[name] = col_type
+
+        #Load the Resident Questionnaire database
+        fname = 'resident_questionnaire.xlsx'
+        fname = os.path.join(self.requests_path, folder, folder2, fname)
+        df = pd.read_excel(fname, dtype = name_to_type, parse_dates=date_cols)
+        print(df)
+        df_t.dropna(subset='Section', inplace=True)
+        df_t = df_t.sort_values('Section', ascending=True)
+        df_t = df_t.groupby('Section')
+
+        SIT = 'Participant Site (2 digits, example: 08)'
+        PID = 'Participant ID (7 digits, example: 0123456)'
+
+
+        for index_m, row_m in df.iterrows():
+
+            site = row_m[SIT]
+            pid  = row_m[PID]
+
+            if pd.isnull(site) or pd.isnull(pid):
+                continue
+
+            if len(site) != 2:
+                raise ValueError('Site length')
+
+            if len(pid) != 7:
+                raise ValueError('PID length')
+
+            ID = site + '-' + pid
+
+            fname = ID + '.csv'
+            fname = os.path.join(self.requests_path, folder, folder2, fname)
+
+            with open(fname, 'w', newline='') as f:
+
+                writer = csv.writer(f)
+
+                for section, df_g in df_t:
+                    writer.writerow([])
+                    txt = 'Question #' + section
+                    desc= df_g['Description'].iloc[0]
+                    writer.writerow([txt, desc])
+
+                    for index_s, row_s in df_g.iterrows():
+                        col_name = row_s['Name']
+                        value    = row_m[col_name]
+                        dtype    = row_s['Type']
+
+                        if pd.isnull(value):
+                            continue
+
+                        if dtype == 'date':
+                            value = value.strftime('%d-%b-%Y')
+
+
+                        if section in ['03','19.1','19.2','19.3','19.4','35']:
+                            if value == 'No':
+                                continue
+                            if value == 'Yes':
+                                obj = regexp_bracket.search(col_name)
+                                if obj:
+                                    col_name = obj.group('value')
+                                    writer.writerow([col_name, value])
+                                    writer.writerow([])
+                                    continue
+                                else:
+                                    raise ValueError('Error for bracket')
+
+                        if section in ['20.a','20.b']:
+                            obj = regexp_bracket.search(col_name)
+                            if obj:
+                                col_name = obj.group('value')
+                                writer.writerow([col_name, value])
+                                writer.writerow([])
+                                continue
+                            else:
+                                raise ValueError('Error for bracket')
+
+                        writer.writerow([col_name])
+                        writer.writerow([value])
+                        writer.writerow([])
+
+            #df_csv = pd.read_csv(fname, dtype=str)
+            #fname = ID + '.xlsx'
+            #fname = os.path.join(self.requests_path, folder, folder2, fname)
+            #df_csv.to_excel(fname, index=False, header=None)
+
+            break
+
+    def generate_report_for_LTC_resident_questionnaire(self):
+        folder = 'Lindsay_apr_05_2023'
+        folder2 = 'test'
+
+        regexp_bracket = re.compile('\[(?P<value>.*)\]')
+
+        fname = 'column_types_for_LTC_resident_questionnaire.xlsx'
+        fname = os.path.join(self.requests_path, folder, folder2, fname)
+        df_t = pd.read_excel(fname, dtype=str)
+        date_cols = []
+        name_to_type = {}
+
+        #Use the corresponding data types for each column.
+        for index, row in df_t.iterrows():
+            name = row['Name']
+            col_type = row['Type']
+            if col_type == 'date':
+                date_cols.append(name)
+            else:
+                name_to_type[name] = col_type
+
+        #Load the Resident Questionnaire database
+        fname = 'LTC_resident_questionnaire.xlsx'
+        fname = os.path.join(self.requests_path, folder, folder2, fname)
+        df = pd.read_excel(fname, dtype = name_to_type, parse_dates=date_cols)
+        print(df)
+        df_t.dropna(subset='Section', inplace=True)
+        df_t = df_t.sort_values('Section', ascending=True)
+        df_t = df_t.groupby('Section')
+
+        SIT = 'Participant Site (2 digits, example: 08)'
+        PID = 'Participant ID (7 digits, example: 0123456)'
+
+
+        for index_m, row_m in df.iterrows():
+
+            site = row_m[SIT]
+            pid  = row_m[PID]
+
+            if pd.isnull(site) or pd.isnull(pid):
+                continue
+
+            if len(site) != 2:
+                raise ValueError('Site length')
+
+            if len(pid) != 7:
+                raise ValueError('PID length')
+
+            ID = site + '-' + pid
+
+            fname = ID + '.csv'
+            fname = os.path.join(self.requests_path, folder, folder2, fname)
+
+            with open(fname, 'w', newline='') as f:
+
+                writer = csv.writer(f)
+
+                for section, df_g in df_t:
+                    writer.writerow([])
+                    txt = 'Question #' + section
+                    desc= df_g['Description'].iloc[0]
+                    writer.writerow([txt, desc])
+
+                    for index_s, row_s in df_g.iterrows():
+                        col_name = row_s['Name']
+                        value    = row_m[col_name]
+                        dtype    = row_s['Type']
+
+                        if pd.isnull(value):
+                            continue
+
+                        if dtype == 'date':
+                            value = value.strftime('%d-%b-%Y')
+
+
+                        if section in ['03','19.1','19.2','19.3','19.4','35']:
+                            if value == 'No':
+                                continue
+                            if value == 'Yes':
+                                obj = regexp_bracket.search(col_name)
+                                if obj:
+                                    col_name = obj.group('value')
+                                    writer.writerow([col_name, value])
+                                    writer.writerow([])
+                                    continue
+                                else:
+                                    raise ValueError('Error for bracket')
+
+                        if section in ['20.a','20.b']:
+                            obj = regexp_bracket.search(col_name)
+                            if obj:
+                                col_name = obj.group('value')
+                                writer.writerow([col_name, value])
+                                writer.writerow([])
+                                continue
+                            else:
+                                raise ValueError('Error for bracket')
+
+                        writer.writerow([col_name])
+                        writer.writerow([value])
+                        writer.writerow([])
+
+
+            break

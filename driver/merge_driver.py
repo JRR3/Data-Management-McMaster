@@ -1860,7 +1860,8 @@ obj = Merger()
 #obj.MPD_obj.peace_of_mind_check()
 #obj.LSM_obj.peace_of_mind_check()
 
-#March 27-29 2023
+#March 27 2023
+#April 13 2023
 #obj.LSM_obj.generate_PCR_vs_Nuc_table_for_paired_samples()
 #obj.LSM_obj.generate_nuc_history_plus_spike_for_nazy()
 #obj.LSM_obj.generate_PCR_vs_Nuc_table_for_paired_samples()
@@ -1881,4 +1882,7 @@ obj = Merger()
 #obj.LSM_obj.generate_simple_nuc_history_plus_spike()
 #obj.SID_obj.find_repeated_dates_in_megans_file()
 #obj.MPD_obj.do_we_have_cloned_individuals()
-obj.REP_obj.dawns_request_mar_05_2023()
+#obj.REP_obj.dawns_request_mar_05_2023()
+
+#April 14 2023
+obj.REP_obj.generate_report_for_resident_questionnaire()
