@@ -2032,6 +2032,14 @@ class Reporter:
         #a categorical variable.
         self.parent.df[TLV] = np.nan
 
+        TFI = 'TimeFromInfection'
+        self.parent.df[TFI] = np.nan
+
+        #Categories
+        TFIL = 'TimeFromInfectionLevel'
+        self.parent.df[TFIL] = np.nan
+        big_M = 1000
+
         DOEOE = 'DateOfEndOrEvent'
         self.parent.df[DOEOE] = np.nan
 
@@ -2097,7 +2105,7 @@ class Reporter:
 
             vac_date_4 = vac_dates[-1]
             #Exclude anyone that does not have 4 doses by July 01 2022
-            if lb_date < vac_date_4:
+            if study_start_date < vac_date_4:
                 continue
 
             #Another covariate -> Time from vaccination 
@@ -2115,12 +2123,13 @@ class Reporter:
                 #Never infected ==> Infection level A
                 #self.parent.df.loc[index_m, ILV] = 'A'
                 self.parent.df.loc[index_m, ILV] = 'NoPriorInf'
+                self.parent.df.loc[index_m, TFI] = big_M
             else:
                 #s = inf_dates.notnull()
                 #inf_dates = inf_dates[s]
 
                 #Infection window =  Between July 1st and Sept 13 2022
-                s1 = lb_date <= inf_dates
+                s1 = study_start_date <= inf_dates
                 s2 = inf_dates <= ub_date
                 s = s1 & s2
                 inf_dates = inf_dates[s]
@@ -2154,16 +2163,31 @@ class Reporter:
                 omicron_start_date = datetime.datetime(2021,12,15)
                 omicron_end_date   = datetime.datetime(2022,7,1)
                 inf_dates = row_m[inf_dates_h]
+                #Chronological
+                inf_dates = inf_dates.sort_values()
 
                 #Do we have infections before the Omicron BA.5 period?
-                s = inf_dates < lb_date
+                s = inf_dates < study_start_date
                 n_inf_before_O5 = s.sum()
 
                 if n_inf_before_O5 == 0:
                     #Never infected ==> Infection level A
                     #self.parent.df.loc[index_m, ILV] = 'A'
                     self.parent.df.loc[index_m, ILV] = 'NoPriorInf'
+                    self.parent.df.loc[index_m, TFI] = big_M
                 else:
+                    #----------Time from last infection to
+                    #----------the start of the study
+                    #print(inf_dates.loc[s])
+                    #print(inf_dates.loc[s].iloc[-1])
+                    delta_inf = study_start_date - inf_dates.loc[s].iloc[-1]
+                    delta_inf = delta_inf / np.timedelta64(1,'D')
+                    #print(f'{delta_inf=}')
+                    self.parent.df.loc[index_m, TFI] = delta_inf
+                    #print('---------------------')
+
+
+
                     pre_omicron_inf   = inf_dates < omicron_start_date
                     n_pre_omicron_inf = pre_omicron_inf.sum()
 
@@ -2286,7 +2310,43 @@ class Reporter:
         #Add one day to avoid having a zero
         #for the time-to-event.
         #Recommended by Ahmad.
+        #TVTS = 'TimeFromVac4ToStart'
         df[TVTS] += 1
+
+        #TFI = 'TimeFromInfection'
+        df[TFI] += 1
+
+        intervals = [0, 30, 60, 90, 180, 1000, 1002]
+        intervals = [0, 90, 180, 1000, 1002]
+        intervals = [0, 90, 180, 1002]
+
+        labels = []
+        for k in range(len(intervals)-1):
+            a = intervals[k]
+            b = intervals[k+1]
+            txt = 'From' + str(a) + 'To' + str(b)
+            #if a == 1000:
+                #txt = 'NoInfection'
+            labels.append(txt)
+
+        bins = pd.cut(df[TFI], intervals, labels=labels)
+        print(bins)
+
+
+        df[TFIL] = bins
+        vc = df[TFIL].value_counts().sort_index()
+        fig,ax = plt.subplots()
+        vc.plot(kind='barh', ax = ax)
+        txt = 'Days from last inf. to the start of the study'
+        ax.set_title(txt)
+        ax.set_xlabel('# of participants')
+
+        fname = 'days_from_last_inf_to_study_start.png'
+        fname = os.path.join(self.parent.requests_path, folder, fname)
+        fig.savefig(fname, bbox_inches='tight', pad_inches=0)
+        plt.close('all')
+
+
 
         s = df[TVTS].describe()
         #print(s)
@@ -2381,10 +2441,14 @@ class Reporter:
         SEX = 'Sex'
         STP = 'SiteType'
         OUT = 'Outbreaks'
+        TFI = 'TimeFromInfection'
+        TFIL = 'TimeFromInfectionLevel'
+        TFIL_N = TFIL + '_NoInfection'
+        TFIL_N = TFIL + '_From180To1002'
 
         #df[EVT] = df[EVT].apply(lambda x: 1 if x else 0)
 
-        cols = [STP, SEX, ILV, VLV, TLV, OUT]
+        cols = [STP, SEX, ILV, VLV, TLV, TFIL, OUT]
         X = pd.get_dummies(df[cols])
         cols_to_remove = [
                 'SiteType_LTC',
@@ -2392,6 +2456,7 @@ class Reporter:
                 'InfectionLevel_NoPriorInf',
                 'VaccineLevel_PfizerAll',
                 'TimeLevel_From0To131',
+                TFIL_N,
                 'Outbreaks_SixOrLess']
         X.drop(columns = cols_to_remove, inplace=True)
         Z = df[[EVT,AGE,TSTE]]
@@ -2433,6 +2498,9 @@ class Reporter:
         SEX = 'Sex'
         STP = 'SiteType'
         OUT = 'Outbreaks'
+        TFI = 'TimeFromInfection'
+        TFIL = 'TimeFromInfectionLevel'
+        TFIL_N = TFIL + '_NoInfection'
 
         #s1 = df[TSTE] <= 8
         #s2 = 0 <= df[TSTE]
@@ -2770,12 +2838,27 @@ class Reporter:
             df_t.to_excel(fname)
 
     def investigate_double_o_sheraton(self):
-        #UNUSED
         fname = 'double_o.xlsx'
         folder= 'Sheraton_mar_23_2023'
         fname = os.path.join(self.parent.requests_path, folder, fname)
-        df = pd.read_excel(fname)
-        print(df)
+        df_so = pd.read_excel(fname)
+        def get_site(txt):
+            return txt[:2]
+        df_so['Site'] = df_so['ID'].apply(get_site)
+        vc = df_so['Site'].value_counts()
+        fig, ax = plt.subplots()
+        vc.plot(kind='barh', ax = ax)
+        ax.set_xlabel('# of participants')
+        ax.set_ylabel('Site')
+        txt = 'Double Omicron (BA.1,BA.2) infection'
+        n = vc.sum()
+        txt += ' (n=' + str(n) + ')'
+        ax.set_title(txt)
+
+        fname = 'double_o_dist.png'
+        fname = os.path.join(self.parent.requests_path, folder, fname)
+        fig.savefig(fname, bbox_inches='tight', pad_inches=0)
+        plt.close('all')
 
     def draw_cloud_history_from_serology_for_sheraton(self):
         #This function is used to plot the serology trajectory
@@ -3324,3 +3407,28 @@ class Reporter:
 
 
             break
+
+    def investigate_single_o_sheraton(self):
+        #List of those participants that had a single
+        #omicron infection (before BA.5).
+        fname = 'single_o.xlsx'
+        folder= 'Sheraton_mar_23_2023'
+        fname = os.path.join(self.parent.requests_path, folder, fname)
+        df_so = pd.read_excel(fname)
+        def get_site(txt):
+            return txt[:2]
+        df_so['Site'] = df_so['ID'].apply(get_site)
+        vc = df_so['Site'].value_counts()
+        fig, ax = plt.subplots()
+        vc.plot(kind='barh', ax = ax)
+        ax.set_xlabel('# of participants')
+        ax.set_ylabel('Site')
+        n = vc.sum()
+        txt = 'Single Omicron (BA.1,BA.2) infection'
+        txt += ' (n=' + str(n) + ')'
+        ax.set_title(txt)
+
+        fname = 'single_o_dist.png'
+        fname = os.path.join(self.parent.requests_path, folder, fname)
+        fig.savefig(fname, bbox_inches='tight', pad_inches=0)
+        plt.close('all')

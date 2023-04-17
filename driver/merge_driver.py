@@ -1885,4 +1885,14 @@ obj = Merger()
 #obj.REP_obj.dawns_request_mar_05_2023()
 
 #April 14 2023
-obj.REP_obj.generate_report_for_resident_questionnaire()
+#obj.REP_obj.generate_report_for_resident_questionnaire()
+
+#April 17 2023
+#obj.REP_obj.investigate_single_o_sheraton()
+#obj.REP_obj.investigate_double_o_sheraton()
+
+obj.REP_obj.generate_poster_data_sheraton()
+obj.REP_obj.add_outbreak_to_list()
+#obj.REP_obj.plot_kaplan_meier_sheraton()
+obj.REP_obj.create_design_matrix_sheraton()
+obj.REP_obj.survival_analysis_sheraton()
