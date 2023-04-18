@@ -2026,14 +2026,17 @@ class Reporter:
         VLV = 'VaccineLevel'
         self.parent.df[VLV] = np.nan
 
-        TLV = 'TimeLevel'
+        T4L = 'TimeFromV4Level'
         #This variable is used to convert the
         #TimeFromVac4ToStart variable into
         #a categorical variable.
-        self.parent.df[TLV] = np.nan
+        self.parent.df[T4L] = np.nan
 
         TFI = 'TimeFromInfection'
         self.parent.df[TFI] = np.nan
+
+        OMC = 'OmicronCount'
+        self.parent.df[OMC] = np.nan
 
         #Categories
         TFIL = 'TimeFromInfectionLevel'
@@ -2197,9 +2200,9 @@ class Reporter:
                     n_omicron_inf = omicron_inf.sum()
 
                     if n_omicron_inf == 2:
-                        multi_omicron.append(ID)
-                    #print(f'{n_omicron_inf=}')
-                    #print(f'{n_pre_omicron_inf=}')
+                        self.parent.df.loc[index_m, OMC] = 'Double Omicron'
+                    elif n_omicron_inf == 1:
+                        self.parent.df.loc[index_m, OMC] = 'Single Omicron'
 
                     if using_original_classification:
                         if 1 < n_pre_omicron_inf + n_omicron_inf:
@@ -2318,7 +2321,7 @@ class Reporter:
 
         intervals = [0, 30, 60, 90, 180, 1000, 1002]
         intervals = [0, 90, 180, 1000, 1002]
-        intervals = [0, 90, 180, 1002]
+        intervals = [0, 30, 90, 180, 1002]
 
         labels = []
         for k in range(len(intervals)-1):
@@ -2379,7 +2382,7 @@ class Reporter:
 
         #bins = pd.cut(df[TSTE], intervals)
 
-        df[TLV] = bins
+        df[T4L] = bins
 
         df[EVT] = df[EVT].apply(lambda x: 1 if x else 0)
 
@@ -2437,7 +2440,7 @@ class Reporter:
         EOS = 'RemovedBeforeStudyFinished'
         ILV = 'InfectionLevel'
         VLV = 'VaccineLevel'
-        TLV = 'TimeLevel'
+        T4L = 'TimeFromV4Level'
         SEX = 'Sex'
         STP = 'SiteType'
         OUT = 'Outbreaks'
@@ -2448,14 +2451,14 @@ class Reporter:
 
         #df[EVT] = df[EVT].apply(lambda x: 1 if x else 0)
 
-        cols = [STP, SEX, ILV, VLV, TLV, TFIL, OUT]
+        cols = [STP, SEX, ILV, VLV, T4L, TFIL, OUT]
         X = pd.get_dummies(df[cols])
         cols_to_remove = [
                 'SiteType_LTC',
                 'Sex_Male',
                 'InfectionLevel_NoPriorInf',
                 'VaccineLevel_PfizerAll',
-                'TimeLevel_From0To131',
+                'TimeFromV4Level_From0To131',
                 TFIL_N,
                 'Outbreaks_SixOrLess']
         X.drop(columns = cols_to_remove, inplace=True)
@@ -2494,7 +2497,7 @@ class Reporter:
         EOS = 'RemovedBeforeStudyFinished'
         ILV = 'InfectionLevel'
         VLV = 'VaccineLevel'
-        TLV = 'TimeLevel'
+        T4L = 'TimeFromV4Level'
         SEX = 'Sex'
         STP = 'SiteType'
         OUT = 'Outbreaks'
@@ -2521,7 +2524,7 @@ class Reporter:
         if remove_time_level:
             R = []
             for col in df.columns:
-                if col.startswith(TLV):
+                if col.startswith(T4L):
                     R.append(col)
             if 0 < len(R):
                 df.drop(columns=R, inplace=True)
@@ -2529,7 +2532,7 @@ class Reporter:
         self.cph = CoxPHFitter()
 
         if remove_time_level is False:
-            self.cph.fit(df, TSTE, EVT, strata=['TimeLevel_From155To163'])
+            self.cph.fit(df, TSTE, EVT, strata=['TimeFromV4Level_From155To163'])
         else:
             self.cph.fit(df, TSTE, EVT)
         S = self.cph.summary
@@ -2599,9 +2602,9 @@ class Reporter:
             else:
                 raise ValueError('Unexpected')
 
-        df['TimeLevel'] = df['TimeLevel'].apply(map_interval_to_Q)
+        df['TimeFromV4Level'] = df['TimeFromV4Level'].apply(map_interval_to_Q)
         TS4D = 'DaysFrom4thDoseToStart'
-        df.rename(columns={'TimeLevel':TS4D}, inplace=True)
+        df.rename(columns={'TimeFromV4Level':TS4D}, inplace=True)
 
         #u = df['Site'].unique()
         #w = sum(u < 50)
@@ -2724,7 +2727,7 @@ class Reporter:
         EOS = 'RemovedBeforeStudyFinished'
         ILV = 'InfectionLevel'
         VLV = 'VaccineLevel'
-        TLV = 'TimeLevel'
+        T4L = 'TimeFromV4Level'
         SEX = 'Sex'
         STP = 'SiteType'
         OUT = 'Outbreaks'
@@ -3056,7 +3059,7 @@ class Reporter:
         EOS = 'RemovedBeforeStudyFinished'
         ILV = 'InfectionLevel'
         VLV = 'VaccineLevel'
-        TLV = 'TimeLevel'
+        T4L = 'TimeFromV4Level'
         SEX = 'Sex'
         STP = 'SiteType'
         OUT = 'Outbreaks'
@@ -3407,6 +3410,64 @@ class Reporter:
 
 
             break
+
+    def investigate_o_plus_oo_sheraton(self):
+        folder= 'Sheraton_mar_23_2023'
+        fname = 'single_o.xlsx'
+        fname = os.path.join(self.parent.requests_path, folder, fname)
+        df_so = pd.read_excel(fname)
+
+        fname = 'double_o.xlsx'
+        fname = os.path.join(self.parent.requests_path, folder, fname)
+        df_do = pd.read_excel(fname)
+
+        def get_site(txt):
+            return txt[:2]
+
+        df_so['Site'] = df_so['ID'].apply(get_site)
+        vc_so = df_so['Site'].value_counts()
+
+        df_do['Site'] = df_do['ID'].apply(get_site)
+        vc_do = df_do['Site'].value_counts()
+
+        SO = 'Single omicron'
+        DO = 'Double omicron'
+
+        df_m = pd.merge(vc_so,vc_do, how='outer', left_index=True, right_index=True)
+        df_m = df_m.fillna(0)
+        df_m = df_m.reset_index()
+        df_m = df_m.rename(columns={'index':'Site', 'Site_x':SO, 'Site_y':DO})
+        df_m = pd.melt(df_m, id_vars=['Site'],
+                value_vars=[SO, DO],
+                var_name='Omicron count',
+                value_name = '# of participants')
+        print(df_m)
+        fig, ax = plt.subplots()
+        sns.barplot(ax = ax,
+                x='Site', y='# of participants', hue='Omicron count', data=df_m)
+
+        fname = 'o_oo_site_dist.png'
+        fname = os.path.join(self.parent.requests_path, folder, fname)
+        fig.savefig(fname, bbox_inches='tight', pad_inches=0)
+        plt.close('all')
+
+        folder= 'Sheraton_mar_23_2023'
+        fname = 'LTC003_list.xlsx'
+        fname = os.path.join(self.parent.requests_path, folder, fname)
+        df_t = pd.read_excel(fname)
+        print(df_t)
+        s = df_t['OmicronCount'].notnull()
+        df_t = df_t.loc[s]
+        fig, ax = plt.subplots()
+        sns.histplot(ax = ax,
+                x='TimeFromInfection',
+                hue='OmicronCount',
+                multiple='stack',
+                data=df_t)
+        fname = 'o_oo_time_from_inf_dist.png'
+        fname = os.path.join(self.parent.requests_path, folder, fname)
+        fig.savefig(fname, bbox_inches='tight', pad_inches=0)
+        plt.close('all')
 
     def investigate_single_o_sheraton(self):
         #List of those participants that had a single

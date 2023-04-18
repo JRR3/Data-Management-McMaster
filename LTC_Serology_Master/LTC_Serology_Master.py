@@ -1865,9 +1865,11 @@ class LTCSerologyMaster:
         #and Spike data.
 
         folder = 'Andrew_feb_23_2023'
-        folder2= 'false_positives'
-        folder3= 'img'
-        fname = 'false_positives.xlsx'
+        #folder2= 'false_positives'
+        folder2= 'false_negatives'
+        folder3= 'all_img'
+        #fname = 'false_positives.xlsx'
+        fname = 'false_negatives.xlsx'
         fname = os.path.join(self.parent.requests_path,
                 folder, folder2, fname)
         df_false_negatives = pd.read_excel(fname)
@@ -1970,8 +1972,10 @@ class LTCSerologyMaster:
                 for index_s, row_s in df_s.iterrows():
                     bio_value = row_s[bio]
                     if pd.notnull(bio_value):
+                        full_id = row_s['Full ID']
+                        letter_code = self.extract_ending_from_full_id(full_id)
                         doc = row_s['Date Collected']
-                        L.append((doc, bio_value))
+                        L.append((letter_code, doc, bio_value))
 
                 #At least one point to plot
                 if len(L) < 1:
@@ -1980,7 +1984,7 @@ class LTCSerologyMaster:
                 bio_to_count[bio] += 1
 
                 #Create DF
-                df = pd.DataFrame(L, columns=['Time',bio])
+                df = pd.DataFrame(L, columns=['Code', 'Time', bio])
                 df = df.sort_values('Time')
                 n_samples = df.shape[0]
 
@@ -1990,6 +1994,12 @@ class LTCSerologyMaster:
                 df.plot(ax=ax, x='Time', y=bio,
                         kind='line', marker=m,
                         color=c, label=bio)
+
+                if bio == nuc_G:
+                    for index_t, row_t in df.iterrows():
+                        date = row_t['Time']
+                        code = row_t['Code']
+                        ax.text(date, 1.5, code, fontsize=16, fontweight='bold')
 
                 #At least two points
                 if n_samples < 2:
@@ -2008,6 +2018,13 @@ class LTCSerologyMaster:
                     #Values
                     v1 = df.loc[index_1, bio]
                     v2 = df.loc[index_2, bio]
+
+                    #Codes
+                    c1 = df.loc[index_1, 'Code']
+                    c2 = df.loc[index_2, 'Code']
+                    #print('Paired codes:')
+                    #print(c1, c2)
+                    #print('--------------')
 
                     #Iterate over infection dates.
                     for col_name, inf_date in inf_dates.items():
@@ -2037,6 +2054,7 @@ class LTCSerologyMaster:
                                 status = 'Negative'
                                 if bio == nuc_G:
                                     problematic_infections.add(inf_date)
+                                    letter_codes = (c1, c2)
                             break
 
 
@@ -2049,6 +2067,7 @@ class LTCSerologyMaster:
             ax.set_ylim([0,3.5])
             #ax.get_legend().remove()
             txt = ID
+            #txt += '(' + letter_codes[0] + ', ' + letter_codes[1] + ')'
             ax.set_title(txt)
             fname = ID + '.png'
             fname = os.path.join(self.parent.requests_path,
