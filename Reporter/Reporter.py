@@ -3224,7 +3224,7 @@ class Reporter:
         df = pd.read_excel(fname, dtype = name_to_type, parse_dates=date_cols)
         print(df)
         df_t.dropna(subset='Section', inplace=True)
-        df_t = df_t.sort_values('Section', ascending=True)
+        df_t = df_t.sort_values('Section', ascending=True, kind='stable')
         df_t = df_t.groupby('Section')
 
         SIT = 'Participant Site (2 digits, example: 08)'
@@ -3272,6 +3272,10 @@ class Reporter:
                             value = value.strftime('%d-%b-%Y')
 
 
+                        #These questions allow for multiple responses.
+                        #Ethnicity
+                        #Adverse effects after dose X
+                        #Chronic Conditions
                         if section in ['03','19.1','19.2','19.3','19.4','35']:
                             if value == 'No':
                                 continue
@@ -3285,6 +3289,9 @@ class Reporter:
                                 else:
                                     raise ValueError('Error for bracket')
 
+                        #Height and weight have descriptors
+                        #within brackets.
+                        #There is no Yes/No multiple response.
                         if section in ['20.a','20.b']:
                             obj = regexp_bracket.search(col_name)
                             if obj:
@@ -3327,13 +3334,15 @@ class Reporter:
             else:
                 name_to_type[name] = col_type
 
-        #Load the Resident Questionnaire database
+        #Load the LTC Resident Questionnaire database
         fname = 'LTC_resident_questionnaire.xlsx'
         fname = os.path.join(self.requests_path, folder, folder2, fname)
         df = pd.read_excel(fname, dtype = name_to_type, parse_dates=date_cols)
         print(df)
+        print(self.parent.print_column_and_datatype(df))
+        return
         df_t.dropna(subset='Section', inplace=True)
-        df_t = df_t.sort_values('Section', ascending=True)
+        df_t = df_t.sort_values('Section', ascending=True, kind='stable')
         df_t = df_t.groupby('Section')
 
         SIT = 'Participant Site (2 digits, example: 08)'
@@ -3381,7 +3390,10 @@ class Reporter:
                             value = value.strftime('%d-%b-%Y')
 
 
-                        if section in ['03','19.1','19.2','19.3','19.4','35']:
+                        #Ethnicity
+                        #Adverse effects after dose X
+                        #Chronic Conditions
+                        if section in ['03','30.1','30.2','30.3','30.4','19']:
                             if value == 'No':
                                 continue
                             if value == 'Yes':
@@ -3394,7 +3406,9 @@ class Reporter:
                                 else:
                                     raise ValueError('Error for bracket')
 
-                        if section in ['20.a','20.b']:
+                        #What is your current height?
+                        #What is your current weight?
+                        if section in ['07.a','07.b']:
                             obj = regexp_bracket.search(col_name)
                             if obj:
                                 col_name = obj.group('value')

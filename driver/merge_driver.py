@@ -1887,7 +1887,7 @@ obj = Merger()
 #April 14 2023
 #obj.REP_obj.generate_report_for_resident_questionnaire()
 
-#April 17-18 2023
+#April 17-19 2023
 #obj.REP_obj.investigate_single_o_sheraton()
 #obj.REP_obj.investigate_double_o_sheraton()
 #obj.REP_obj.investigate_o_plus_oo_sheraton()
@@ -1898,4 +1898,8 @@ obj = Merger()
 #obj.REP_obj.create_design_matrix_sheraton()
 #obj.REP_obj.survival_analysis_sheraton()
 
-obj.LSM_obj.generate_simple_nuc_history_plus_spike()
+#obj.LSM_obj.generate_simple_nuc_history_plus_spike()
+
+#April 20 2023
+#obj.REP_obj.generate_report_for_resident_questionnaire()
+obj.REP_obj.generate_report_for_LTC_resident_questionnaire()
