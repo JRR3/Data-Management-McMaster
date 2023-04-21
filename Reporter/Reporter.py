@@ -3202,10 +3202,19 @@ class Reporter:
         folder2 = 'test'
 
         regexp_bracket = re.compile('\[(?P<value>.*)\]')
+        regexp_dot_number = re.compile('[.]\d+')
+        add_another_condition = 'Would you like to add another condition?'
+        add_another_medication = 'Would you like to add another medication?'
 
         fname = 'column_types_for_resident_questionnaire.xlsx'
         fname = os.path.join(self.requests_path, folder, folder2, fname)
         df_t = pd.read_excel(fname, dtype=str)
+        if df_t['Name'].value_counts().gt(1).any():
+            vc = df_t['Name'].value_counts()
+            s  = vc.gt(1)
+            vc = vc[s]
+            print(vc)
+            raise ValueError('Non unique entries at Name in column type LTC')
         date_cols = []
         name_to_type = {}
 
@@ -3222,7 +3231,7 @@ class Reporter:
         fname = 'resident_questionnaire.xlsx'
         fname = os.path.join(self.requests_path, folder, folder2, fname)
         df = pd.read_excel(fname, dtype = name_to_type, parse_dates=date_cols)
-        print(df)
+        #print(df)
         df_t.dropna(subset='Section', inplace=True)
         df_t = df_t.sort_values('Section', ascending=True, kind='stable')
         df_t = df_t.groupby('Section')
@@ -3279,7 +3288,7 @@ class Reporter:
                         if section in ['03','19.1','19.2','19.3','19.4','35']:
                             if value == 'No':
                                 continue
-                            if value == 'Yes':
+                            else:
                                 obj = regexp_bracket.search(col_name)
                                 if obj:
                                     col_name = obj.group('value')
@@ -3302,6 +3311,22 @@ class Reporter:
                             else:
                                 raise ValueError('Error for bracket')
 
+
+                        #Please enter the name of the condition
+                        #Would you like to add another condition?
+                        #Would you like to add another medication?
+                        if add_another_condition in col_name:
+                            continue
+                        if add_another_medication in col_name:
+                            continue
+                        obj = regexp_dot_number.search(col_name)
+                        if obj:
+                            #print('Old')
+                            #print(col_name)
+                            col_name = col_name.replace(obj.group(0), '')
+                            #print('New')
+                            #print(col_name)
+
                         writer.writerow([col_name])
                         writer.writerow([value])
                         writer.writerow([])
@@ -3318,10 +3343,19 @@ class Reporter:
         folder2 = 'test'
 
         regexp_bracket = re.compile('\[(?P<value>.*)\]')
+        regexp_dot_number = re.compile('[.]\d+')
+        add_another_condition = 'Would you like to add another condition?'
+        add_another_medication = 'Would you like to add another medication?'
 
         fname = 'column_types_for_LTC_resident_questionnaire.xlsx'
         fname = os.path.join(self.requests_path, folder, folder2, fname)
         df_t = pd.read_excel(fname, dtype=str)
+        if df_t['Name'].value_counts().gt(1).any():
+            vc = df_t['Name'].value_counts()
+            s  = vc.gt(1)
+            vc = vc[s]
+            print(vc)
+            raise ValueError('Non unique entries at Name in column type LTC')
         date_cols = []
         name_to_type = {}
 
@@ -3338,9 +3372,9 @@ class Reporter:
         fname = 'LTC_resident_questionnaire.xlsx'
         fname = os.path.join(self.requests_path, folder, folder2, fname)
         df = pd.read_excel(fname, dtype = name_to_type, parse_dates=date_cols)
-        print(df)
-        print(self.parent.print_column_and_datatype(df))
-        return
+        #print(df)
+        #print(self.parent.print_column_and_datatype(df))
+        #return
         df_t.dropna(subset='Section', inplace=True)
         df_t = df_t.sort_values('Section', ascending=True, kind='stable')
         df_t = df_t.groupby('Section')
@@ -3396,7 +3430,7 @@ class Reporter:
                         if section in ['03','30.1','30.2','30.3','30.4','19']:
                             if value == 'No':
                                 continue
-                            if value == 'Yes':
+                            else:
                                 obj = regexp_bracket.search(col_name)
                                 if obj:
                                     col_name = obj.group('value')
@@ -3417,6 +3451,130 @@ class Reporter:
                                 continue
                             else:
                                 raise ValueError('Error for bracket')
+
+                        #Please enter the name of the condition
+                        #Would you like to add another condition?
+                        #Would you like to add another medication?
+                        if add_another_condition in col_name:
+                            continue
+                        if add_another_medication in col_name:
+                            continue
+                        obj = regexp_dot_number.search(col_name)
+                        if obj:
+                            #print('Old')
+                            #print(col_name)
+                            col_name = col_name.replace(obj.group(0), '')
+                            #print('New')
+                            #print(col_name)
+
+                        writer.writerow([col_name])
+                        writer.writerow([value])
+                        writer.writerow([])
+
+
+            break
+
+    def generate_report_for_one_pager(self):
+        folder = 'Lindsay_apr_05_2023'
+        folder2 = 'test'
+
+        regexp_bracket = re.compile('\[(?P<value>.*)\]')
+        regexp_dot_number = re.compile('[.]\d+')
+        add_another_condition = 'Would you like to add another condition?'
+        add_another_medication = 'Would you like to add another medication?'
+
+        fname = 'column_types_for_the_one_pager.xlsx'
+        fname = os.path.join(self.requests_path, folder, folder2, fname)
+        df_t = pd.read_excel(fname, dtype=str)
+        if df_t['Name'].value_counts().gt(1).any():
+            vc = df_t['Name'].value_counts()
+            s  = vc.gt(1)
+            vc = vc[s]
+            print(vc)
+            raise ValueError('Non unique entries at Name in column type LTC')
+        date_cols = []
+        name_to_type = {}
+
+        #Use the corresponding data types for each column.
+        for index, row in df_t.iterrows():
+            name = row['Name']
+            col_type = row['Type']
+            if col_type == 'date':
+                date_cols.append(name)
+            else:
+                name_to_type[name] = col_type
+
+        #Load the one pager
+        fname = 'one_pager.xlsx'
+        fname = os.path.join(self.requests_path, folder, folder2, fname)
+        df = pd.read_excel(fname, dtype = name_to_type, parse_dates=date_cols)
+        #print(df)
+        #print(self.parent.print_column_and_datatype(df))
+        #return
+        df_t.dropna(subset='Section', inplace=True)
+        df_t = df_t.sort_values('Section', ascending=True, kind='stable')
+        df_t = df_t.groupby('Section')
+
+        SIT = 'Participant Site (2 digits, example: 08)'
+        PID = 'Participant ID (7 digits, example: 0123456)'
+
+
+        for index_m, row_m in df.iterrows():
+
+            site = row_m[SIT]
+            pid  = row_m[PID]
+
+            if pd.isnull(site) or pd.isnull(pid):
+                continue
+
+            if len(site) != 2:
+                raise ValueError('Site length')
+
+            if len(pid) != 7:
+                raise ValueError('PID length')
+
+            ID = site + '-' + pid
+
+            fname = ID + '.csv'
+            fname = os.path.join(self.requests_path, folder, folder2, fname)
+
+            with open(fname, 'w', newline='') as f:
+
+                writer = csv.writer(f)
+
+                for section, df_g in df_t:
+                    writer.writerow([])
+                    txt = 'Question #' + section
+                    desc= df_g['Description'].iloc[0]
+                    writer.writerow([txt, desc])
+
+                    for index_s, row_s in df_g.iterrows():
+                        col_name = row_s['Name']
+                        value    = row_m[col_name]
+                        dtype    = row_s['Type']
+
+                        if pd.isnull(value):
+                            continue
+
+                        if dtype == 'date':
+                            value = value.strftime('%d-%b-%Y')
+
+
+                        #Adverse effects after dose 5
+                        if section == '02':
+                            if value == 'No':
+                                continue
+                            else:
+                                obj = regexp_bracket.search(col_name)
+                                if obj:
+                                    col_name = obj.group('value')
+                                    writer.writerow([col_name, value])
+                                    writer.writerow([])
+                                    continue
+                                else:
+                                    raise ValueError('Error in adverse effects')
+
+
 
                         writer.writerow([col_name])
                         writer.writerow([value])

@@ -840,3 +840,42 @@ class MasterParticipantData:
                 df = df_s.loc[s]
                 self.find_subgroups_for_this_category(df, cat_list, level+1)
 
+    def contrast_template_with_M_file(self):
+        fname = 'rep_20_61.xlsx'
+        folder = 'Tara_apr_20_2023'
+        fname = os.path.join(self.parent.requests_path, folder, fname)
+        df_up = pd.read_excel(fname)
+        print(df_up)
+        for index_up, row_up in df_up.iterrows():
+            ID = row_up['ID']
+            s = self.parent.df['ID'] == ID
+            if not s.any():
+                raise ValueError('Unexpected ID')
+            index_m = s.loc[s].index[0]
+            for column in df_up.columns:
+                if column not in self.parent.df.columns:
+                    continue
+                if column == 'ID':
+                    continue
+
+                v_up = row_up[column]
+                if pd.isnull(v_up):
+                    continue
+
+                v_m  = self.parent.df.loc[index_m, column]
+                if pd.isnull(v_m):
+                    print('Updating', ID, 'at', column)
+                    self.parent.df.loc[index_m, column] = v_up
+                else:
+                    if v_m != v_up:
+                        print(f'M ==/== UP: {ID} at {column}')
+                        print(f'{v_m=}')
+                        print(f'{v_up=}')
+                        print('----------------------------')
+
+
+
+
+
+
+

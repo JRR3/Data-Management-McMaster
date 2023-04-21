@@ -1900,6 +1900,8 @@ obj = Merger()
 
 #obj.LSM_obj.generate_simple_nuc_history_plus_spike()
 
-#April 20 2023
+#April 20-21 2023
 #obj.REP_obj.generate_report_for_resident_questionnaire()
-obj.REP_obj.generate_report_for_LTC_resident_questionnaire()
+#obj.REP_obj.generate_report_for_LTC_resident_questionnaire()
+#obj.REP_obj.generate_report_for_one_pager()
+obj.MPD_obj.contrast_template_with_M_file()
