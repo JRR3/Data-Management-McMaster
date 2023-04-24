@@ -1904,4 +1904,7 @@ obj = Merger()
 #obj.REP_obj.generate_report_for_resident_questionnaire()
 #obj.REP_obj.generate_report_for_LTC_resident_questionnaire()
 #obj.REP_obj.generate_report_for_one_pager()
-obj.MPD_obj.contrast_template_with_M_file()
+#obj.MPD_obj.contrast_template_with_M_file()
+
+#April 25 2023
+obj.REP_obj.evolution_of_VOC_for_dawn()

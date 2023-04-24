@@ -3665,3 +3665,61 @@ class Reporter:
         fname = os.path.join(self.parent.requests_path, folder, fname)
         fig.savefig(fname, bbox_inches='tight', pad_inches=0)
         plt.close('all')
+
+    def evolution_of_VOC_for_dawn(self):
+        folder = 'Ahmad_apr_24_2023'
+        fname = 'CV19_variants.xlsx'
+        fname = os.path.join(self.parent.requests_path, folder, fname)
+        df = pd.read_excel(fname, parse_dates=['Week'])
+        df['Percent'] *= 100
+        s = df['Percent'] < 0.2
+        df = df.loc[~s]
+        df.sort_values('Week')
+        study_start_date = datetime.datetime(2022,9,11)
+        study_end_date = datetime.datetime(2022,12,31)
+        s1 = study_start_date <= df['Week']
+        s2 = df['Week'] <= study_end_date
+        df = df.loc[s1 & s2]
+        df = df.pivot_table(index='Week',
+                columns='Identifier', values='Percent', aggfunc='sum')
+        main_columns = df.columns
+        df = df.reset_index()
+
+
+        fname = 'CV19_province.xlsx'
+        fname = os.path.join(self.parent.requests_path, folder, fname)
+        df_p = pd.read_excel(fname, parse_dates=['date', 'Week'])
+        s = df_p['province'] == 'Ontario'
+        df_p = df_p.loc[s]
+        df_p['Positive cases'] = np.round(df_p['Positive cases'])
+        df_p.sort_values('Week')
+
+        df = pd.merge(df, df_p, on='Week', how='inner')
+
+
+        df['Week'] = df['Week'].apply(lambda x: x.strftime('%b-%d'))
+        df = df.set_index('Week')
+        print(df)
+
+        fig,ax = plt.subplots()
+        df.plot(ax = ax, y='Positive cases', kind='bar', rot=45)
+        fname = 'prov_plot.png'
+        fname = os.path.join(self.parent.requests_path, folder, fname)
+        ax.set_xlabel('')
+        fig.savefig(fname, bbox_inches='tight', pad_inches=0)
+        plt.close('all')
+
+        #=================Cases
+        for col in main_columns:
+            print(col)
+            df[col] *= df['Positive cases'] / 100
+
+        fig,ax = plt.subplots()
+        df.plot(ax = ax, y=main_columns, kind='bar', stacked=True, rot=45)
+        ax.set_xlabel('')
+
+        fname = 'cases_in_ontario.png'
+        fname = os.path.join(self.parent.requests_path, folder, fname)
+        fig.savefig(fname, bbox_inches='tight', pad_inches=0)
+        plt.close('all')
+
