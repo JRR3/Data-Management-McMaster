@@ -3284,6 +3284,43 @@ class Comparator:
         self.LIS_obj.load_main_frame()
         self.SID_obj.load_main_frame()
 
+    def update_master_using_SID(self):
+        #=================================
+        #The new version uses the clean version of the SID file.
+        #April 26, 2023
+        #=================================
+        #This function updates the merged file M with the
+        #Sample Inventory Data file provided by Megan.
+        folder = 'Megan_feb_07_2023'
+        fname = 'sid.xlsx'
+        fname = os.path.join(self.requests_path, folder, fname)
+        #We are only interested in the first column (ID=A) and the 
+        #Blood draw columns (W to BF).
+        df_up = pd.read_excel(fname,
+                skiprows=[0,1,2],
+                usecols='A,W:BF',
+                sheet_name='All Sites - AutoFill')
+        #First, we convert that update into a data frame with the
+        #desired format estipulated in the SID class.
+        self.SID_obj.format_megans_update(df_up)
+        print(df_up)
+        #Now we specify the type of update. 
+        #The update kind is: update+
+        #This means that the update is given higher priority, but
+        #it will not erase a cell.
+        #To fully replace the entries with the update use
+        #update++.
+        #In case we only have to fill empty cells,
+        #choose 'original+'.
+        #Rewrite the self.df object with the M data frame.
+        status_pre = self.MPD_obj.compute_data_density(self.df)
+        self.df = self.merge_with_M_and_return_M(df_up, 'ID', kind='original+')
+        print('Merging SID update with M file is complete.')
+        #Compute information delta
+        status_post = self.MPD_obj.compute_data_density(self.df)
+        self.MPD_obj.monotonic_increment_check(status_pre,
+                status_post)
+
 
 #obj = Comparator()
 #obj.load_the_rainbow()

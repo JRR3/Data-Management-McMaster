@@ -840,20 +840,95 @@ class MasterParticipantData:
                 df = df_s.loc[s]
                 self.find_subgroups_for_this_category(df, cat_list, level+1)
 
-    def contrast_template_with_M_file(self):
+    def clean_DBS_from_file(self):
+        folder = 'Tara_apr_20_2023'
         fname = 'rep_20_61.xlsx'
+        fname = os.path.join(self.parent.requests_path, folder, fname)
+        df_up = pd.read_excel(fname)
+
+        PDC = self.parent.LIS_obj.positive_date_cols
+        PTC = self.parent.LIS_obj.positive_type_cols
+        DOR = 'Date Removed from Study'
+        DOE = 'Enrollment Date'
+        RES = 'Reason'
+
+        for index_up, row_up in df_up.iterrows():
+            ID = row_up['ID']
+            doe = row_up[DOE]
+
+            if doe.year == 2023:
+                df_up.loc[index_up, DOR] = np.nan
+                df_up.loc[index_up, RES] = np.nan
+
+            idates = row_up[PDC]
+            itypes = row_up[PTC]
+
+            if idates.count() == 0:
+                continue
+
+            if idates.count() != itypes.count():
+                print(ID)
+                raise ValueError('Mismatch for dates and types')
+
+            s = itypes == 'DBS'
+
+            if not s.any():
+                continue
+
+            L_dates = []
+            L_types = []
+            for k, itype in enumerate(itypes):
+                date_col = PDC[k]
+                type_col = PTC[k]
+                if itype == 'DBS':
+                    df_up.loc[index_up, date_col] = np.nan
+                    df_up.loc[index_up, type_col] = np.nan
+                else:
+                    idate = idates.iloc[k]
+                    L_dates.append(idate)
+                    L_types.append(itype)
+
+            if len(L_dates) == 0:
+                #All of them were DBS. 
+                #Nothing else to do.
+                continue
+
+            #We iterate over the non-DBS
+            for k, (idate, itype) in enumerate(zip(L_dates, L_types)): 
+                date_col = PDC[k]
+                type_col = PTC[k]
+                df_up.loc[index_up, date_col] = idate
+                df_up.loc[index_up, type_col] = itype
+
+        print(df_up)
+        fname = 'rep_20_61_clean.xlsx'
+        fname = os.path.join(self.parent.requests_path, folder, fname)
+        df_up.to_excel(fname, index=False)
+
+
+    def contrast_template_with_M_file(self):
+        fname = 'rep_20_61_clean.xlsx'
         folder = 'Tara_apr_20_2023'
         fname = os.path.join(self.parent.requests_path, folder, fname)
         df_up = pd.read_excel(fname)
         print(df_up)
+        DOR = 'Date Removed from Study'
+        DOE = 'Enrollment Date'
+        RES = 'Reason'
+        ACT = 'Active'
+        MCL = self.parent.df.columns
         for index_up, row_up in df_up.iterrows():
             ID = row_up['ID']
             s = self.parent.df['ID'] == ID
             if not s.any():
                 raise ValueError('Unexpected ID')
             index_m = s.loc[s].index[0]
+            if self.parent.df.loc[index_m, 'ID'] != ID:
+                raise ValueError('Error at ID')
             for column in df_up.columns:
-                if column not in self.parent.df.columns:
+                n_of_entries = df_up[column].count()
+                if column not in MCL and 0 < n_of_entries:
+                    print(f'{column=} not in Master')
                     continue
                 if column == 'ID':
                     continue
@@ -864,14 +939,21 @@ class MasterParticipantData:
 
                 v_m  = self.parent.df.loc[index_m, column]
                 if pd.isnull(v_m):
-                    print('Updating', ID, 'at', column)
+                    print('Updating', ID, 'at', column, ':', v_up)
                     self.parent.df.loc[index_m, column] = v_up
                 else:
                     if v_m != v_up:
-                        print(f'M ==/== UP: {ID} at {column}')
-                        print(f'{v_m=}')
-                        print(f'{v_up=}')
-                        print('----------------------------')
+                        if column == DOE:
+                            if v_up.year == 2023:
+                                print(f'{ID} reconsented')
+                                self.parent.df.loc[index_m, DOR] = np.nan
+                                self.parent.df.loc[index_m, RES] = np.nan
+                                self.parent.df.loc[index_m, ACT] = True
+                        else:
+                            print(f'M ==/== UP: {ID} at {column}')
+                            print(f'{v_m=}')
+                            print(f'{v_up=}')
+                            print('----------------------------')
 
 
 

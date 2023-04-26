@@ -3723,3 +3723,78 @@ class Reporter:
         fig.savefig(fname, bbox_inches='tight', pad_inches=0)
         plt.close('all')
 
+    def evolution_of_VOC_for_dawn_2(self):
+        folder = 'Ahmad_apr_24_2023'
+        folder2= 'reports'
+        fname = 'A_report.xlsx'
+        fname = os.path.join(self.parent.requests_path,
+                folder, folder2, fname)
+        book = pd.read_excel(fname, sheet_name = None)
+        rx_paretheses = re.compile('[ ]*\(.*\)[ ]*')
+        txt = 'Week (?P<week>\d+)[ ]*\((?P<month>[a-zA-Z]+)[ ](?P<day>\d+)'
+        rx_week_id = re.compile(txt)
+        rx_comma = re.compile(',')
+        week_to_id = {}
+        stack_df = []
+        for sheet, df in book.items():
+            print(sheet)
+            df = df.replace(regex=[rx_paretheses, rx_comma], value='')
+            columns_to_drop = ['Total']
+            for column in df.columns:
+                obj = rx_week_id.search(column)
+                if obj:
+                    week = obj.group('week')
+                    w = int(week)
+                    df[column] = pd.to_numeric(df[column])
+                    month = obj.group('month')
+                    day = obj.group('day')
+                    label = month[:3] + '-' + day
+                    week_txt = 'Week ' + week
+                    if w < 37:
+                        columns_to_drop.append(week_txt)
+                    else:
+                        week_to_id[week_txt] = label
+            df.columns = df.columns.str.replace(rx_paretheses, '')
+            df.columns = df.columns.str.strip()
+            df = df.drop(columns = columns_to_drop)
+            df = df.set_index('WHO label/Pango lineage')
+            stack_df.append(df)
+            print(df)
+        print(week_to_id)
+        df_m = stack_df.pop()
+        while 0 < len(stack_df):
+            df = stack_df.pop()
+            new_columns = []
+            for column in df.columns:
+                if column not in df_m.columns:
+                    new_columns.append(column)
+            df = df[new_columns]
+            df_m = df_m.merge(df, how='outer', left_index=True, right_index=True)
+        sorted_columns = df_m.columns.sort_values()
+        print(sorted_columns)
+        df = df_m[sorted_columns]
+        labels = [week_to_id[x] for x in df.columns]
+        df.columns = labels
+        df = df.transpose()
+
+        fname = 'voc_full_report.xlsx'
+        fname = os.path.join(self.parent.requests_path,
+                folder, folder2, fname)
+        df.to_excel(fname, index=True)
+
+    def plot_evolution_of_VOC_for_dawn(self):
+        folder = 'Ahmad_apr_24_2023'
+        folder2= 'reports'
+        fname = 'voc_full_report.xlsx'
+        fname = os.path.join(self.parent.requests_path,
+                folder, folder2, fname)
+        df = pd.read_excel(fname, index_col=0)
+        fig, ax = plt.subplots()
+        df.plot(ax = ax, kind='bar', stacked=True, rot=90)
+        print(df)
+        plt.legend(bbox_to_anchor=(1.04, 0), loc='lower left')
+        fname = 'voc_plot.png'
+        fname = os.path.join(self.parent.requests_path,
+                folder, folder2, fname)
+        fig.savefig(fname, bbox_inches='tight', pad_inches=0)
+        plt.close('all')

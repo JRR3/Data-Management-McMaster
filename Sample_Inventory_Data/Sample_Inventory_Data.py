@@ -28,6 +28,7 @@ class SampleInventoryData:
         self.blood_draw_code_to_col_name = {}
         self.i_blood_draw_code_to_col_name = {}
         self.original_to_current = {}
+        self.date_type_in_SID = []
         self.code_regexp = re.compile('[-][ ]*(?P<code>[A-Z]+[0-9]*)')
 
         if parent:
@@ -169,13 +170,19 @@ class SampleInventoryData:
         #Oct 12, 2022
         #This function related the headers in Megan's
         #file with the labels in the master file.
-        fname = 'label_dictionary.xlsx'
-        fname = os.path.join(self.dpath, fname)
+        fname = 'column_types.xlsx'
+        fname = os.path.join(self.parent.outputs_path, fname)
         df_up = pd.read_excel(fname)
         for index, row in df_up.iterrows():
-            original = row['Original']
-            current = row['Current']
+            original = row['SID']
+            if pd.isnull(original):
+                continue
+            current = row['Name']
             self.original_to_current[original] = current
+            if current != 'ID':
+                #We use this list to parse dates when opening
+                #Megan's file.
+                self.date_type_in_SID.append(current)
         #print(df_up)
 
     def format_megans_update(self, df_up):
@@ -199,15 +206,21 @@ class SampleInventoryData:
             print('No repeats were found in Sample Inventory')
 
         #Keep only dates and ID
+        rx_date = re.compile('\d{4}-\d{2}-\d{2}')
         for index_r, row in df_up.iterrows():
             #print('=============')
             for index_c, item in row.items():
                 if index_c == 'ID':
                     continue
                 if pd.notnull(item):
-                    type_str = str(type(item))
-                    if 'time' in type_str:
-                        pass
+                    obj = rx_date.search(item)
+                    #type_str = str(type(item))
+                    if obj:
+                        print('Setting the date:', item)
+                        #Partial date
+                        #df_up.loc[index_r, index_c] = obj.group(0)
+                        #Full date
+                        df_up.loc[index_r, index_c] = item
                     else:
                         print('Erasing:', item)
                         df_up.loc[index_r, index_c] = np.nan
@@ -371,21 +384,25 @@ class SampleInventoryData:
 
     def find_repeated_dates_in_megans_file(self):
         folder = 'Megan_apr_10_2023'
+        folder = 'Tara_apr_20_2023'
         fname = 'sid_clean.xlsx'
         fname = os.path.join(self.parent.requests_path, folder, fname)
         if os.path.exists(fname):
-            df_up = pd.read_excel(fname)
-            for col in df_up.columns:
-                if col == 'ID':
-                    continue
-                df_up[col] = pd.to_datetime(df_up[col],
-                        dayfirst=True, infer_datetime_format=True)
+            df_up = pd.read_excel(fname, dtype={'ID':str},
+                    parse_dates = self.date_type_in_SID)
+            #for col in df_up.columns:
+                #if col == 'ID':
+                    #continue
+                #df_up[col] = pd.to_datetime(df_up[col],
+                        #dayfirst=True, infer_datetime_format=True)
         else:
             fname = 'sid.xlsx'
             fname = os.path.join(self.parent.requests_path, folder, fname)
             df_up = pd.read_excel(fname,
                     skiprows=[0,1,2],
-                    usecols='A,W:BF',
+                    usecols='A,W:BJ',
+                    dtype = str,
+                    #parse_dates = self.date_type_in_SID,
                     sheet_name='All Sites - AutoFill')
             self.format_megans_update(df_up)
             fname = 'sid_clean.xlsx'
@@ -394,8 +411,9 @@ class SampleInventoryData:
             return
 
         #print(df_up)
-        #self.parent.print_column_and_datatype(df_up)
+        self.parent.print_column_and_datatype(df_up)
         L = []
+        self.parent.print_column_and_datatype(df_up)
         for index_up, row_up in df_up.iterrows():
             ID = row_up['ID']
             dates = row_up.iloc[1:]
@@ -416,3 +434,31 @@ class SampleInventoryData:
         fname = os.path.join(self.parent.requests_path, folder, fname)
         df.to_excel(fname, index=False)
 
+
+    def update_master_using_SID(self):
+        #This function updates the merged file M with the
+        #Sample Inventory Data file provided by Megan.
+        folder = 'Megan_apr_10_2023'
+        folder = 'Tara_apr_20_2023'
+        fname = 'sid_clean.xlsx'
+        fname = os.path.join(self.parent.requests_path, folder, fname)
+        if os.path.exists(fname):
+            df_up = pd.read_excel(fname, dtype={'ID':str},
+                    parse_dates = self.date_type_in_SID)
+        print(df_up)
+        #Now we specify the type of update. 
+        #The update kind is: update+
+        #This means that the update is given higher priority, but
+        #it will not erase a cell.
+        #To fully replace the entries with the update use
+        #update++.
+        #In case we only have to fill empty cells,
+        #choose 'original+'.
+        #Rewrite the self.df object with the M data frame.
+        status_pre = self.parent.MPD_obj.compute_data_density(self.parent.df)
+        self.parent.df = self.parent.merge_with_M_and_return_M(df_up,
+                'ID', kind='original+')
+        print('Merging SID update with M file is complete.')
+        #Compute information delta
+        status_post = self.parent.MPD_obj.compute_data_density(self.parent.df)
+        self.parent.MPD_obj.monotonic_increment_check(status_pre, status_post)
