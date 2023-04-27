@@ -3798,3 +3798,64 @@ class Reporter:
                 folder, folder2, fname)
         fig.savefig(fname, bbox_inches='tight', pad_inches=0)
         plt.close('all')
+
+    def plot_evolution_of_VOC_for_dawn_2(self):
+        folder = 'Ahmad_apr_24_2023'
+        folder2= 'reports'
+        fname = 'voc_full_report.xlsx'
+        fname = os.path.join(self.parent.requests_path,
+                folder, folder2, fname)
+        df_data = pd.read_excel(fname, index_col=0)
+        df_data = df_data.fillna(0)
+        df_g = pd.read_excel(fname, sheet_name = 'groups')
+        name_to_group = {}
+        for index, row in df_g.iterrows():
+            name = row['Name']
+            group = row['Compact']
+            if group not in name_to_group:
+                name_to_group[group] = [name]
+            else:
+                name_to_group[group].append(name)
+
+        order = [
+                'BA.5',
+                'Other Omicron',
+                'BA.2',
+                'BA.4',
+                'BA.1',
+                'Other lineages',
+                'XBB',
+                'XBM',
+                'Other recomb.'
+                ]
+        m = np.zeros((len(df_data.index), len(order)))
+        df = pd.DataFrame(m, columns=order, index= df_data.index)
+        for key in order:
+            L = name_to_group[key]
+            for column in L:
+                df[key] += df_data[column]
+
+        fname = 'voc_full_report_count.xlsx'
+        fname = os.path.join(self.parent.requests_path,
+                folder, folder2, fname)
+        df.to_excel(fname, index=True)
+
+        df = df.divide(df.sum(axis=1), axis=0)
+        df = df.multiply(100)
+
+        fname = 'voc_full_report_percent.xlsx'
+        fname = os.path.join(self.parent.requests_path,
+                folder, folder2, fname)
+        df.to_excel(fname, index=True)
+
+
+
+        fig, ax = plt.subplots()
+        df.plot(ax = ax, kind='area', stacked=True,
+                colormap='jet', rot=90)
+        plt.legend(bbox_to_anchor=(1.04, 0), loc='lower left')
+        fname = 'voc_plot_grouped_jet.png'
+        fname = os.path.join(self.parent.requests_path,
+                folder, folder2, fname)
+        fig.savefig(fname, bbox_inches='tight', pad_inches=0)
+        plt.close('all')
