@@ -459,6 +459,7 @@ class MasterParticipantData:
 
     def map_old_ids_to_new(self, df):
         #Dec 06 2022
+        #May 02 2023
         #This function has to be tested.
         fname = 'mapping_old_ids_to_new.xlsx'
         fname = os.path.join(self.parent.MPD_path, fname)
@@ -466,10 +467,17 @@ class MasterParticipantData:
         for index_map, row_map in mapping.iterrows():
             old_id = row_map['Old']
             new_id = row_map['New']
-            df['ID'].replace(old_id, new_id, inplace=True)
+            s = df['ID'] == old_id
+            if s.any():
+                index = s[s].index[0]
+                print('Replacing', old_id, 'with', new_id)
+                df.loc[index,'ID'] = new_id
+                #df['ID'].replace(old_id, new_id, inplace=True)
         selection = df['ID'] == 'X'
         if selection.any():
+            print('>>>>>>>>>>>>>>>We have discarded some IDs.')
             df.drop(selection[selection].index, inplace=True)
+            #raise ValueError('Erase')
 
 
 
@@ -860,8 +868,8 @@ class MasterParticipantData:
                 df_up.loc[index_up, DOR] = np.nan
                 df_up.loc[index_up, RES] = np.nan
 
-            idates = row_up[PDC]
-            itypes = row_up[PTC]
+            idates = row_up[PDC].copy()
+            itypes = row_up[PTC].copy()
 
             if idates.count() == 0:
                 continue
@@ -875,18 +883,25 @@ class MasterParticipantData:
             if not s.any():
                 continue
 
+            #At this point we know we have DBS infections.
             L_dates = []
             L_types = []
             for k, itype in enumerate(itypes):
                 date_col = PDC[k]
                 type_col = PTC[k]
                 if itype == 'DBS':
-                    df_up.loc[index_up, date_col] = np.nan
-                    df_up.loc[index_up, type_col] = np.nan
+                    #Ignore this entries
+                    #df_up.loc[index_up, date_col] = np.nan
+                    #df_up.loc[index_up, type_col] = np.nan
+                    pass
                 else:
+                    #Store this entries
                     idate = idates.iloc[k]
                     L_dates.append(idate)
                     L_types.append(itype)
+                #Clean these entries in case we have to reorganize
+                df_up.loc[index_up, date_col] = np.nan
+                df_up.loc[index_up, type_col] = np.nan
 
             if len(L_dates) == 0:
                 #All of them were DBS. 
@@ -894,7 +909,7 @@ class MasterParticipantData:
                 continue
 
             #We iterate over the non-DBS
-            for k, (idate, itype) in enumerate(zip(L_dates, L_types)): 
+            for k, (idate, itype) in enumerate(zip(L_dates, L_types)):
                 date_col = PDC[k]
                 type_col = PTC[k]
                 df_up.loc[index_up, date_col] = idate
@@ -907,29 +922,92 @@ class MasterParticipantData:
 
 
     def contrast_template_with_M_file(self):
-        fname = 'rep_20_61_clean.xlsx'
-        folder = 'Tara_apr_20_2023'
+
+        #First, we read the headers of the update and
+        #map them to the headers of the Master file.
+        fname = 'template_to_master_headers.xlsx'
+        fname = os.path.join(self.parent.MPD_path, fname)
+        df_h = pd.read_excel(fname, sheet_name='TtoM', dtype=str)
+        template_to_master_headers = {}
+
+        for index, row in df_h.iterrows():
+            source = row['Template']
+            target = row['Master']
+            template_to_master_headers[source] = target
+
+        #Second, we read the data types of the update.
+        df_t = pd.read_excel(fname, sheet_name='dtypes', dtype=str)
+        date_cols = []
+        name_to_type = {}
+        #Use the corresponding data types for each column.
+        for index, row in df_t.iterrows():
+            name = row['Name']
+            col_type = row['Type']
+            if col_type == 'date':
+                date_cols.append(name)
+            else:
+                name_to_type[name] = col_type
+
+        fname = 'update.xlsx'
+        folder = 'Tara_may_01_2023'
         fname = os.path.join(self.parent.requests_path, folder, fname)
-        df_up = pd.read_excel(fname)
-        print(df_up)
+        df_up = pd.read_excel(fname, dtype = name_to_type,
+                              parse_dates=date_cols)
+        df_up = df_up.rename(columns=template_to_master_headers)
+
+        #We assume the data frame is clean.
+        if df_up.eq('DBS').any().any():
+            raise ValueError('DBS should not be here.')
+        df_up = df_up.replace('B: Blood', 'Blood')
+        df_up = df_up.replace('Refused - palliative', 'Refused-Palliative')
+        df_up = df_up.replace('No Contact - Refused', 'Refused-NoContact')
+        df_up = df_up.applymap(lambda x: x.strip() if isinstance(x, str) else x)
+
+        #self.parent.df = self.parent.df.replace('All blood','Blood')
+        self.parent.df = self.parent.df.replace('All Blood','Blood')
+        #self.parent.df = self.parent.df.replace('all blood','Blood')
+        self.parent.df = self.parent.df.replace('Blood Draw','Blood')
+
         DOR = 'Date Removed from Study'
         DOE = 'Enrollment Date'
         RES = 'Reason'
         ACT = 'Active'
         MCL = self.parent.df.columns
         for index_up, row_up in df_up.iterrows():
-            ID = row_up['ID']
+            ID = df_up.loc[index_up, 'ID']
+            #print(f'{ID=}')
+
             s = self.parent.df['ID'] == ID
             if not s.any():
-                raise ValueError('Unexpected ID')
+                #Participant 03-3741195 ==> 05-3741195
+                #05-3741195 is already in the update.
+                #Participant 19-7613655 ==> 19-7613665
+                #19-7613665 is already in the update.
+                #Participant 52-1910209 ==> 53-1910209.
+                #53-1910209 is already in the update.
+                if ID in ['19-7613655', '03-3741195', '12-34567899', '52-1910209']:
+                    #We ignore these IDs.
+                    #print('Has no useful data associated to it.')
+                    print('Make sure this is not an error.')
+                    continue
+                else:
+                    print(f'{ID=}')
+                    print(f'{index_up=}')
+                    print(row_up)
+                    raise ValueError('Unexpected ID')
             index_m = s.loc[s].index[0]
+
+            #We make sure that the ID from the parent
+            #file coincides with the ID of the update.
             if self.parent.df.loc[index_m, 'ID'] != ID:
                 raise ValueError('Error at ID')
+
             for column in df_up.columns:
                 n_of_entries = df_up[column].count()
                 if column not in MCL and 0 < n_of_entries:
                     print(f'{column=} not in Master')
                     continue
+
                 if column == 'ID':
                     continue
 
@@ -945,10 +1023,13 @@ class MasterParticipantData:
                     if v_m != v_up:
                         if column == DOE:
                             if v_up.year == 2023:
-                                print(f'{ID} reconsented')
+                                print(f'------->{ID} reconsented')
                                 self.parent.df.loc[index_m, DOR] = np.nan
                                 self.parent.df.loc[index_m, RES] = np.nan
                                 self.parent.df.loc[index_m, ACT] = True
+                        if column == RES:
+                            if v_m == 'Deceased':
+                                print('Deceased trumps', v_up)
                         else:
                             print(f'M ==/== UP: {ID} at {column}')
                             print(f'{v_m=}')
@@ -957,6 +1038,9 @@ class MasterParticipantData:
 
 
 
+    def missing_vaccine_types(self):
+        fname = 'template_to_master_headers.xlsx'
+        fname = os.path.join(self.parent.MPD_path, fname)
 
 
 

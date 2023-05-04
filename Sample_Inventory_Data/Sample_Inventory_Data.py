@@ -168,6 +168,7 @@ class SampleInventoryData:
 
     def relate_original_column_names_to_current(self):
         #Oct 12, 2022
+        #May 03, 2023
         #This function related the headers in Megan's
         #file with the labels in the master file.
         fname = 'column_types.xlsx'
@@ -182,10 +183,13 @@ class SampleInventoryData:
             if current != 'ID':
                 #We use this list to parse dates when opening
                 #Megan's file.
+                #Note that we are using the same labels as in
+                #the Master file.
                 self.date_type_in_SID.append(current)
         #print(df_up)
 
     def format_megans_update(self, df_up):
+        print('Check individual 55-1910112 for NoVac status.')
         #Rename columns
         df_up.rename(columns=self.original_to_current, inplace=True)
         #Replace 0-dates
@@ -361,7 +365,8 @@ class SampleInventoryData:
 
     def find_repeated_dates_in_the_M_file(self):
         #March 27 2023
-        blood_slice = slice('Blood Draw:NoVac1 - NV1', 'Blood Draw:Repeat - JR')
+        #May 03 2023
+        blood_slice = slice('Blood Draw:NoVac1 - NV1', 'Blood Draw:3wks6 - TS')
         flag = False
         for index, row in self.parent.df.iterrows():
             ID = row['ID']
@@ -383,8 +388,10 @@ class SampleInventoryData:
 
 
     def find_repeated_dates_in_megans_file(self):
-        folder = 'Megan_apr_10_2023'
-        folder = 'Tara_apr_20_2023'
+        print('Checking for repeated dates in Megan_s file')
+        #folder = 'Megan_apr_10_2023'
+        #folder = 'Tara_apr_20_2023'
+        folder = 'Jessica_may_02_2023'
         fname = 'sid_clean.xlsx'
         fname = os.path.join(self.parent.requests_path, folder, fname)
         if os.path.exists(fname):
@@ -398,9 +405,10 @@ class SampleInventoryData:
         else:
             fname = 'sid.xlsx'
             fname = os.path.join(self.parent.requests_path, folder, fname)
+            #Note that we have up to the BK column.
             df_up = pd.read_excel(fname,
                     skiprows=[0,1,2],
-                    usecols='A,W:BJ',
+                    usecols='A,W:BK',
                     dtype = str,
                     #parse_dates = self.date_type_in_SID,
                     sheet_name='All Sites - AutoFill')
@@ -408,15 +416,16 @@ class SampleInventoryData:
             fname = 'sid_clean.xlsx'
             fname = os.path.join(self.parent.requests_path, folder, fname)
             df_up.to_excel(fname, index=False)
+            #We exit and we need to call the function again.
             return
 
         #print(df_up)
-        self.parent.print_column_and_datatype(df_up)
         L = []
-        self.parent.print_column_and_datatype(df_up)
-        for index_up, row_up in df_up.iterrows():
-            ID = row_up['ID']
-            dates = row_up.iloc[1:]
+        flag_repetitions = False
+        for k, index_up in enumerate(df_up.index):
+            ID = df_up.loc[index_up, 'ID']
+            dates = df_up.iloc[k, 1:]
+            #dates = row_up.iloc[1:]
             if dates.count() == 0:
                 continue
             vc = dates.value_counts()
@@ -429,17 +438,25 @@ class SampleInventoryData:
                 date_str = date.strftime('%d-%b-%y')
                 L.append((ID,date_str))
                 print('==============')
-        df = pd.DataFrame(L, columns=['ID','Date'])
-        fname = 'repeated_dates.xlsx'
-        fname = os.path.join(self.parent.requests_path, folder, fname)
-        df.to_excel(fname, index=False)
+                flag_repetitions = True
+        if flag_repetitions:
+            df = pd.DataFrame(L, columns=['ID','Date'])
+            fname = 'repeated_dates.xlsx'
+            fname = os.path.join(self.parent.requests_path, folder, fname)
+            df.to_excel(fname, index=False)
+        else:
+            print('No repetitions. Great!')
 
 
     def update_master_using_SID(self):
         #This function updates the merged file M with the
         #Sample Inventory Data file provided by Megan.
-        folder = 'Megan_apr_10_2023'
-        folder = 'Tara_apr_20_2023'
+        #Note that we are using the "clean" version of the
+        #SID file.
+        #May 03 2023
+        #folder = 'Megan_apr_10_2023'
+        #folder = 'Tara_apr_20_2023'
+        folder = 'Jessica_may_02_2023'
         fname = 'sid_clean.xlsx'
         fname = os.path.join(self.parent.requests_path, folder, fname)
         if os.path.exists(fname):

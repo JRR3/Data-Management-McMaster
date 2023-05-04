@@ -50,6 +50,7 @@ class LTCInfectionSummary:
                                        'Moderna',
                                        'AstraZeneca',
                                        'COVISHIELD',
+                                       'BModerna45O',
                                        'BPfizerO',
                                        'BModernaO',]
 
@@ -1021,8 +1022,8 @@ class LTCInfectionSummary:
                 #print(index_v, v_type_h)
             print('==================')
         df = pd.DataFrame(L, columns=['ID','Missing Type for', 'Date'])
-        folder = 'Ahmad_mar_03_2023'
-        fname = 'missing_vaccine_type.xlsx'
+        folder = 'Tara_may_01_2023'
+        fname = 'missing_vaccine_types.xlsx'
         fname = os.path.join(self.parent.requests_path, folder, fname)
         df.to_excel(fname, index=False)
 

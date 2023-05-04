@@ -1,5 +1,5 @@
 #JRR @ McMaster University
-#Update: 06-Jan-2023
+#Update: 02-May-2023
 import sys
 import os
 import re
@@ -283,7 +283,7 @@ class Merger:
         else:
             #None
             fname = 'updates.xlsx'
-        folder = 'Jessica_mar_29_2023'
+        folder = 'Jessica_may_02_2023'
         fname = os.path.join('..','requests',folder, fname)
         book = pd.read_excel(fname, sheet_name=None)
         print(f'LSM is looking into the {folder=}')
@@ -422,9 +422,9 @@ class Merger:
         #the Master_avec_Serology, and the
         #Infection_column file into one Excel workbook.
         #Feb 03 2023
-        fname  = 'tri_merge_apr_26_2023.xlsx'
-        #folder = 'Jessica_mar_29_2023'
-        folder = 'Tara_apr_20_2023'
+        fname  = 'tri_merge_may_03_2023.xlsx'
+        folder = 'Jessica_may_02_2023'
+        #folder = 'Tara_apr_20_2023'
         fname = os.path.join('..','requests',folder, fname)
         master_avec_serology = pd.merge(self.LSM_obj.df,
                 self.df, on='ID', how='outer')
@@ -1892,5 +1892,22 @@ obj = Merger()
 #obj.MPD_obj.peace_of_mind_check()
 #obj.LSM_obj.peace_of_mind_check()
 #obj.generate_the_tri_sheet_file()
+#obj.REP_obj.plot_evolution_of_VOC_for_dawn_2()
 
-obj.REP_obj.plot_evolution_of_VOC_for_dawn_2()
+#May 01-02 2023
+#obj.MPD_obj.contrast_template_with_M_file()
+#obj.MPD_obj.update_active_status_column()
+#obj.write_the_M_file_to_excel()
+#obj.LIS_obj.generate_list_of_missing_vaccine_types()
+
+#obj.SID_obj.find_repeated_dates_in_megans_file()
+#obj.SID_obj.update_master_using_SID()
+#obj.write_the_M_file_to_excel()
+#obj.SID_obj.find_repeated_dates_in_the_M_file()
+#obj.check_LSM_dates()
+#obj.update_LSM()
+#obj.LSM_obj.write_LSM_to_excel()
+#obj.MPD_obj.peace_of_mind_check()
+#obj.LSM_obj.peace_of_mind_check()
+#obj.LIS_obj.order_infections_and_vaccines()
+obj.generate_the_tri_sheet_file()

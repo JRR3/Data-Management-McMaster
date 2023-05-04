@@ -788,11 +788,13 @@ class LTCSerologyMaster:
                            '18moR', '21mo', '21moR', '3mo3',
                            '3mo3R', '6mo3', '6mo3R', '9mo3',
                            '9mo3R', '12mo3', '12mo3R', '15mo3',
-                           '15mo3R', '3wk4', '3wk4R', '3mo4',
+                           '15mo3R', '18mo3', '18mo3R',
+                           '3wk4', '3wk4R', '3mo4',
                            '3mo4R', '6mo4', '6mo4R', '9mo4',
-                           '9mo4R', '12mo4', '12mo4R', '3wk5',
-                           '3wk5R', '3mo5', '3mo5R', 'NoVac1',
-                           'NoVac2']
+                           '9mo4R', '12mo4', '12mo4R', '15mo4',
+                           '3wk5', '3wk5R', '3mo5', '3mo5R',
+                           '6mo5', '6mo5R',
+                           'NoVac1', 'NoVac2']
         rexp = re.compile(txt)
         def process_id(txt):
             if isinstance(txt, str):

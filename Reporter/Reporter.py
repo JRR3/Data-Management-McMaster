@@ -3853,6 +3853,7 @@ class Reporter:
         fig, ax = plt.subplots()
         df.plot(ax = ax, kind='area', stacked=True,
                 colormap='jet', rot=90)
+        ax.set_ylabel('% of cases')
         plt.legend(bbox_to_anchor=(1.04, 0), loc='lower left')
         fname = 'voc_plot_grouped_jet.png'
         fname = os.path.join(self.parent.requests_path,

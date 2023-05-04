@@ -3322,6 +3322,58 @@ class Comparator:
                 status_post)
 
 
+    def contrast_template_with_M_file(self):
+        #Note that first we had to clean the 20 and
+        #61 sites.
+        fname = 'rep_20_61_clean.xlsx'
+        folder = 'Tara_apr_20_2023'
+        fname = os.path.join(self.parent.requests_path, folder, fname)
+        df_up = pd.read_excel(fname)
+        print(df_up)
+        DOR = 'Date Removed from Study'
+        DOE = 'Enrollment Date'
+        RES = 'Reason'
+        ACT = 'Active'
+        MCL = self.parent.df.columns
+        for index_up, row_up in df_up.iterrows():
+            ID = row_up['ID']
+            s = self.parent.df['ID'] == ID
+            if not s.any():
+                raise ValueError('Unexpected ID')
+            index_m = s.loc[s].index[0]
+            if self.parent.df.loc[index_m, 'ID'] != ID:
+                raise ValueError('Error at ID')
+            for column in df_up.columns:
+                n_of_entries = df_up[column].count()
+                if column not in MCL and 0 < n_of_entries:
+                    print(f'{column=} not in Master')
+                    continue
+                if column == 'ID':
+                    continue
+
+                v_up = row_up[column]
+                if pd.isnull(v_up):
+                    continue
+
+                v_m  = self.parent.df.loc[index_m, column]
+                if pd.isnull(v_m):
+                    print('Updating', ID, 'at', column, ':', v_up)
+                    self.parent.df.loc[index_m, column] = v_up
+                else:
+                    if v_m != v_up:
+                        if column == DOE:
+                            if v_up.year == 2023:
+                                print(f'{ID} reconsented')
+                                self.parent.df.loc[index_m, DOR] = np.nan
+                                self.parent.df.loc[index_m, RES] = np.nan
+                                self.parent.df.loc[index_m, ACT] = True
+                        else:
+                            print(f'M ==/== UP: {ID} at {column}')
+                            print(f'{v_m=}')
+                            print(f'{v_up=}')
+                            print('----------------------------')
+
+
 #obj = Comparator()
 #obj.load_the_rainbow()
 
