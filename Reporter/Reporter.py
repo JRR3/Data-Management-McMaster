@@ -4,23 +4,32 @@ import numpy as np
 import pandas as pd
 #pd.options.plotting.backend = 'plotly'
 #import plotly.express as pxp
+
 import os
 import csv
 import re
-#import PIL
 from tqdm import tqdm as pbar
+
+#NETWORK modules
 #import networkx as nx
+
 import matplotlib as mpl
 mpl.rcParams['figure.dpi'] = 300
 #mpl.rcParams['font.family'] = 'monospace'
 import matplotlib.pyplot as plt
 import datetime
 import seaborn as sns
-from lifelines import CoxPHFitter
-from lifelines import KaplanMeierFitter as KMFitter
-from lifelines.statistics import logrank_test as LRT
-from scipy.stats import mannwhitneyu as MannWhitney
-from scipy.stats import chi2_contingency as chi_sq_test
+
+#STATS modules
+#from lifelines import CoxPHFitter
+#from lifelines import KaplanMeierFitter as KMFitter
+#from lifelines.statistics import logrank_test as LRT
+#from scipy.stats import mannwhitneyu as MannWhitney
+#from scipy.stats import chi2_contingency as chi_sq_test
+
+from PyPDF2 import PdfWriter, PdfReader
+
+
 # <b> Section: Reporter </b>
 # This class takes care of all the visualization
 # tasks related to the M file.
@@ -3860,3 +3869,29 @@ class Reporter:
                 folder, folder2, fname)
         fig.savefig(fname, bbox_inches='tight', pad_inches=0)
         plt.close('all')
+
+    def separate_PDFs(self):
+        #This function separates a PDF into 
+        folder = 'Lindsay_may_xx_2023'
+        folder2 = 'separate'
+        fname = 'monkeypox-episummary.pdf'
+        fname = os.path.join(self.parent.requests_path,
+                folder, folder2, fname)
+        inputpdf = PdfReader(open(fname, 'rb'))
+
+        n_pages = len(inputpdf.pages)
+        pages = [1, 6]
+        labels= ['A', 'B']
+        pages.append(n_pages)
+
+        for k in range(len(labels)):
+            start  = pages[k]-1
+            end    = pages[k+1]-1
+            output = PdfWriter()
+            for p in range(start, end):
+                output.add_page(inputpdf.pages[p])
+            fname = labels[k] + '.pdf'
+            fname = os.path.join(self.parent.requests_path,
+                    folder, folder2, fname)
+            with open(fname, 'wb') as ostream:
+                output.write(ostream)

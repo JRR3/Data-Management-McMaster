@@ -1038,9 +1038,12 @@ class MasterParticipantData:
 
 
 
-    def missing_vaccine_types(self):
+    def resolve_repeated_ids(self):
         fname = 'template_to_master_headers.xlsx'
         fname = os.path.join(self.parent.MPD_path, fname)
+        df_h = pd.read_excel(fname, sheet_name='TtoM', dtype=str)
+        template_to_master_headers = {}
+
 
 
 

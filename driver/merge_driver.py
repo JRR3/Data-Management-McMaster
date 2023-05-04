@@ -1910,4 +1910,7 @@ obj = Merger()
 #obj.MPD_obj.peace_of_mind_check()
 #obj.LSM_obj.peace_of_mind_check()
 #obj.LIS_obj.order_infections_and_vaccines()
-obj.generate_the_tri_sheet_file()
+#obj.generate_the_tri_sheet_file()
+
+#May 04-05 2023
+obj.REP_obj.separate_PDFs()
