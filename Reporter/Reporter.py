@@ -1,5 +1,5 @@
 #JRR @ McMaster University
-#Update: 10-Oct-2022
+#Update: 05-May-2023
 import numpy as np
 import pandas as pd
 #pd.options.plotting.backend = 'plotly'
@@ -9,6 +9,7 @@ import os
 import csv
 import re
 from tqdm import tqdm as pbar
+from subprocess import check_output
 
 #NETWORK modules
 #import networkx as nx
@@ -3345,6 +3346,7 @@ class Reporter:
             #fname = os.path.join(self.requests_path, folder, folder2, fname)
             #df_csv.to_excel(fname, index=False, header=None)
 
+            #We break to avoid walking through all the rows.
             break
 
     def generate_report_for_LTC_resident_questionnaire(self):
@@ -3870,28 +3872,363 @@ class Reporter:
         fig.savefig(fname, bbox_inches='tight', pad_inches=0)
         plt.close('all')
 
-    def separate_PDFs(self):
-        #This function separates a PDF into 
+    def generate_individual_PDFs(self):
+        #May 05 2023
+        #This function separates the surveys into individual
+        #PDFs from the batch files.
+
+        password = 'MAC_LTC22!'
+        new_pass = 'LTC2021!'
+
         folder = 'Lindsay_may_xx_2023'
-        folder2 = 'separate'
-        fname = 'monkeypox-episummary.pdf'
+        folder2 = 'Questionnaires'
+        folder3 = 'complete'
+
+        #==========================================
+        #Load the headers for the Resident Questionnaire 
+        #==========================================
+        fname = 'column_types_for_RQ.xlsx'
+        fname = os.path.join(self.requests_path, folder, fname)
+        df_RQ_H = pd.read_excel(fname, dtype=str)
+
+        if df_RQ_H['Name'].value_counts().gt(1).any():
+            vc = df_t['Name'].value_counts()
+            s  = vc.gt(1)
+            vc = vc[s]
+            print(vc)
+            raise ValueError('Non unique entries at Name in column type RQ types.')
+
+        date_cols = []
+        name_to_type = {}
+
+        #Use the corresponding data types for each column.
+        for index, row in df_RQ_H.iterrows():
+            name = row['Name']
+            col_type = row['Type']
+            if col_type == 'date':
+                date_cols.append(name)
+            else:
+                name_to_type[name] = col_type
+
+        #==========================================
+        #Load the Resident Questionnaire database
+        #==========================================
+        fname = 'RQ_database.xlsx'
+        fname = os.path.join(self.requests_path, folder, fname)
+        df_RQ = pd.read_excel(fname, dtype = name_to_type, parse_dates=date_cols)
+        #df_RQ['ID'] = np.nan
+        SIT = 'Participant Site (2 digits, example: 08)'
+        PID = 'Participant ID (7 digits, example: 0123456)'
+        df_RQ.dropna(subset=[SIT,PID], inplace=True)
+        df_RQ['ID'] = df_RQ[SIT].astype(str) + '-' + df_RQ[PID].astype(str)
+        #vc = df_RQ['ID'].value_counts()
+        #vc = vc[vc.gt(1)]
+        #print(vc)
+        #print(vc.index)
+        #return
+
+        #Group the headers by section.
+        df_RQ_H.dropna(subset='Section', inplace=True)
+        df_RQ_H = df_RQ_H.sort_values('Section', ascending=True, kind='stable')
+        df_RQ_H = df_RQ_H.groupby('Section')
+
+        #==========================================
+        #Load the Data Entry Log
+        #==========================================
+        PST = 'PDF Start Page #'
+        PID = 'Participant ID'
+        TYP = 'Type'
+        type_to_n_pages = {'RQ':13, 'LTC':11}
+
+        fname = 'Questionnaire_Data_Entry_Log_Javier_May_05_2023.xlsx'
         fname = os.path.join(self.parent.requests_path,
-                folder, folder2, fname)
-        inputpdf = PdfReader(open(fname, 'rb'))
+                folder, fname)
+        df_log = pd.read_excel(fname)
 
-        n_pages = len(inputpdf.pages)
-        pages = [1, 6]
-        labels= ['A', 'B']
-        pages.append(n_pages)
+        #Where to look for the PDFs?
+        address = os.path.join(self.parent.requests_path,
+                folder, folder2, folder3)
+        for root, dirs, files in os.walk(address):
+            for f in files:
+                print(f'Processing file {f=}')
+                fpure = os.path.splitext(f)[0]
+                s = df_log['File Name'] == fpure
+                if not s.any():
+                    raise ValueError('We do not have that file.')
+                #This dataframe contains all the IDs for the given file
+                df_local = df_log.loc[s]
+                N = len(df_local)
+                for index_l, row_l in pbar(df_local.iterrows(), total=N):
+                    #ID
+                    ID = row_l[PID]
+                    #print(f'{ID=}')
+                    first_page = row_l[PST]
+                    typ = row_l[TYP]
+                    n_pages = type_to_n_pages[typ]
+                    fname_s = os.path.join(root, f)
+                    address = os.path.join(self.parent.requests_path,
+                            folder, folder2, 'output', ID)
+                    if not os.path.exists(address):
+                        os.makedirs(address)
+                    fname = ID + '.pdf'
+                    fname_t = os.path.join(address, fname)
+                    #Generate PDF for participant
+                    self.extract_PDF(fname_s, fname_t, first_page, n_pages)
+                    #Generate report 
+                    s = df_RQ['ID'] == ID
+                    s = s[s]
+                    if 1 < len(s):
+                        print('Unable to create a unique report for', ID)
+                        raise ValueError('X')
+                    index_s = s.index[0]
+                    row_RQ = df_RQ.loc[index_s]
+                    fname = ID + '.csv'
+                    fname_t = os.path.join(address, fname)
+                    self.generate_report_for_RQ_from_row(df_RQ_H, row_RQ, fname_t)
 
-        for k in range(len(labels)):
-            start  = pages[k]-1
-            end    = pages[k+1]-1
-            output = PdfWriter()
-            for p in range(start, end):
-                output.add_page(inputpdf.pages[p])
-            fname = labels[k] + '.pdf'
-            fname = os.path.join(self.parent.requests_path,
-                    folder, folder2, fname)
-            with open(fname, 'wb') as ostream:
-                output.write(ostream)
+
+    def extract_PDF(self, fname_s, fname_t, first_page, n_pages):
+        #May 05 2023
+        #This function separates the surveys into individual
+        #PDFs from the batch files.
+
+        password = 'MAC_LTC22!'
+        #new_pass = 'LTC2021!'
+
+        inputpdf = PdfReader(open(fname_s, 'rb'))
+        inputpdf.decrypt(password)
+
+        start  = first_page-1
+        end    = start + n_pages
+        output = PdfWriter()
+        for p in range(start, end):
+            output.add_page(inputpdf.pages[p])
+        output.encrypt(password)
+        with open(fname_t, 'wb') as ostream:
+            output.write(ostream)
+        #txt = r"C:\Program%20Files\gs\gs10.01.1\bin\gswin64.exe"
+        #txt += r" -sDEVICE=pdfwrite"
+        #txt += r" -dCompatibilityLevel=1.4"
+        #txt += r" -dPDFSETTINGS=/ebook"
+        #txt += r" -dNOPAUSE"
+        #txt += r" -dQUIET"
+        #txt += r" -dBATCH"
+        #txt += r" -sOutputFile=y.pdf"
+        #txt += r" "
+        #txt += fname_t
+        #print(txt)
+        #x = check_output(txt, shell=True)
+        #print(x)
+        #raise ValueError('x')
+
+
+    def generate_report_for_RQ_from_row(self, df_t, participant_row, fout):
+        #The data frame df_t contains the columns from the survey
+        #and the corresponding groups.
+
+        regexp_bracket = re.compile('\[(?P<value>.*)\]')
+        regexp_dot_number = re.compile('[.]\d+')
+        add_another_condition = 'Would you like to add another condition?'
+        add_another_medication = 'Would you like to add another medication?'
+        ACC = 'Additional Chronic conditions'
+
+
+        with open(fout, 'w', newline='') as f:
+
+            writer = csv.writer(f)
+
+            #Iterate over each group of the df_t.
+            for section, df_g in df_t:
+                txt = 'Question #' + section
+                desc= df_g['Description'].iloc[0]
+                if desc != ACC:
+                    writer.writerow([])
+                    writer.writerow([txt, desc])
+
+                for index_g, row_g in df_g.iterrows():
+                    col_name = row_g['Name']
+                    value    = participant_row[col_name]
+                    dtype    = row_g['Type']
+
+                    if pd.isnull(value):
+                        continue
+
+                    if dtype == 'date':
+                        value = value.strftime('%d-%b-%Y')
+
+
+                    #These questions allow for multiple responses.
+                    #Ethnicity
+                    #Adverse effects after dose X
+                    #Chronic Conditions
+                    if section in ['03','19.1','19.2','19.3','19.4','35']:
+                        if value == 'No':
+                            continue
+                        else:
+                            obj = regexp_bracket.search(col_name)
+                            if obj:
+                                col_name = obj.group('value')
+                                writer.writerow([col_name, value])
+                                writer.writerow([])
+                                continue
+                            else:
+                                raise ValueError('Error for bracket')
+
+                    #Height and weight have descriptors
+                    #within brackets.
+                    #There is no Yes/No multiple response.
+                    if section in ['20.a','20.b']:
+                        obj = regexp_bracket.search(col_name)
+                        if obj:
+                            col_name = obj.group('value')
+                            writer.writerow([col_name, value])
+                            writer.writerow([])
+                            continue
+                        else:
+                            raise ValueError('Error for bracket')
+
+                    #Questions with brackets within Medications
+                    if '36' in section:
+                        if value == 'No':
+                            continue
+                        else:
+                            obj = regexp_bracket.search(col_name)
+                            if obj:
+                                col_name = obj.group('value')
+                                writer.writerow([col_name, value])
+                                writer.writerow([])
+                                continue
+
+
+                    #Please enter the name of the condition
+                    #Would you like to add another condition?
+                    #Would you like to add another medication?
+                    if add_another_condition in col_name:
+                        continue
+                    if add_another_medication in col_name:
+                        continue
+                    obj = regexp_dot_number.search(col_name)
+                    if obj:
+                        #print('Old')
+                        #print(col_name)
+                        col_name = col_name.replace(obj.group(0), '')
+                        #print('New')
+                        #print(col_name)
+
+                    writer.writerow([col_name])
+                    writer.writerow([value])
+                    writer.writerow([])
+
+    def generate_report_for_LTC_from_row(self, df_t, participant_row, fout):
+        #The data frame df_t contains the columns from the survey
+        #and the corresponding groups.
+
+        regexp_bracket = re.compile('\[(?P<value>.*)\]')
+        regexp_dot_number = re.compile('[.]\d+')
+        add_another_condition = 'Would you like to add another condition?'
+        add_another_medication = 'Would you like to add another medication?'
+        ACC = 'Additional Chronic conditions'
+
+
+        with open(fout, 'w', newline='') as f:
+
+            writer = csv.writer(f)
+
+            #Iterate over each group of the df_t.
+            for section, df_g in df_t:
+                txt = 'Question #' + section
+                desc= df_g['Description'].iloc[0]
+                if desc != ACC:
+                    writer.writerow([])
+                    writer.writerow([txt, desc])
+
+                for index_g, row_g in df_g.iterrows():
+                    col_name = row_g['Name']
+                    value    = participant_row[col_name]
+                    dtype    = row_g['Type']
+
+                    if pd.isnull(value):
+                        continue
+
+                    if dtype == 'date':
+                        value = value.strftime('%d-%b-%Y')
+
+
+                    #Ethnicity
+                    #Adverse effects after dose X
+                    #Chronic Conditions
+                    if section in ['03','30.1','30.2','30.3','30.4','19']:
+                        if value == 'No':
+                            continue
+                        else:
+                            obj = regexp_bracket.search(col_name)
+                            if obj:
+                                col_name = obj.group('value')
+                                writer.writerow([col_name, value])
+                                writer.writerow([])
+                                continue
+                            else:
+                                raise ValueError('Error for bracket')
+
+                    #What is your current height?
+                    #What is your current weight?
+                    if section in ['07.a','07.b']:
+                        obj = regexp_bracket.search(col_name)
+                        if obj:
+                            col_name = obj.group('value')
+                            writer.writerow([col_name, value])
+                            writer.writerow([])
+                            continue
+                        else:
+                            raise ValueError('Error for bracket')
+
+                    #Questions with brackets within Medications
+                    if '31' in section:
+                        if value == 'No':
+                            continue
+                        else:
+                            obj = regexp_bracket.search(col_name)
+                            if obj:
+                                col_name = obj.group('value')
+                                writer.writerow([col_name, value])
+                                writer.writerow([])
+                                continue
+
+                    #Please enter the name of the condition
+                    #Would you like to add another condition?
+                    #Would you like to add another medication?
+                    if add_another_condition in col_name:
+                        continue
+                    if add_another_medication in col_name:
+                        continue
+                    obj = regexp_dot_number.search(col_name)
+                    if obj:
+                        #print('Old')
+                        #print(col_name)
+                        col_name = col_name.replace(obj.group(0), '')
+                        #print('New')
+                        #print(col_name)
+
+                    writer.writerow([col_name])
+                    writer.writerow([value])
+                    writer.writerow([])
+
+    def find_repetitions_in_tri_survey(self):
+        folder = 'Lindsay_may_xx_2023'
+        fname = 'tri_survey.xlsx'
+        x_file = os.path.join(self.parent.requests_path, folder, fname)
+        SIT = 'Participant Site (2 digits, example: 08)'
+        PID = 'Participant ID (7 digits, example: 0123456)'
+        sheets = ['RQ', 'LTC', 'OP']
+
+        for sheet in sheets:
+            print(f'{sheet=}')
+            df = pd.read_excel(x_file, sheet_name = sheet, dtype=str)
+            df.dropna(subset=[SIT,PID], inplace=True)
+            df['ID'] = df[SIT].astype(str) + '-' + df[PID].astype(str)
+            vc = df['ID'].value_counts()
+            vc = vc[vc.gt(1)]
+            fname = 'Rep_' + sheet +'.xlsx'
+            fname = os.path.join(self.parent.requests_path, folder, fname)
+            vc.to_excel(fname, index=True)
+            print("=========================")
