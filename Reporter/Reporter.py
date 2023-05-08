@@ -4228,7 +4228,148 @@ class Reporter:
             df['ID'] = df[SIT].astype(str) + '-' + df[PID].astype(str)
             vc = df['ID'].value_counts()
             vc = vc[vc.gt(1)]
-            fname = 'Rep_' + sheet +'.xlsx'
+            fname = 'Rep_' + sheet + '.xlsx'
             fname = os.path.join(self.parent.requests_path, folder, fname)
             vc.to_excel(fname, index=True)
             print("=========================")
+
+
+    def manage_moves(self):
+        #We have just checked that the analytics ID is
+        #equal to the old ID.
+        #Assumptions
+        #ANA_ID == OLD_ID
+        #CUR_ID is in the Master
+        CID   = 'CURRENT ID'
+        OID   = 'OLD ID (THIS IS THE ID THAT WE SHOULD BE USING)'
+        OID   = 'Old ID'
+        AID   = 'Analytics ID'
+        DOC   = 'Date of Site Change'
+        QST   = 'Changed Site?'
+        CST   = 'Current Site'
+        sheet='moves'
+        folder = 'Tara_may_08_2023'
+        fname = 'moves.xlsx'
+        fname = os.path.join(self.parent.requests_path, folder, fname)
+        df_mv = pd.read_excel(fname, sheet_name = sheet, parse_dates = [DOC])
+        print(df_mv)
+
+        lsm_ids_in_mas = self.parent.LSM_obj.df['ID'].isin(self.parent.df['ID'])
+        if not lsm_ids_in_mas.all():
+            print(f'Not all LSM IDs are in the Master')
+            raise ValueError('X')
+        else:
+            print(f'All LSM IDs are in the Master')
+
+        master_cols = self.parent.df.columns.to_list()
+        self.parent.df[AID] = np.nan
+        self.parent.df[OID] = np.nan
+        self.parent.df[QST] = np.nan
+        self.parent.df[DOC] = np.nan
+        new_order = master_cols[:2] + [AID, OID, QST, DOC] + master_cols[2:]
+        self.parent.df = self.parent.df[new_order]
+
+        indices_to_remove = []
+
+        for index_mv, row_mv in df_mv.iterrows():
+            cur_id = row_mv[CID]
+            cur_st = row_mv[CST]
+            old_id = row_mv[OID]
+            ana_id = row_mv[AID]
+            doc    = row_mv[DOC]
+            if ana_id != old_id:
+                print(f'{ana_id=} ==/== {old_id=}')
+                raise ValueError('X')
+            #Which IDs are in the Master file.
+            s_cur_m = self.parent.df['ID'] == cur_id
+            if s_cur_m.any():
+                print(f'{cur_id=} is in the Master')
+                m_cur_index = s_cur_m[s_cur_m].index[0]
+                s_cur_l = self.parent.LSM_obj.df['ID'] == cur_id
+                if s_cur_l.any():
+                    print(f'>>>In the LSM')
+            else:
+                print(f'{cur_id=} is NOT in the Master')
+                raise ValueError('Current ID should be in the Master.')
+
+
+            #Set the current site
+            if pd.notnull(cur_st):
+                self.parent.df.loc[m_cur_index, col] = cur_st
+
+            #Update the columns
+            self.parent.df.loc[m_cur_index, AID] = ana_id
+            self.parent.df.loc[m_cur_index, OID] = old_id
+            self.parent.df.loc[m_cur_index, QST] = 'YES'
+            self.parent.df.loc[m_cur_index, DOC] = doc
+
+            s_old_m = self.parent.df['ID'] == old_id
+            if s_old_m.any():
+                print(f'{old_id=} is in the Master')
+                m_old_index = s_old_m[s_old_m].index[0]
+                #Merge
+                for col in master_cols:
+                    if col == 'ID':
+                        continue
+                    old_col =  self.parent.df.loc[m_old_index, col]
+                    cur_col =  self.parent.df.loc[m_cur_index, col]
+
+                    old_col_is_empty = pd.isnull(old_col)
+                    cur_col_is_empty = pd.isnull(cur_col)
+
+                    if old_col_is_empty:
+                        #Nothing to compare against.
+                        #Move on.
+                        continue
+                    else:
+                        if cur_col_is_empty:
+                            self.parent.df.loc[m_cur_index, col] = old_col
+                        else:
+                            if old_col != cur_col:
+                                print(f'Discrepancy at {col=}')
+                                print(f'{cur_col=} ==/== {old_col=}')
+                                raise ValueError('X')
+                            else:
+                                #They are the same, so nothing to change.
+                                #print(f'{cur_col=} == {old_col=}')
+                                pass
+
+                #END of Merge
+
+                #Store old ID for removal
+                indices_to_remove.append(m_old_index)
+
+
+                s_old_l = self.parent.LSM_obj.df['ID'] == old_id
+                if s_old_l.any():
+                    print(f'>>>In the LSM')
+            else:
+                print(f'{old_id=} is NOT in the Master')
+            print('===============================')
+
+        print('Alles gut')
+
+    def generate_medication_groups(self):
+        folder = 'Tara_may_08_2023'
+        folder2 = 'survey'
+        foriginal = 'med_2'
+        source_old_drug = 'Drug1'
+        source_cur_drug = 'Drug2'
+        fname = foriginal + '.lsg'
+        fsource = os.path.join(self.parent.requests_path, folder, folder2, fname)
+
+        for group in range(3,6):
+            old_group = group-1
+            old_drug = 'Drug' + str(old_group)
+            cur_drug = 'Drug' + str(group)
+            cur_num  = '#' + str(group)
+            fname = 'med_' + str(group)
+            ftarget = fsource.replace(foriginal, fname)
+            with open(fsource, 'r') as source:
+                with open(ftarget, 'w') as target:
+                    for line in source.readlines():
+                        l = line.replace(source_cur_drug, cur_drug)
+                        l = l.replace(source_old_drug, source_cur_drug)
+                        l = l.replace('#2', cur_num)
+                        target.write(l)
+
