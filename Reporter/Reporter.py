@@ -4261,13 +4261,32 @@ class Reporter:
         else:
             print(f'All LSM IDs are in the Master')
 
+        #Master columns
         master_cols = self.parent.df.columns.to_list()
+
+        #New Master columns
         self.parent.df[AID] = np.nan
         self.parent.df[OID] = np.nan
         self.parent.df[QST] = np.nan
         self.parent.df[DOC] = np.nan
+
+        #New Master order
         new_order = master_cols[:2] + [AID, OID, QST, DOC] + master_cols[2:]
-        self.parent.df = self.parent.df[new_order]
+
+        #Reorder the Master columns
+        self.parent.df = self.parent.df[new_order].copy()
+
+        #Serology columns
+        serology_cols = self.parent.LSM_obj.df.columns.to_list()
+
+        #New Serology columns
+        self.parent.LSM_obj.df[AID] = np.nan
+
+        #New Serology order
+        new_order = [AID] + serology_cols
+
+        #Reorder the Serology columns
+        self.parent.LSM_obj.df = self.parent.LSM_obj.df[new_order].copy()
 
         indices_to_remove = []
 
@@ -4279,7 +4298,12 @@ class Reporter:
             doc    = row_mv[DOC]
             if ana_id != old_id:
                 print(f'{ana_id=} ==/== {old_id=}')
-                raise ValueError('X')
+                if ana_id == '52-1910131':
+                    print('Unknown Old ID.')
+                    pass
+                else:
+                    raise ValueError('X')
+
             #Which IDs are in the Master file.
             s_cur_m = self.parent.df['ID'] == cur_id
             if s_cur_m.any():
@@ -4288,20 +4312,38 @@ class Reporter:
                 s_cur_l = self.parent.LSM_obj.df['ID'] == cur_id
                 if s_cur_l.any():
                     print(f'>>>In the LSM')
+                    self.parent.LSM_obj.df.loc[s_cur_l, AID] = ana_id
             else:
-                print(f'{cur_id=} is NOT in the Master')
-                raise ValueError('Current ID should be in the Master.')
+                print(f'++++++++++{cur_id=} is NOT in the Master')
+                s_ana_m = self.parent.df['ID'] == ana_id
+                if s_ana_m.any():
+                    m_ana_index = s_ana_m[s_ana_m].index[0]
+                    self.parent.df.loc[m_ana_index, 'ID'] = cur_id
+                    print(f'{cur_id=} was stored in the Master')
+                    m_cur_index = m_ana_index
+                    s_cur_l = self.parent.LSM_obj.df['ID'] == ana_id
+                    if s_cur_l.any():
+                        print(f'>>>In the LSM')
+                        self.parent.LSM_obj.df.loc[s_cur_l, AID] = ana_id
+                else:
+                    raise ValueError('Analytics ID should be in the Master.')
 
 
             #Set the current site
-            if pd.notnull(cur_st):
-                self.parent.df.loc[m_cur_index, col] = cur_st
+            #if pd.notnull(cur_st):
+                #self.parent.df.loc[m_cur_index, 'Site'] = cur_st
 
             #Update the columns
             self.parent.df.loc[m_cur_index, AID] = ana_id
             self.parent.df.loc[m_cur_index, OID] = old_id
             self.parent.df.loc[m_cur_index, QST] = 'YES'
             self.parent.df.loc[m_cur_index, DOC] = doc
+
+            if old_id == cur_id:
+                print('Old ID == Cur ID')
+                print('Moving on to next participant.')
+                print('===============================')
+                continue
 
             s_old_m = self.parent.df['ID'] == old_id
             if s_old_m.any():
@@ -4343,24 +4385,67 @@ class Reporter:
                 s_old_l = self.parent.LSM_obj.df['ID'] == old_id
                 if s_old_l.any():
                     print(f'>>>In the LSM')
+                    self.parent.LSM_obj.df.loc[s_old_l, AID] = ana_id
             else:
                 print(f'{old_id=} is NOT in the Master')
             print('===============================')
 
+        print('Removing the following IDs')
+        print(self.parent.df.loc[indices_to_remove,'ID'])
+        self.parent.df.drop(index = indices_to_remove, inplace = True)
+
+        #Update the Analytics ID in the Master file.
+        #No changes are made to the OLD ID
+        for index, row in self.parent.df.iterrows():
+
+            ID = row['ID']
+            site_txt = ID[:2]
+            site = int(site_txt)
+            self.parent.df.loc[index, 'Site'] = site
+
+            if pd.isnull(row[AID]):
+                self.parent.df.loc[index, AID] = ID
+                if pd.notnull(row[OID]):
+                    raise ValueError('Old ID must be empty if A-ID is.')
+                #self.parent.df.loc[index, OID] = ID
+
+        #Update the Analytics ID in the Serology file.
+        for index, row in self.parent.LSM_obj.df.iterrows():
+            ID = row['ID']
+            if pd.isnull(row[AID]):
+                self.parent.LSM_obj.df.loc[index, AID] = ID
+
+        self.parent.LSM_obj.add_full_long_ID()
+
+        fname = 'MPF_y.xlsx'
+        fname = os.path.join(self.parent.requests_path, folder, fname)
+        self.parent.df.to_excel(fname, index=False)
+
+        fname = 'LSM_y.xlsx'
+        fname = os.path.join(self.parent.requests_path, folder, fname)
+        self.parent.LSM_obj.df.to_excel(fname, index=False)
+
         print('Alles gut')
+
+    def complete_manage_moves_phase_II(self):
+        #We have just checked that the analytics ID is
+        #equal to the old ID.
+        fname = 'MPF_x.xlsx'
+        fname = os.path.join(self.parent.requests_path, folder, fname)
+        self.parent.df.to_excel(fname)
 
     def generate_medication_groups(self):
         folder = 'Tara_may_08_2023'
         folder2 = 'survey'
         foriginal = 'med_2'
-        source_old_drug = 'Drug1'
+        source_old_drug = 'extraDrug1.'
         source_cur_drug = 'Drug2'
         fname = foriginal + '.lsg'
         fsource = os.path.join(self.parent.requests_path, folder, folder2, fname)
 
-        for group in range(3,6):
+        for group in range(3,26):
             old_group = group-1
-            old_drug = 'Drug' + str(old_group)
+            old_drug = 'extraDrug' + str(old_group) + '.'
             cur_drug = 'Drug' + str(group)
             cur_num  = '#' + str(group)
             fname = 'med_' + str(group)
@@ -4369,7 +4454,7 @@ class Reporter:
                 with open(ftarget, 'w') as target:
                     for line in source.readlines():
                         l = line.replace(source_cur_drug, cur_drug)
-                        l = l.replace(source_old_drug, source_cur_drug)
+                        l = l.replace(source_old_drug, old_drug)
                         l = l.replace('#2', cur_num)
                         target.write(l)
 

@@ -1757,7 +1757,7 @@ class Merger:
 obj = Merger()
 #obj.REP_obj.generate_individual_PDFs()
 #obj.REP_obj.find_repetitions_in_tri_survey()
-#obj.REP_obj.manage_moves()
-obj.REP_obj.generate_medication_groups()
+obj.REP_obj.manage_moves()
+#obj.REP_obj.generate_medication_groups()
 
 
