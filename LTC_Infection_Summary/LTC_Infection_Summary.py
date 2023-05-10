@@ -503,6 +503,7 @@ class LTCInfectionSummary:
         self.parent.df[self.pcr_last] = np.nan
         self.parent.df[self.inf_last] = np.nan
         pcr = 'PCR'
+        DOR = self.parent.MPD_obj.DOR
         for date_col, type_col in zip(self.positive_date_cols,
                                   self.positive_type_cols):
             pcr_loc_selector = self.parent.df[type_col] == pcr
@@ -518,10 +519,13 @@ class LTCInfectionSummary:
                     self.parent.df[date_col].where(inf_loc_selector,
                                                    self.parent.df[self.inf_last])
         self.parent.df[self.pcr_true] = pcr_selector
-        delta = pd.to_datetime('today').normalize() -\
-                self.parent.df[self.inf_last]
+        current = datetime.datetime.now()
+        last_date = self.parent.df[DOR].where(self.parent.df[DOR].notnull(), current)
+        #delta = pd.to_datetime('today').normalize() - self.parent.df[self.inf_last]
+        delta = last_date - self.parent.df[self.inf_last]
         temp = delta / np.timedelta64(1, 'D')
-        self.parent.df[self.inf_free] = temp
+        temp *= 0 < temp
+        self.parent.df[self.inf_free] = np.round(temp)
 
 
     def order_infections_and_vaccines(self):
@@ -903,12 +907,14 @@ class LTCInfectionSummary:
             cols_to_melt  = self.vaccine_date_cols
         cols_to_melt += type_cols
         doe = self.parent.MPD_obj.DOE
-        dor = self.parent.MPD_obj.DOR
+        DOR = self.parent.MPD_obj.DOR
+        AID = self.parent.MPD_obj.AID
         site_type = self.parent.MPD_obj.site_type
         cols_to_keep  = ['ID',
+                AID,
                 'Active',
                 'Reason',
-                dor,
+                DOR,
                 'Site',
                 #site_type,
                 '# infections']
@@ -999,11 +1005,13 @@ class LTCInfectionSummary:
 
     def generate_list_of_missing_vaccine_types(self):
         #Iterate over the DF
+        #May 10 2023
         vtc = self.vaccine_type_cols
         vdc = self.vaccine_date_cols
         L = []
         for index_m, row_m in self.parent.df.iterrows():
             ID = row_m['ID']
+            AID = row_m['Analytics ID']
             v_dates = row_m[vdc]
             if v_dates.count() == 0:
                 continue
@@ -1016,13 +1024,14 @@ class LTCInfectionSummary:
                     pass
                 else:
                     date = date_v.strftime('%d-%b-%y')
-                    p = (ID, index_v, date)
+                    p = (ID, AID, index_v, date)
                     print(p)
                     L.append(p)
                 #print(index_v, v_type_h)
             print('==================')
-        df = pd.DataFrame(L, columns=['ID','Missing Type for', 'Date'])
-        folder = 'Tara_may_01_2023'
+        df = pd.DataFrame(L, columns=['ID', 'Analytics ID',
+            'Missing Type for', 'Date'])
+        folder = 'Tara_may_08_2023'
         fname = 'missing_vaccine_types.xlsx'
         fname = os.path.join(self.parent.requests_path, folder, fname)
         df.to_excel(fname, index=False)

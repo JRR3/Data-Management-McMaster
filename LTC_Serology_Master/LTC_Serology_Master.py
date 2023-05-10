@@ -1,5 +1,5 @@
 #JRR @ McMaster University
-#Update: 04-May-2023
+#Update: 10-May-2023
 import numpy as np
 import pandas as pd
 import os
@@ -29,9 +29,13 @@ class LTCSerologyMaster:
         self.dpath        = dpath
         self.backups_path = os.path.join('..', 'backups')
         self.merge_source = 'Full ID'
-        self.merge_column = 'ID'
+        self.full_long_ID = 'Full Long ID'
+        self.UIN = 'Under Investigation'
+        #self.merge_column = 'ID'
+        #Note that now the linker column is the Analytics ID
+        self.merge_column = 'Analytics ID'
         self.ID_columns   = [self.merge_source,
-                self.merge_column]
+                self.merge_column, self.full_long_ID]
         self.DOC          = 'Date Collected'
         self.non_numeric_columns = []
         self.numeric_columns     = []
@@ -50,18 +54,32 @@ class LTCSerologyMaster:
     def load_LSM_file(self):
         #Note that the LSM file already has compact format, i.e.,
         #the headers are simple.
+        fname = 'serology_column_types.xlsx'
+        fname = os.path.join(self.dpath, fname)
+        df_t = pd.read_excel(fname)
+        date_cols = []
+        name_to_type = {}
+        #Use the corresponding data types for each column.
+        for index, row in df_t.iterrows():
+            name = row['Name']
+            col_type = row['Type']
+            if col_type == 'date':
+                date_cols.append(name)
+            else:
+                name_to_type[name] = col_type
 
         #Read the Excel file containing the data
         fname = 'LSM.xlsx'
         fname = os.path.join(self.dpath, fname)
-        self.df = pd.read_excel(fname)
+        #self.df = pd.read_excel(fname, dtype=str, parse_dates=self.DOC)
+        self.df = pd.read_excel(fname, dtype = name_to_type, parse_dates=date_cols)
 
         #Read the Excel file containing the 'lookup_table_S_codes'
         fname = 'lookup_table_S_codes.xlsx'
         fname = os.path.join(self.dpath, fname)
         self.serology_codes = pd.read_excel(fname)
 
-        self.non_numeric_columns = self.ID_columns + [self.DOC]
+        self.non_numeric_columns = self.ID_columns + [self.UIN, self.DOC]
         for column in self.df.columns:
             if column not in self.non_numeric_columns:
                 self.numeric_columns.append(column)
@@ -1427,11 +1445,12 @@ class LTCSerologyMaster:
     def check_vaccine_labels(self):
         txt = '(?P<site>[0-9]{2})[-](?P<user>[0-9]{7})-(?P<time>[a-zA-Z0-9]+)'
         extract_letter = re.compile(txt)
-        time_exp_to_mult_in_days = {'mo': 30, 'wk': 7}
-        txt = '(?P<tpost>[0-9]+)(?P<time_exp>[a-z]+)(?P<dose>[0-9]+)'
-        txt += '(?P<repeat>R)?'
-        extract_time_and_dose = re.compile(txt)
-        s = slice('ID','Date Collected')
+        #time_exp_to_mult_in_days = {'mo': 30, 'wk': 7}
+        #txt = '(?P<tpost>[0-9]+)(?P<time_exp>[a-z]+)(?P<dose>[0-9]+)'
+        #txt += '(?P<repeat>R)?'
+        #extract_time_and_dose = re.compile(txt)
+        AID = 'Analytics ID'
+        s = slice(AID,'Date Collected')
         df = self.df.loc[:,s].copy()
         extract_number = re.compile('[0-9]+')
 
@@ -1460,7 +1479,7 @@ class LTCSerologyMaster:
 
         for index_s, row_s in pbar(df.iterrows(), total=N):
             full_ID = row_s['Full ID']
-            ID = row_s['ID']
+            ID = row_s[AID]
             obj = extract_letter.match(full_ID)
             if obj:
                 letter = obj.group('time')
@@ -1483,7 +1502,7 @@ class LTCSerologyMaster:
                 repeat_value = int(repeat_value)
                 doc = row_s[self.DOC]
                 vac_date_h = 'Vaccine Date ' + str(dose)
-                s = self.parent.df['ID'] == ID
+                s = self.parent.df[AID] == ID
                 index_m = s[s].index[0]
                 vac_date = self.parent.df.loc[index_m, vac_date_h]
                 days_post_dose_real = (doc - vac_date) / np.timedelta64(1,'D')
@@ -1512,7 +1531,7 @@ class LTCSerologyMaster:
                 delta_dates = doc - vac_dates
                 delta_dates = delta_dates.dt.days
                 #print(delta_dates)
-                delta_dates = delta_dates[delta_dates.gt(0)]
+                delta_dates = delta_dates[delta_dates.ge(0)]
                 #print(delta_dates)
                 sorted_deltas = delta_dates.sort_values()
                 rec_dose = sorted_deltas.index[0]
@@ -1543,6 +1562,8 @@ class LTCSerologyMaster:
                 s =  self.serology_codes['Dose'] == rec_dose
                 s &= self.serology_codes['Repeat'] == repeat_value
                 available_post_days = self.serology_codes.loc[s,'Post-dose days']
+                #Here the absolute value is important 
+                #to give meaning to negative values
                 deltas = np.abs(available_post_days - calculated_diff)
                 deltas = deltas.sort_values()
                 index_opt = deltas.index[0]
@@ -1573,8 +1594,8 @@ class LTCSerologyMaster:
 
 
         #print(df)
-        folder = 'Jessica_mar_22_2023'
-        fname = 'serology_label_verification_mar_22_2023.xlsx'
+        folder = 'Tara_may_08_2023'
+        fname = 'serology_label_verification_may_10_2023.xlsx'
         fname = os.path.join(self.parent.requests_path, folder, fname)
         df.to_excel(fname, index=False)
 

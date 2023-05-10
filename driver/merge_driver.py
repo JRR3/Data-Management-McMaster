@@ -37,6 +37,7 @@ class Merger:
 
         self.merge_source = 'Full ID'
         self.merge_column = 'ID'
+        self.AID = 'Analytics ID'
 
         #By default we load the M file
         self.load_the_M_file()
@@ -422,12 +423,12 @@ class Merger:
         #the Master_avec_Serology, and the
         #Infection_column file into one Excel workbook.
         #Feb 03 2023
-        fname  = 'tri_merge_may_03_2023.xlsx'
-        folder = 'Jessica_may_02_2023'
-        #folder = 'Tara_apr_20_2023'
+        fname  = 'tri_merge_may_10_2023.xlsx'
+        #folder = 'Jessica_may_02_2023'
+        folder = 'Tara_may_08_2023'
         fname = os.path.join('..','requests',folder, fname)
         master_avec_serology = pd.merge(self.LSM_obj.df,
-                self.df, on='ID', how='outer')
+                self.df, on=self.AID, how='outer')
         kind = 'Infection'
         melted_infection = self.LIS_obj.melt_infection_or_vaccination_dates(kind)
 
@@ -1757,7 +1758,12 @@ class Merger:
 obj = Merger()
 #obj.REP_obj.generate_individual_PDFs()
 #obj.REP_obj.find_repetitions_in_tri_survey()
-obj.REP_obj.manage_moves()
+#obj.REP_obj.manage_moves()
 #obj.REP_obj.generate_medication_groups()
-
-
+#obj.MPD_obj.update_active_status_column()
+#obj.MPD_obj.compute_age_from_dob()
+#obj.LIS_obj.update_PCR_and_infection_status()
+#obj.write_the_M_file_to_excel()
+#obj.LSM_obj.check_vaccine_labels()
+#obj.LIS_obj.generate_list_of_missing_vaccine_types()
+obj.generate_the_tri_sheet_file()

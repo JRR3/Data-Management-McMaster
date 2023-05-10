@@ -19,6 +19,8 @@ class MasterParticipantData:
         self.delta_report = None
 
         self.merge_column = 'ID'
+        self.AID      = 'Analytics ID'
+        self.OID      = 'Old ID'
         self.DOR      = 'Date Removed from Study'
         self.DOE      = 'Enrollment Date'
         #Date of birth
@@ -70,13 +72,14 @@ class MasterParticipantData:
 
 
 
-    def check_for_repeats(self):
+    def check_for_repeats(self, column_name):
         #We drop rows containing NA in the "Sample ID" from the
         #file because sometimes there are additional comments
         #below the table that get interpreted as additional rows.
         #self.parent.df.dropna(subset=[self.merge_column], inplace=True)
         print('>>>Making sure there are no repeats')
-        value_count_gt_1 = self.parent.df[self.merge_column].value_counts().gt(1)
+        #value_count_gt_1 = self.parent.df[self.merge_column].value_counts().gt(1)
+        value_count_gt_1 = self.parent.df[column_name].value_counts().gt(1)
         if value_count_gt_1.any():
             print('We have repetitions in Master Participant Data')
             print('Check the column:', self.merge_column)
@@ -211,15 +214,21 @@ class MasterParticipantData:
 
 
     ##########Jan 09 2023##################
-    def compute_age_from_dob(self, df):
+    def compute_age_from_dob(self, df=None):
+        if df is None:
+            df = self.parent.df
         for index, row in df.iterrows():
             dob = row['DOB']
             if pd.isnull(dob):
                 continue
-            today = datetime.datetime.now()
-            delta = (today - dob).days
+            if pd.notnull(row[self.DOR]):
+                current = row[self.DOR]
+            else:
+                current = datetime.datetime.now()
+            delta = (current - dob).days
             years = delta // 365
             df.loc[index,'Age'] = years
+        print('The age has been updated.')
 
     ##########Oct 25 2022##################
     def missing_DOR(self):
@@ -749,7 +758,9 @@ class MasterParticipantData:
         self.parent.check_id_format(self.parent.df, self.merge_column)
 
         #Repeated IDs?
-        self.check_for_repeats()
+        self.check_for_repeats(self.AID)
+        self.check_for_repeats(self.merge_column)
+        self.check_for_repeats(self.OID)
 
         #Sample Inventory Dates?
         self.parent.SID_obj.find_repeated_dates_in_the_M_file()
