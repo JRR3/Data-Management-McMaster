@@ -542,8 +542,7 @@ class LTCInfectionSummary:
                 'Vaccines')
 
 
-    def set_chronological_order(self,
-            df, col_set, companion, descriptor=''):
+    def set_chronological_order(self, df, col_set, companion, descriptor=''):
         #Nov 8 2022
         #This function can organize infection
         #and vaccination dates.

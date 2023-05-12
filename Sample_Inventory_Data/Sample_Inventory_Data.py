@@ -189,7 +189,8 @@ class SampleInventoryData:
         #print(df_up)
 
     def format_megans_update(self, df_up):
-        print('Check individual 55-1910112 for NoVac status.')
+        #print('Check individual 55-1910112 for NoVac status.')
+        #Fixed: Now we know that this individual did receive 5 doses.
         #Rename columns
         df_up.rename(columns=self.original_to_current, inplace=True)
         #Replace 0-dates
@@ -390,8 +391,8 @@ class SampleInventoryData:
     def find_repeated_dates_in_megans_file(self):
         print('Checking for repeated dates in Megan_s file')
         #folder = 'Megan_apr_10_2023'
-        #folder = 'Tara_apr_20_2023'
-        folder = 'Jessica_may_02_2023'
+        folder = 'Tara_may_11_2023'
+        #folder = 'Jessica_may_02_2023'
         fname = 'sid_clean.xlsx'
         fname = os.path.join(self.parent.requests_path, folder, fname)
         if os.path.exists(fname):
@@ -447,6 +448,73 @@ class SampleInventoryData:
         else:
             print('No repetitions. Great!')
 
+    def update_master_using_SID_V2(self):
+        #This function updates the merged file M with the
+        #Sample Inventory Data file provided by Megan.
+        #Note that we are using the "clean" version of the
+        #SID file.
+        #May 12 2023
+        folder = 'Tara_may_11_2023'
+        #folder = 'Jessica_may_02_2023'
+        fname = 'sid_clean.xlsx'
+        fname = os.path.join(self.parent.requests_path, folder, fname)
+        if os.path.exists(fname):
+            df_up = pd.read_excel(fname, dtype={'ID':str},
+                    parse_dates = self.date_type_in_SID)
+        print(df_up)
+        OID = self.parent.MPD_obj.OID
+        for index_up, row_up in df_up.iterrows():
+            ID = df_up.loc[index_up,'ID']
+            s = self.parent.df['ID'] == ID
+            using_OID = False
+            using_ID = True
+            if not s.any():
+                using_ID = False
+                using_OID = True
+                s = self.parent.df[OID] == ID
+                if not s.any():
+                    print(f'{ID=}')
+                    raise ValueError('Missing ID')
+            index_m = s[s].index[0]
+            for column in df_up.columns:
+                if column == 'ID':
+                    continue
+
+                value_up = df_up.loc[index_up, column]
+                value_m  = self.parent.df.loc[index_m, column]
+
+                if pd.notnull(value_up) and pd.isnull(value_m):
+                    #This is an update
+                    print(f'Updating {column=} for {ID=} with {value_up=}')
+                    self.parent.df.loc[index_m, column] = value_up
+                elif pd.notnull(value_m) and pd.isnull(value_up):
+                    #Let's check the other ID
+                    if using_ID:
+                        alt_ID = self.parent.df.loc[index_m,OID]
+                    elif using_OID:
+                        alt_ID = self.parent.df.loc[index_m,'ID']
+                    if ID == alt_ID:
+                        print('IDs are equal')
+                        print(f'The Master {column=} for {ID=} has +Info {value_m=}')
+                    else:
+                        s = df_up['ID'] == alt_ID
+                        if not s.any():
+                            print(f'{alt_ID=} not in the SID')
+                            print(f'The Master {column=} for {ID=} has +Info {value_m=}')
+                        else:
+                            alt_index_up = s[s].index[0]
+                            alt_value = df_up.loc[alt_index_up, column]
+                            if value_m != alt_value:
+                                print(f'Tried with {alt_ID=}')
+                                print(f'The Master {column=} for {ID=} has +Info {value_m=}')
+
+                elif pd.notnull(value_m) and pd.notnull(value_up):
+                    if value_m != value_up:
+                        print('Both are non-null.')
+                        print(f'Discrepancy in {column=} for {ID=}')
+                else:
+                    #Both cells are empty.
+                    pass
 
     def update_master_using_SID(self):
         #This function updates the merged file M with the
@@ -455,8 +523,8 @@ class SampleInventoryData:
         #SID file.
         #May 03 2023
         #folder = 'Megan_apr_10_2023'
-        #folder = 'Tara_apr_20_2023'
-        folder = 'Jessica_may_02_2023'
+        folder = 'Tara_may_11_2023'
+        #folder = 'Jessica_may_02_2023'
         fname = 'sid_clean.xlsx'
         fname = os.path.join(self.parent.requests_path, folder, fname)
         if os.path.exists(fname):

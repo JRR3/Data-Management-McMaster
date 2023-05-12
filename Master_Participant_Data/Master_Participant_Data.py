@@ -71,13 +71,29 @@ class MasterParticipantData:
                                     sheet_name="Master", skiprows=[0])
 
 
+    def all_ids_in_one_row(self):
+        #May 12 2023
+        for index, row in self.parent.df.iterrows():
+            ID  = row['ID']
+            AID = row[self.AID]
+            OID = row[self.OID]
+            L = [ID, AID, OID]
+            for x in L:
+                s = self.parent.df[['ID', self.AID, self.OID]].eq(ID)
+                s = s.any(axis='columns')
+                s = s[s]
+                if 1 < len(s):
+                    print(f'Faulty {x=}')
+                    raise ValueError('An ID was found on multiple rows.')
+        print('All ID types appear to be confined to one row.')
 
     def check_for_repeats(self, column_name):
+        #May 12 2023
         #We drop rows containing NA in the "Sample ID" from the
         #file because sometimes there are additional comments
         #below the table that get interpreted as additional rows.
         #self.parent.df.dropna(subset=[self.merge_column], inplace=True)
-        print('>>>Making sure there are no repeats')
+        print(f'>>>Making sure there are no repeats @ {column_name=}')
         #value_count_gt_1 = self.parent.df[self.merge_column].value_counts().gt(1)
         value_count_gt_1 = self.parent.df[column_name].value_counts().gt(1)
         if value_count_gt_1.any():
@@ -85,7 +101,7 @@ class MasterParticipantData:
             print('Check the column:', self.merge_column)
             raise Exception('No repetitions were expected.')
         else:
-            print('No repeats were found in Master Participant Data')
+            print(f'No repeats were found @ {column_name=}')
 
 
 
@@ -756,8 +772,15 @@ class MasterParticipantData:
 
         #ID format?
         self.parent.check_id_format(self.parent.df, self.merge_column)
+        self.parent.check_id_format(self.parent.df, self.AID)
+        self.parent.check_id_format(self.parent.df, self.OID)
+
+        #All ID types should be confined to one row.
+        self.all_ids_in_one_row()
 
         #Repeated IDs?
+        #This test is included in the previous one.
+        #We keep it as a double check.
         self.check_for_repeats(self.AID)
         self.check_for_repeats(self.merge_column)
         self.check_for_repeats(self.OID)
@@ -860,8 +883,11 @@ class MasterParticipantData:
                 self.find_subgroups_for_this_category(df, cat_list, level+1)
 
     def clean_DBS_from_file(self):
-        folder = 'Tara_apr_20_2023'
-        fname = 'rep_20_61.xlsx'
+        #This function is used to remove the DBS infections from
+        #Deanna's file.
+        #May 11 2023
+        folder = 'Tara_may_11_2023'
+        fname = 'up_20_61_may_10_2023.xlsx'
         fname = os.path.join(self.parent.requests_path, folder, fname)
         df_up = pd.read_excel(fname)
 
@@ -901,12 +927,11 @@ class MasterParticipantData:
                 date_col = PDC[k]
                 type_col = PTC[k]
                 if itype == 'DBS':
-                    #Ignore this entries
-                    #df_up.loc[index_up, date_col] = np.nan
-                    #df_up.loc[index_up, type_col] = np.nan
+                    #Ignore these entries
+                    #We'll erase them later.
                     pass
                 else:
-                    #Store this entries
+                    #Store these entries
                     idate = idates.iloc[k]
                     L_dates.append(idate)
                     L_types.append(itype)
@@ -933,6 +958,9 @@ class MasterParticipantData:
 
 
     def contrast_template_with_M_file(self):
+        #Use this function when the format of the tamplate
+        #has been changed.
+        #May 01 2023
 
         #First, we read the headers of the update and
         #map them to the headers of the Master file.
@@ -1017,7 +1045,7 @@ class MasterParticipantData:
                 n_of_entries = df_up[column].count()
                 if column not in MCL and 0 < n_of_entries:
                     print(f'{column=} not in Master')
-                    continue
+                    raise ValueError('Unexpected')
 
                 if column == 'ID':
                     continue
@@ -1056,6 +1084,95 @@ class MasterParticipantData:
         template_to_master_headers = {}
 
 
+    def contrast_template_with_M_file_V2(self):
+        #Use this function when the format of the tamplate
+        #has been preserved.
+        #May 11 2023
+        folder = 'Tara_may_11_2023'
+
+        #We read the data types of the update.
+        fname = 'template_types.xlsx'
+        fname = os.path.join(self.parent.requests_path, folder, fname)
+        df_t = pd.read_excel(fname, sheet_name='dtypes', dtype=str)
+        date_cols = []
+        name_to_type = {}
+        #Use the corresponding data types for each column.
+        for index, row in df_t.iterrows():
+            name = row['Name']
+            col_type = row['Type']
+            if col_type == 'date':
+                date_cols.append(name)
+            else:
+                name_to_type[name] = col_type
+
+        fname = 'rep_20_61_clean.xlsx'
+        folder = 'Tara_may_11_2023'
+        fname = os.path.join(self.parent.requests_path, folder, fname)
+        df_up = pd.read_excel(fname, dtype = name_to_type,
+                              parse_dates=date_cols)
+
+        DOR = 'Date Removed from Study'
+        DOE = 'Enrollment Date'
+        RES = 'Reason'
+        ACT = 'Active'
+        MCL = self.parent.df.columns
+        for index_up, row_up in df_up.iterrows():
+            ID = df_up.loc[index_up, 'ID']
+            #print(f'{ID=}')
+
+            s = self.parent.df['ID'] == ID
+            if not s.any():
+                if ID in ['19-7613655', '03-3741195', '12-34567899', '52-1910209']:
+                    #We ignore these IDs.
+                    #print('Has no useful data associated to it.')
+                    print('Make sure this is not an error.')
+                    continue
+                else:
+                    print(f'{ID=}')
+                    print(f'{index_up=}')
+                    print(row_up)
+                    raise ValueError('Unexpected ID')
+
+            index_m = s.loc[s].index[0]
+
+            #We make sure that the ID from the parent
+            #file coincides with the ID of the update.
+            if self.parent.df.loc[index_m, 'ID'] != ID:
+                raise ValueError('Error at ID')
+
+            for column in df_up.columns:
+                n_of_entries = df_up[column].count()
+                if column not in MCL and 0 < n_of_entries:
+                    print(f'{column=} not in Master')
+                    raise ValueError('Unexpected')
+
+                if column == 'ID':
+                    continue
+
+                v_up = row_up[column]
+                if pd.isnull(v_up):
+                    continue
+
+                v_m  = self.parent.df.loc[index_m, column]
+                if pd.isnull(v_m):
+                    print('Updating', ID, 'at', column, ':', v_up)
+                    self.parent.df.loc[index_m, column] = v_up
+                else:
+                    if v_m != v_up:
+                        if column == DOE:
+                            if v_up.year == 2023:
+                                print(f'------->{ID} reconsented')
+                                self.parent.df.loc[index_m, DOR] = np.nan
+                                self.parent.df.loc[index_m, RES] = np.nan
+                                self.parent.df.loc[index_m, ACT] = True
+                        elif column == RES:
+                            if v_m == 'Deceased':
+                                print('Deceased trumps', v_up)
+                        else:
+                            print(f'M ==/== UP: {ID} at {column}')
+                            print(f'{v_m=}')
+                            print(f'{v_up=}')
+                            print('----------------------------')
 
 
 

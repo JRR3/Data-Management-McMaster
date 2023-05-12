@@ -212,6 +212,8 @@ class Merger:
                 else:
                     print(txt)
                     raise ValueError(f'Unexpected format for {col=}')
+            elif txt is np.nan:
+                pass
             else:
                 raise ValueError(f'Unexpected type for {txt=}')
 
@@ -1766,4 +1768,14 @@ obj = Merger()
 #obj.write_the_M_file_to_excel()
 #obj.LSM_obj.check_vaccine_labels()
 #obj.LIS_obj.generate_list_of_missing_vaccine_types()
-obj.generate_the_tri_sheet_file()
+#obj.generate_the_tri_sheet_file()
+
+#obj.MPD_obj.clean_DBS_from_file()
+#obj.MPD_obj.contrast_template_with_M_file_V2()
+
+#obj.SID_obj.find_repeated_dates_in_megans_file()
+#obj.SID_obj.update_master_using_SID_V2()
+#obj.write_the_M_file_to_excel()
+
+obj.MPD_obj.peace_of_mind_check()
+#obj.LIS_obj.order_infections_and_vaccines()
