@@ -254,8 +254,11 @@ class SampleInventoryData:
         print('Checking the dates of the LSM file using the SID.')
         doc = 'Date Collected'
         missing_dates = []
+        AID = 'Analytics ID'
+        #print(df)
+        #raise ValueError('x')
         for index_lsm, row_lsm in df.iterrows():
-            ID = row_lsm['ID']
+            ID = row_lsm[AID]
             full_ID = row_lsm['Full ID']
             if pd.isnull(ID):
                 print(f'{full_ID=}')
@@ -267,7 +270,7 @@ class SampleInventoryData:
             #it is connected to the letter code portion
             #of the full id.
             doc_LSM = row_lsm[doc]
-            selector = self.parent.df['ID'] == ID
+            selector = self.parent.df[AID] == ID
             if not selector.any():
                 print(f'{ID=}')
                 raise ValueError('This ID DNE.')

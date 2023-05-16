@@ -4458,3 +4458,33 @@ class Reporter:
                         l = l.replace('#2', cur_num)
                         target.write(l)
 
+    def synthetic_data(self):
+        #Can we process with Excel files
+        #with more than 1e6 rows?
+        #May 16 2023
+        N = 1500000
+        site_array = np.random.randint(0,9,(N,2))
+        id_array = np.random.randint(0,9,(N,7))
+        age_array = np.random.randint(60,100,N)
+        frailty_array = np.random.randint(1,9,N)
+        L_age = []
+        L_frailty = []
+        for site_r, id_r, age_r, frailty_r in zip(site_array, id_array, age_array, frailty_array):
+            site = ''.join(map(str,site_r))
+            ID_7 = ''.join(map(str,id_r))
+            ID = site + '-' + ID_7
+            L_age.append((ID,age_r))
+            L_frailty.append((ID,frailty_r))
+        np.random.shuffle(L_age)
+        np.random.shuffle(L_frailty)
+        df_1 = pd.DataFrame(L_age, columns=['ID','Age'])
+        df_2 = pd.DataFrame(L_frailty, columns=['ID','Frailty'])
+
+        folder = 'Tara_may_15_2023'
+        fname = 'Age.csv'
+        fname = os.path.join(self.parent.requests_path, folder, fname)
+        df_1.to_csv(fname,index=False)
+
+        fname = 'Frailty.csv'
+        fname = os.path.join(self.parent.requests_path, folder, fname)
+        df_2.to_csv(fname,index=False)

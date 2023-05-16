@@ -458,6 +458,7 @@ class LTCSerologyMaster:
 
     def direct_serology_update_with_headers(self, df_up=None):
         #Dec 22 2022
+        #May 16 2023
         #This is now the official method to update the
         #serology master file.
         #Note that this function is called from the
@@ -470,6 +471,7 @@ class LTCSerologyMaster:
                     folder, fname)
             df_up = pd.read_excel(fname, sheet_name='Sept 28 2022')
         print(f'The update has {len(df_up)} rows.')
+        #print(df_up)
         #Replace old IDs with the new.
         df_up.dropna(axis=0, how='all', inplace=True)
         df_up.replace('.', np.nan, inplace=True)
@@ -530,7 +532,7 @@ class LTCSerologyMaster:
                                                           df_up,
                                                           self.merge_source,
                                                           kind=kind)
-        self.update_id_column()
+        #self.update_id_column()
         self.parent.SID_obj.check_df_dates_using_SID(self.df)
         print('The LSM file has been updated.')
 

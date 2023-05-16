@@ -285,8 +285,8 @@ class Merger:
             fname = file_name
         else:
             #None
-            fname = 'updates.xlsx'
-        folder = 'Jessica_may_02_2023'
+            fname = 'update_LTC.xlsx'
+        folder = 'Tara_may_15_2023'
         fname = os.path.join('..','requests',folder, fname)
         book = pd.read_excel(fname, sheet_name=None)
         print(f'LSM is looking into the {folder=}')
@@ -1758,6 +1758,7 @@ class Merger:
 
 
 obj = Merger()
+#Commands for May 2023
 #obj.REP_obj.generate_individual_PDFs()
 #obj.REP_obj.find_repetitions_in_tri_survey()
 #obj.REP_obj.manage_moves()
@@ -1768,7 +1769,7 @@ obj = Merger()
 #obj.write_the_M_file_to_excel()
 #obj.LSM_obj.check_vaccine_labels()
 #obj.LIS_obj.generate_list_of_missing_vaccine_types()
-obj.generate_the_tri_sheet_file()
+#obj.generate_the_tri_sheet_file()
 
 #obj.MPD_obj.clean_DBS_from_file()
 #obj.MPD_obj.contrast_template_with_M_file_V2()
@@ -1779,3 +1780,8 @@ obj.generate_the_tri_sheet_file()
 
 #obj.MPD_obj.peace_of_mind_check()
 #obj.LIS_obj.order_infections_and_vaccines()
+
+#obj.update_LSM()
+#obj.LSM_obj.write_LSM_to_excel()
+
+obj.REP_obj.synthetic_data()
