@@ -1784,4 +1784,10 @@ obj = Merger()
 #obj.update_LSM()
 #obj.LSM_obj.write_LSM_to_excel()
 
-obj.REP_obj.synthetic_data()
+#obj.REP_obj.synthetic_data()
+#obj.SID_obj.find_repeated_dates_in_megans_file()
+#obj.SID_obj.update_master_using_SID_V2()
+#obj.SID_obj.find_repeated_dates_in_the_M_file()
+#obj.write_the_M_file_to_excel()
+
+obj.LSM_obj.generate_Nuc_with_PCR_data_frame_and_plots()

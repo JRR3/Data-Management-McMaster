@@ -1240,8 +1240,8 @@ class LTCSerologyMaster:
         L = []
         visited = {}
 
-        plot_data = True
-        plot_summary = True
+        plot_data = False
+        plot_summary = False
 
         #before_boundary = {'Nuc_pos':[], 'Nuc_neg':[]}
         #after_boundary = {'Nuc_pos':[], 'Nuc_neg':[]}
@@ -1250,7 +1250,7 @@ class LTCSerologyMaster:
         #self.df['Is relevant?'] = np.nan
         #self.df['Before or after'] = np.nan
         #self.df['Nuc status'] = np.nan
-        relevant_m = ['ID', 'Age', 'Sex', 'Frailty scale']
+        relevant_m = ['Analytics ID', 'Age', 'Sex', 'Frailty scale']
         extra_1 = ['Delta t', 'Before/After', 'Nuc status']
         extra_2 = ['DOC(1)', nuc_G+'(1)',
                 'DOC(2)', nuc_G+'(2)',
@@ -1269,8 +1269,8 @@ class LTCSerologyMaster:
             s = inf_dates.notnull()
             inf_dates = inf_dates[s]
 
-            ID = row_m['ID']
-            s = self.df['ID'] == ID
+            ID = row_m['Analytics ID']
+            s = self.df['Analytics ID'] == ID
             df_s = self.df[s]
 
             #How many samples for a given individual?
@@ -1392,10 +1392,13 @@ class LTCSerologyMaster:
         #df['Sex'] = df['Sex'] == 'Female'
         #df['Sex'] = df['Sex'].astype(float)
         #df.rename(columns={'Sex':'Is female?'}, inplace=True)
-        bd_status = 'Before/After'
-        df = df.groupby(bd_status)
-        df = df.get_group('After Jan-01-22')
-        df.drop(columns=bd_status, inplace=True)
+
+        #Remove the Before/After column
+        #bd_status = 'Before/After'
+        #df = df.groupby(bd_status)
+        #df = df.get_group('After Jan-01-22')
+        #df.drop(columns=bd_status, inplace=True)
+
         #['Delta t', 'After Jan 1 2022?', 'Is Nuc(+)?']
         #self.parent.print_column_and_datatype(df)
         nuc_status = 'Nuc status'
@@ -1433,15 +1436,15 @@ class LTCSerologyMaster:
 
         df[nuc_status] = df[nuc_status].apply(lambda x: 1 if x=='Positive' else 0)
 
-        s = df['ID'].value_counts()
+        s = df['Analytics ID'].value_counts()
         print(s[s.gt(1)])
 
         #df = df.groupby(nuc_status)
         #df = df.describe()
         fname = 'nuc_dataset_mar_02_2023.xlsx'
+        fname = 'nuc_dataset_may_17_2023.xlsx'
         fname = os.path.join(self.parent.requests_path,
-                main_folder,
-                fname)
+                main_folder, fname)
         df.to_excel(fname, index=False)
 
     def check_vaccine_labels(self):

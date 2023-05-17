@@ -4463,22 +4463,23 @@ class Reporter:
         #with more than 1e6 rows?
         #May 16 2023
         N = 1500000
-        site_array = np.random.randint(0,9,(N,2))
-        id_array = np.random.randint(0,9,(N,7))
-        age_array = np.random.randint(60,100,N)
-        frailty_array = np.random.randint(1,9,N)
         L_age = []
         L_frailty = []
-        for site_r, id_r, age_r, frailty_r in zip(site_array, id_array, age_array, frailty_array):
-            site = ''.join(map(str,site_r))
-            ID_7 = ''.join(map(str,id_r))
-            ID = site + '-' + ID_7
-            L_age.append((ID,age_r))
-            L_frailty.append((ID,frailty_r))
+        for k in range(N):
+            s = str(k).zfill(9)
+            ID = s[:2] + '-' + s[2:]
+            age = np.random.randint(55,110)
+            frailty = np.random.randint(1,9)
+            L_age.append((ID,age))
+            L_frailty.append((ID,frailty))
         np.random.shuffle(L_age)
         np.random.shuffle(L_frailty)
         df_1 = pd.DataFrame(L_age, columns=['ID','Age'])
+        print(df_1['ID'].value_counts().gt(1).any())
+        print(df_1)
         df_2 = pd.DataFrame(L_frailty, columns=['ID','Frailty'])
+        print(df_2['ID'].value_counts().gt(1).any())
+        print(df_2)
 
         folder = 'Tara_may_15_2023'
         fname = 'Age.csv'

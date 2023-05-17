@@ -394,7 +394,7 @@ class SampleInventoryData:
     def find_repeated_dates_in_megans_file(self):
         print('Checking for repeated dates in Megan_s file')
         #folder = 'Megan_apr_10_2023'
-        folder = 'Tara_may_11_2023'
+        folder = 'Tara_may_15_2023'
         #folder = 'Jessica_may_02_2023'
         fname = 'sid_clean.xlsx'
         fname = os.path.join(self.parent.requests_path, folder, fname)
@@ -457,7 +457,7 @@ class SampleInventoryData:
         #Note that we are using the "clean" version of the
         #SID file.
         #May 12 2023
-        folder = 'Tara_may_11_2023'
+        folder = 'Tara_may_15_2023'
         #folder = 'Jessica_may_02_2023'
         fname = 'sid_clean.xlsx'
         fname = os.path.join(self.parent.requests_path, folder, fname)
