@@ -1,5 +1,9 @@
 #JRR @ McMaster University
-#Update: 04-May-2023
+#Javier Ruiz Ramírez
+#Update: 18-May-2023
+#=========================
+#Welcome back!
+#=========================
 import sys
 import os
 import re
@@ -425,7 +429,7 @@ class Merger:
         #the Master_avec_Serology, and the
         #Infection_column file into one Excel workbook.
         #Feb 03 2023
-        fname  = 'tri_merge_may_15_2023.xlsx'
+        fname  = 'tri_merge_may_18_2023.xlsx'
         #folder = 'Jessica_may_02_2023'
         folder = 'Tara_may_15_2023'
         fname = os.path.join('..','requests',folder, fname)
@@ -1790,4 +1794,6 @@ obj = Merger()
 #obj.SID_obj.find_repeated_dates_in_the_M_file()
 #obj.write_the_M_file_to_excel()
 
-obj.LSM_obj.generate_Nuc_with_PCR_data_frame_and_plots()
+#obj.LSM_obj.generate_Nuc_with_PCR_data_frame_and_plots()
+#obj.generate_the_tri_sheet_file()
+obj.LIS_obj.generate_list_of_missing_vaccine_types()

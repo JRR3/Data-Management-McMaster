@@ -1030,7 +1030,7 @@ class LTCInfectionSummary:
             print('==================')
         df = pd.DataFrame(L, columns=['ID', 'Analytics ID',
             'Missing Type for', 'Date'])
-        folder = 'Tara_may_08_2023'
+        folder = 'Tara_may_15_2023'
         fname = 'missing_vaccine_types.xlsx'
         fname = os.path.join(self.parent.requests_path, folder, fname)
         df.to_excel(fname, index=False)
